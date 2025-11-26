@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, Save } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast" // Assuming toast is available
 
 type Printer = {
   id: string
@@ -88,12 +89,15 @@ export function ExcelCalculator({
   globalSettings: initialGlobalSettings,
   mode,
 }: ExcelCalculatorProps) {
+  const { toast } = useToast() // Initialize toast
+  const supabase = createClient() // Declare supabase client here
+
   const [printedParts, setPrintedParts] = useState<PrintedPart[]>([])
   const [driedBatches, setDriedBatches] = useState<DriedBatch[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
   const [labor, setLabor] = useState<Labor[]>([])
   const [packaging, setPackaging] = useState<Packaging[]>([])
-  const [clientName, setClientName] = useState("")
+  const [clientName, setClientName] = useState("") // Changed from quoteName to clientName for consistency with original code
   const [isEmergency, setIsEmergency] = useState(false)
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings | null>(initialGlobalSettings)
   const [printers, setPrinters] = useState<Printer[]>(initialPrinters)
@@ -105,8 +109,6 @@ export function ExcelCalculator({
 
   // ADDED STATE FOR REAL-TIME UPDATES
   useEffect(() => {
-    const supabase = createClient()
-
     // Subscribe to global settings changes
     const globalSettingsChannel = supabase
       .channel("global-settings-changes")
@@ -279,7 +281,7 @@ export function ExcelCalculator({
   const totalPackagingCost = packaging.reduce((sum, p) => sum + p.quantity * p.unit_cost, 0)
 
   const fuelCost = (() => {
-    if (!globalSettings || mode === "business") return 0
+    if (!globalSettings) return 0
     return (
       (distanceTraveledKm / 100) * globalSettings.car_fuel_consumption_per_100km * globalSettings.fuel_cost_per_liter
     )
@@ -319,12 +321,12 @@ export function ExcelCalculator({
   const vatAmountFromLandedCost = mode === "business" ? totalLandedCost * vatRate : 0
   const vatAmountFromSellingPrice = mode === "business" ? selectedMarginValue * vatRate : 0
 
-  const margin30WithVAT = margin30 * (1 + vatRate)
-  const margin40WithVAT = margin40 * (1 + vatRate)
-  const margin50WithVAT = margin50 * (1 + vatRate)
-  const margin60WithVAT = margin60 * (1 + vatRate)
+  const margin30WithVAT = mode === "business" ? margin30 * (1 + vatRate) : margin30
+  const margin40WithVAT = mode === "business" ? margin40 * (1 + vatRate) : margin40
+  const margin50WithVAT = mode === "business" ? margin50 * (1 + vatRate) : margin50
+  const margin60WithVAT = mode === "business" ? margin60 * (1 + vatRate) : margin60
 
-  const finalClientPrice = mode === "business" ? selectedMarginValue * (1 + vatRate) : 0
+  const finalClientPrice = mode === "business" ? selectedMarginValue * (1 + vatRate) : selectedMarginValue
 
   // Business profit split calculations
   let ownerAReceives = 0
@@ -363,46 +365,62 @@ export function ExcelCalculator({
 
   const handleSaveQuote = async () => {
     if (!clientName.trim()) {
-      alert("Please enter a client name")
+      // Changed from quoteName to clientName
+      toast({
+        title: "Error",
+        description: "Please enter a client name",
+        variant: "destructive",
+      })
       return
     }
 
-    const supabase = createClient()
-    const { error } = await supabase.from("quotes").insert({
-      quote_type: mode,
-      quote_name: clientName,
-      printed_parts: printedParts,
-      dried_batches: driedBatches,
-      materials,
-      labor_items: labor,
-      packaging_items: packaging,
-      distance_traveled_km: distanceTraveledKm,
-      is_emergency: isEmergency,
-      total_printing_cost: totalPrintingCost,
-      machine_cost: machineCost,
-      drying_cost: totalDryingCost,
-      materials_cost: totalMaterialsCost,
-      labor_cost: totalLaborCost,
-      packaging_cost: totalPackagingCost,
-      fuel_cost: fuelCost,
-      emergency_fee: emergencyFee,
-      electricity_cost: electricityCost,
-      landed_cost: totalLandedCost,
-      margin_30: margin30,
-      margin_40: margin40,
-      margin_50: margin50,
-      margin_60: margin60,
-      selected_margin: selectedMargin, // ADDED: Include selected_margin
-      ownerA_receives: ownerAReceives,
-      ownerB_receives: ownerBReceives,
-    })
+    try {
+      const quoteData = {
+        quote_name: clientName, // Changed from quoteName to clientName
+        quote_type: mode,
+        printed_parts: printedParts,
+        dried_batches: driedBatches,
+        materials: materials,
+        labor_items: labor,
+        packaging_items: packaging,
+        distance_traveled_km: distanceTraveledKm,
+        is_emergency: isEmergency,
+        total_printing_cost: totalPrintingCost,
+        machine_cost: machineCost,
+        drying_cost: totalDryingCost,
+        materials_cost: totalMaterialsCost,
+        labor_cost: totalLaborCost,
+        packaging_cost: totalPackagingCost,
+        fuel_cost: fuelCost,
+        emergency_fee: emergencyFee,
+        electricity_cost: electricityCost,
+        landed_cost: totalLandedCost,
+        margin_30: margin30,
+        margin_40: margin40,
+        margin_50: margin50,
+        margin_60: margin60,
+        selected_margin: selectedMargin,
+        ownerA_receives: mode === "business" ? ownerAReceives : null,
+        ownerB_receives: mode === "business" ? ownerBReceives : null,
+      }
 
-    if (error) {
+      const { error } = await supabase.from("quotes").insert([quoteData])
+
+      if (error) throw error
+
+      toast({
+        title: "Success",
+        description: "Quote saved successfully!",
+      })
+
+      setClientName("") // Changed from quoteName to clientName
+    } catch (error: any) {
       console.error("Error saving quote:", error)
-      alert("Error saving quote: " + error.message)
-    } else {
-      alert("Quote saved successfully!")
-      setClientName("") // Clear client name after saving
+      toast({
+        title: "Error",
+        description: `Error saving quote: ${error.message}`,
+        variant: "destructive",
+      })
     }
   }
 
@@ -427,8 +445,8 @@ export function ExcelCalculator({
               </Label>
               <Input
                 id="clientName"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
+                value={clientName} // Changed from quoteName to clientName
+                onChange={(e) => setClientName(e.target.value)} // Changed from quoteName to clientName
                 className="border-blue-200 bg-white"
                 placeholder="e.g., Client Name - Project"
               />
@@ -440,13 +458,14 @@ export function ExcelCalculator({
               <Input
                 id="distance"
                 type="number"
+                inputMode="numeric"
                 step="0.1"
                 value={distanceTraveledKm || ""}
                 onChange={(e) => {
-                  setDistanceTraveledKm(Number.parseFloat(e.target.value) || 0)
+                  const value = e.target.value
+                  setDistanceTraveledKm(value === "" ? 0 : Number.parseFloat(value) || 0)
                 }}
                 className="border-blue-200 bg-white"
-                disabled={mode === "business"}
               />
             </div>
           </div>
@@ -563,11 +582,13 @@ export function ExcelCalculator({
                       <td className="p-2">
                         <Input
                           type="number"
+                          inputMode="numeric" // Added inputMode
                           step="0.1"
                           value={part.filament_grams || ""}
                           onChange={(e) => {
                             const updated = [...printedParts]
-                            updated[index].filament_grams = Number.parseFloat(e.target.value) || 0
+                            const value = e.target.value
+                            updated[index].filament_grams = value === "" ? 0 : Number.parseFloat(value) || 0
                             setPrintedParts(updated)
                           }}
                           className="border-blue-200 bg-white"
@@ -576,11 +597,13 @@ export function ExcelCalculator({
                       <td className="p-2">
                         <Input
                           type="number"
+                          inputMode="numeric" // Added inputMode
                           step="0.1"
                           value={part.printing_time_hr || ""}
                           onChange={(e) => {
                             const updated = [...printedParts]
-                            updated[index].printing_time_hr = Number.parseFloat(e.target.value) || 0
+                            const value = e.target.value
+                            updated[index].printing_time_hr = value === "" ? 0 : Number.parseFloat(value) || 0
                             setPrintedParts(updated)
                           }}
                           className="border-blue-200 bg-white"
@@ -757,11 +780,13 @@ export function ExcelCalculator({
                       <td className="p-2">
                         <Input
                           type="number"
+                          inputMode="numeric" // Added inputMode
                           step="0.1"
                           value={material.quantity || ""}
                           onChange={(e) => {
                             const updated = [...materials]
-                            updated[index].quantity = Number.parseFloat(e.target.value) || 0
+                            const value = e.target.value
+                            updated[index].quantity = value === "" ? 0 : Number.parseFloat(value) || 0
                             setMaterials(updated)
                           }}
                           className="border-blue-200 bg-white"
@@ -770,11 +795,13 @@ export function ExcelCalculator({
                       <td className="p-2">
                         <Input
                           type="number"
+                          inputMode="numeric" // Added inputMode
                           step="0.01"
                           value={material.unit_cost || ""}
                           onChange={(e) => {
                             const updated = [...materials]
-                            updated[index].unit_cost = Number.parseFloat(e.target.value) || 0
+                            const value = e.target.value
+                            updated[index].unit_cost = value === "" ? 0 : Number.parseFloat(value) || 0
                             setMaterials(updated)
                           }}
                           className="border-blue-200 bg-white"
@@ -846,11 +873,13 @@ export function ExcelCalculator({
                       <td className="p-2">
                         <Input
                           type="number"
+                          inputMode="numeric" // Added inputMode
                           step="0.1"
                           value={laborItem.hours || ""}
                           onChange={(e) => {
                             const updated = [...labor]
-                            updated[index].hours = Number.parseFloat(e.target.value) || 0
+                            const value = e.target.value
+                            updated[index].hours = value === "" ? 0 : Number.parseFloat(value) || 0
                             setLabor(updated)
                           }}
                           className="border-blue-200 bg-white"
@@ -859,11 +888,13 @@ export function ExcelCalculator({
                       <td className="p-2">
                         <Input
                           type="number"
+                          inputMode="numeric" // Added inputMode
                           step="0.01"
                           value={laborItem.hourly_cost || ""}
                           onChange={(e) => {
                             const updated = [...labor]
-                            updated[index].hourly_cost = Number.parseFloat(e.target.value) || 0
+                            const value = e.target.value
+                            updated[index].hourly_cost = value === "" ? 0 : Number.parseFloat(value) || 0
                             setLabor(updated)
                           }}
                           className="border-blue-200 bg-white"
@@ -937,11 +968,13 @@ export function ExcelCalculator({
                       <td className="p-2">
                         <Input
                           type="number"
+                          inputMode="numeric" // Added inputMode
                           step="0.1"
                           value={item.quantity || ""}
                           onChange={(e) => {
                             const updated = [...packaging]
-                            updated[index].quantity = Number.parseFloat(e.target.value) || 0
+                            const value = e.target.value
+                            updated[index].quantity = value === "" ? 0 : Number.parseFloat(value) || 0
                             setPackaging(updated)
                           }}
                           className="border-blue-200 bg-white"
@@ -950,11 +983,13 @@ export function ExcelCalculator({
                       <td className="p-2">
                         <Input
                           type="number"
+                          inputMode="numeric" // Added inputMode
                           step="0.01"
                           value={item.unit_cost || ""}
                           onChange={(e) => {
                             const updated = [...packaging]
-                            updated[index].unit_cost = Number.parseFloat(e.target.value) || 0
+                            const value = e.target.value
+                            updated[index].unit_cost = value === "" ? 0 : Number.parseFloat(value) || 0
                             setPackaging(updated)
                           }}
                           className="border-blue-200 bg-white"
@@ -1037,106 +1072,85 @@ export function ExcelCalculator({
           </div>
 
           <div className="mt-8 pt-6 border-t-2 border-blue-400">
-            {/* CHANGED: Add 'Click to Select' in business mode and use selectedMargin */}
-            <h3 className="text-xl font-bold text-blue-900 mb-4">
-              Profit Margins {mode === "business" && "(Click to Select)"}
-            </h3>
+            <h3 className="text-xl font-bold text-blue-900 mb-4">Profit Margins (Click to Select)</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div
-                className={`p-4 rounded-lg border-2 text-center ${
-                  mode === "business" ? "cursor-pointer hover:shadow-lg transition-shadow" : ""
-                } ${
-                  selectedMargin === 30 && mode === "business"
+                className={`p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
+                  selectedMargin === 30
                     ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                     : "bg-white border-blue-300"
                 }`}
-                onClick={() => mode === "business" && setSelectedMargin(30)}
+                onClick={() => setSelectedMargin(30)}
               >
                 <div className="text-blue-700 text-sm font-medium mb-1">30% Margin</div>
-                <div className="text-blue-900 text-xl font-bold">
-                  €{(mode === "business" ? margin30WithVAT : margin30).toFixed(2)}
-                </div>
+                <div className="text-blue-900 text-xl font-bold">€{margin30WithVAT.toFixed(2)}</div>
               </div>
               <div
-                className={`p-4 rounded-lg border-2 text-center ${
-                  mode === "business" ? "cursor-pointer hover:shadow-lg transition-shadow" : ""
-                } ${
-                  selectedMargin === 40 && mode === "business"
+                className={`p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
+                  selectedMargin === 40
                     ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                     : "bg-white border-blue-300"
                 }`}
-                onClick={() => mode === "business" && setSelectedMargin(40)}
+                onClick={() => setSelectedMargin(40)}
               >
                 <div className="text-blue-700 text-sm font-medium mb-1">40% Margin</div>
-                <div className="text-blue-900 text-xl font-bold">
-                  €{(mode === "business" ? margin40WithVAT : margin40).toFixed(2)}
-                </div>
+                <div className="text-blue-900 text-xl font-bold">€{margin40WithVAT.toFixed(2)}</div>
               </div>
               <div
-                className={`p-4 rounded-lg border-2 text-center ${
-                  mode === "business" ? "cursor-pointer hover:shadow-lg transition-shadow" : ""
-                } ${
-                  selectedMargin === 50 && mode === "business"
+                className={`p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
+                  selectedMargin === 50
                     ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                     : "bg-white border-blue-300"
                 }`}
-                onClick={() => mode === "business" && setSelectedMargin(50)}
+                onClick={() => setSelectedMargin(50)}
               >
                 <div className="text-blue-700 text-sm font-medium mb-1">50% Margin</div>
-                <div className="text-blue-900 text-xl font-bold">
-                  €{(mode === "business" ? margin50WithVAT : margin50).toFixed(2)}
-                </div>
+                <div className="text-blue-900 text-xl font-bold">€{margin50WithVAT.toFixed(2)}</div>
               </div>
               <div
-                className={`p-4 rounded-lg border-2 text-center ${
-                  mode === "business" ? "cursor-pointer hover:shadow-lg transition-shadow" : ""
-                } ${
-                  selectedMargin === 60 && mode === "business"
+                className={`p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
+                  selectedMargin === 60
                     ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                     : "bg-white border-blue-300"
                 }`}
-                onClick={() => mode === "business" && setSelectedMargin(60)}
+                onClick={() => setSelectedMargin(60)}
               >
                 <div className="text-blue-700 text-sm font-medium mb-1">60% Margin</div>
-                <div className="text-blue-900 text-xl font-bold">
-                  €{(mode === "business" ? margin60WithVAT : margin60).toFixed(2)}
-                </div>
+                <div className="text-blue-900 text-xl font-bold">€{margin60WithVAT.toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div className="mt-6 p-6 bg-blue-50 rounded-lg border-2 border-blue-400">
+              <div className="flex justify-between items-center">
+                <div className="text-blue-700 font-semibold">Final Client Price ({selectedMargin}% Margin)</div>
+                <div className="text-blue-900 text-3xl font-bold">€{finalClientPrice.toFixed(2)}</div>
               </div>
             </div>
 
             {mode === "business" && (
-              <div className="mt-6 p-6 bg-blue-50 rounded-lg border-2 border-blue-400">
-                <div className="flex justify-between items-center">
-                  <span className="text-blue-900 font-bold text-lg">
-                    Final Client Price ({selectedMargin}% Margin):
-                  </span>
-                  <span className="text-blue-900 font-bold text-2xl">€{finalClientPrice.toFixed(2)}</span>
+              <div className="mt-8 pt-6 border-t-2 border-blue-400">
+                {/* CHANGED: Show selected margin in title */}
+                <h3 className="text-xl font-bold text-blue-900 mb-4">
+                  Business Profit Split ({selectedMargin}% Margin)
+                </h3>
+                <div className="mb-4 bg-blue-50 p-3 rounded border-2 border-blue-300">
+                  <div className="text-blue-900 font-semibold">
+                    VAT (23% of Selling Price): €{vatAmountFromSellingPrice.toFixed(2)}
+                  </div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-300">
+                    <div className="text-purple-900 font-semibold mb-2">Owner A Receives:</div>
+                    <div className="text-purple-900 text-2xl font-bold">€{ownerAReceives.toFixed(2)}</div>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-300">
+                    <div className="text-blue-900 font-semibold mb-2">Owner B Receives (includes VAT):</div>
+                    <div className="text-blue-900 text-2xl font-bold">€{ownerBReceives.toFixed(2)}</div>
+                  </div>
                 </div>
               </div>
             )}
           </div>
-
-          {mode === "business" && (
-            <div className="mt-8 pt-6 border-t-2 border-blue-400">
-              {/* CHANGED: Show selected margin in title */}
-              <h3 className="text-xl font-bold text-blue-900 mb-4">Business Profit Split ({selectedMargin}% Margin)</h3>
-              <div className="mb-4 bg-blue-50 p-3 rounded border-2 border-blue-300">
-                <div className="text-blue-900 font-semibold">
-                  VAT (23% of Selling Price): €{vatAmountFromSellingPrice.toFixed(2)}
-                </div>
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-300">
-                  <div className="text-purple-900 font-semibold mb-2">Owner A Receives:</div>
-                  <div className="text-purple-900 text-2xl font-bold">€{ownerAReceives.toFixed(2)}</div>
-                </div>
-                <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-300">
-                  <div className="text-blue-900 font-semibold mb-2">Owner B Receives (includes VAT):</div>
-                  <div className="text-blue-900 text-2xl font-bold">€{ownerBReceives.toFixed(2)}</div>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="mt-8 flex justify-center">
             <Button onClick={handleSaveQuote} size="lg" className="bg-green-600 hover:bg-green-700">
