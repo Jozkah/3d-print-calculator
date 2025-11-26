@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Trash2, ChevronDown, ChevronUp, Share2, Download } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
+import { DialogCustom } from "@/components/ui/dialog-custom"
 
 type Quote = {
   id: string
@@ -43,12 +45,21 @@ const safeFixed = (value: any, decimals = 2) => {
   return (value ?? 0).toFixed(decimals)
 }
 
-export function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
+function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
   const [quotes, setQuotes] = useState(initialQuotes)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [printers, setPrinters] = useState<any[]>([])
   const [filaments, setFilaments] = useState<any[]>([])
   const { toast } = useToast()
+  const router = useRouter()
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [quoteToDelete, setQuoteToDelete] = useState<string | null>(null)
+
+  const handleDownload = (id: string) => {
+    // Placeholder for download logic
+    console.log(`Download quote with id: ${id}`)
+  }
 
   useEffect(() => {
     const loadData = async () => {
@@ -62,14 +73,31 @@ export function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
   }, [])
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this quote?")) return
+    setQuoteToDelete(id)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!quoteToDelete) return
 
     const supabase = createClient()
-    const { error } = await supabase.from("quotes").delete().eq("id", id)
+    const { error } = await supabase.from("quotes").delete().eq("id", quoteToDelete)
 
     if (!error) {
-      setQuotes(quotes.filter((q) => q.id !== id))
+      setQuotes(quotes.filter((q) => q.id !== quoteToDelete))
+      toast({
+        title: "Success",
+        description: "Quote deleted successfully",
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to delete quote",
+        variant: "destructive",
+      })
     }
+
+    setQuoteToDelete(null)
   }
 
   const toggleExpand = (id: string) => {
@@ -102,7 +130,7 @@ export function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="space-y-6 max-w-6xl mx-auto">
       <div className="mb-6">
         <p className="text-blue-900">Total quotes: {quotes.length}</p>
       </div>
@@ -177,11 +205,9 @@ export function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                       <Share2 className="w-4 h-4" />
                     </Button>
 
+                    {/* Updated PDF download to use router navigation instead of window.open */}
                     <Button
-                      onClick={() => {
-                        const url = `/quote/${quote.id}`
-                        window.open(url, "_blank")
-                      }}
+                      onClick={() => handleDownload(quote.id)}
                       size="sm"
                       variant="outline"
                       className="border-blue-300 text-blue-600 hover:text-blue-700"
@@ -386,72 +412,72 @@ export function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                       <div className="grid grid-cols-2 gap-3">
                         <div
                           className={`p-3 rounded-lg border-2 ${
-                            quote.selected_margin === 30
+                            Number(quote.selected_margin) === 30
                               ? "bg-blue-600 border-blue-700 shadow-lg"
                               : "bg-blue-50 border-blue-200"
                           }`}
                         >
                           <div
-                            className={`text-xs mb-1 ${quote.selected_margin === 30 ? "text-blue-100" : "text-blue-600"}`}
+                            className={`text-xs mb-1 ${Number(quote.selected_margin) === 30 ? "text-blue-100" : "text-blue-600"}`}
                           >
                             30% Margin
                           </div>
                           <div
-                            className={`text-lg font-semibold ${quote.selected_margin === 30 ? "text-white" : "text-green-600"}`}
+                            className={`text-lg font-semibold ${Number(quote.selected_margin) === 30 ? "text-white" : "text-green-600"}`}
                           >
                             €{safeFixed(quote.margin_30)}
                           </div>
                         </div>
                         <div
                           className={`p-3 rounded-lg border-2 ${
-                            quote.selected_margin === 40
+                            Number(quote.selected_margin) === 40
                               ? "bg-blue-600 border-blue-700 shadow-lg"
                               : "bg-blue-50 border-blue-200"
                           }`}
                         >
                           <div
-                            className={`text-xs mb-1 ${quote.selected_margin === 40 ? "text-blue-100" : "text-blue-600"}`}
+                            className={`text-xs mb-1 ${Number(quote.selected_margin) === 40 ? "text-blue-100" : "text-blue-600"}`}
                           >
                             40% Margin
                           </div>
                           <div
-                            className={`text-lg font-semibold ${quote.selected_margin === 40 ? "text-white" : "text-green-600"}`}
+                            className={`text-lg font-semibold ${Number(quote.selected_margin) === 40 ? "text-white" : "text-green-600"}`}
                           >
                             €{safeFixed(quote.margin_40)}
                           </div>
                         </div>
                         <div
                           className={`p-3 rounded-lg border-2 ${
-                            quote.selected_margin === 50
+                            Number(quote.selected_margin) === 50
                               ? "bg-blue-600 border-blue-700 shadow-lg"
                               : "bg-blue-50 border-blue-200"
                           }`}
                         >
                           <div
-                            className={`text-xs mb-1 ${quote.selected_margin === 50 ? "text-blue-100" : "text-blue-600"}`}
+                            className={`text-xs mb-1 ${Number(quote.selected_margin) === 50 ? "text-blue-100" : "text-blue-600"}`}
                           >
                             50% Margin
                           </div>
                           <div
-                            className={`text-lg font-semibold ${quote.selected_margin === 50 ? "text-white" : "text-green-600"}`}
+                            className={`text-lg font-semibold ${Number(quote.selected_margin) === 50 ? "text-white" : "text-green-600"}`}
                           >
                             €{safeFixed(quote.margin_50)}
                           </div>
                         </div>
                         <div
                           className={`p-3 rounded-lg border-2 ${
-                            quote.selected_margin === 60
+                            Number(quote.selected_margin) === 60
                               ? "bg-blue-600 border-blue-700 shadow-lg"
                               : "bg-blue-50 border-blue-200"
                           }`}
                         >
                           <div
-                            className={`text-xs mb-1 ${quote.selected_margin === 60 ? "text-blue-100" : "text-blue-600"}`}
+                            className={`text-xs mb-1 ${Number(quote.selected_margin) === 60 ? "text-blue-100" : "text-blue-600"}`}
                           >
                             60% Margin
                           </div>
                           <div
-                            className={`text-lg font-semibold ${quote.selected_margin === 60 ? "text-white" : "text-green-600"}`}
+                            className={`text-lg font-semibold ${Number(quote.selected_margin) === 60 ? "text-white" : "text-green-600"}`}
                           >
                             €{safeFixed(quote.margin_60)}
                           </div>
@@ -481,6 +507,22 @@ export function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
           )
         })}
       </div>
+
+      <DialogCustom
+        isOpen={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false)
+          setQuoteToDelete(null)
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Quote"
+        description="Are you sure you want to delete this quote? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   )
 }
+
+export { QuoteHistory }
