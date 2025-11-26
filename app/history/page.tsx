@@ -1,0 +1,30 @@
+import { createClient } from "@/lib/supabase/server"
+import { QuoteHistory } from "@/components/quote-history"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { ArrowLeft } from "lucide-react"
+
+export default async function HistoryPage() {
+  const supabase = await createClient()
+
+  const { data: quotes } = await supabase.from("quotes").select("*").order("created_at", { ascending: false })
+
+  return (
+    <div className="min-h-screen bg-white">
+      <header className="border-b-2 border-blue-300 bg-blue-50">
+        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
+          <Link href="/">
+            <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          </Link>
+          <h1 className="text-2xl font-bold text-blue-900">Quote History</h1>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-8">
+        <QuoteHistory quotes={quotes || []} />
+      </main>
+    </div>
+  )
+}
