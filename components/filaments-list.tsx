@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -7,16 +9,21 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, Trash2, Edit2, Check, X, Search, SlidersHorizontal } from "lucide-react"
+import { Plus, Trash2, Edit2, Check, X, Search, SlidersHorizontal, Upload } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ComboboxCreatable } from "@/components/ui/combobox-creatable"
+import { DialogCustom } from "@/components/ui/dialog-custom"
 
 type Filament = {
   id: string
   name: string
-  price_per_kg: number
+  price_per_kg: number | null
   requires_heating: boolean
   heating_time_hours: number
+  brand?: string
+  type?: string
+  color?: string
 }
 
 export function FilamentsList({ filaments: initialFilaments }: { filaments: Filament[] }) {
@@ -27,11 +34,17 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
     name: "",
     price_per_kg: "",
     requires_heating: false,
+    brand: "",
+    type: "",
+    color: "",
   })
   const [editData, setEditData] = useState({
     name: "",
     price_per_kg: "",
     requires_heating: false,
+    brand: "",
+    type: "",
+    color: "",
   })
 
   const [searchQuery, setSearchQuery] = useState("")
@@ -42,45 +55,16 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
   const [filterHeating, setFilterHeating] = useState("all")
   const [sortBy, setSortBy] = useState<"name" | "price" | "type">("name")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
+  const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; filamentId: string | null }>({
+    isOpen: false,
+    filamentId: null,
+  })
+  const [csvErrorDialog, setCsvErrorDialog] = useState<{ isOpen: boolean; message: string }>({
+    isOpen: false,
+    message: "",
+  })
 
   const router = useRouter()
-
-  const extractFilamentInfo = (name: string) => {
-    const nameLower = name.toLowerCase()
-
-    // Common filament types
-    const types = ["pla", "abs", "petg", "tpu", "nylon", "pc", "asa", "pva", "hips"]
-    const type = types.find((t) => nameLower.includes(t)) || "other"
-
-    // Common colors
-    const colors = [
-      "black",
-      "white",
-      "red",
-      "blue",
-      "green",
-      "yellow",
-      "orange",
-      "purple",
-      "pink",
-      "gray",
-      "grey",
-      "brown",
-      "transparent",
-      "clear",
-      "natural",
-    ]
-    const color = colors.find((c) => nameLower.includes(c)) || "other"
-
-    // Extract brand (words after type/color, or last word)
-    const words = name.split(" ")
-    let brand = "generic"
-    if (words.length > 1) {
-      brand = words[words.length - 1]
-    }
-
-    return { type: type.toUpperCase(), color: color.charAt(0).toUpperCase() + color.slice(1), brand }
-  }
 
   const filterOptions = useMemo(() => {
     const brands = new Set<string>()
@@ -88,10 +72,9 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
     const colors = new Set<string>()
 
     filaments.forEach((f) => {
-      const info = extractFilamentInfo(f.name)
-      brands.add(info.brand)
-      types.add(info.type)
-      colors.add(info.color)
+      if (f.brand) brands.add(f.brand)
+      if (f.type) types.add(f.type)
+      if (f.color) colors.add(f.color)
     })
 
     return {
@@ -103,11 +86,10 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
 
   const filteredAndSortedFilaments = useMemo(() => {
     const filtered = filaments.filter((f) => {
-      const info = extractFilamentInfo(f.name)
       const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase())
-      const matchesBrand = filterBrand === "all" || info.brand === filterBrand
-      const matchesType = filterType === "all" || info.type === filterType
-      const matchesColor = filterColor === "all" || info.color === filterColor
+      const matchesBrand = filterBrand === "all" || f.brand === filterBrand
+      const matchesType = filterType === "all" || f.type === filterType
+      const matchesColor = filterColor === "all" || f.color === filterColor
       const matchesHeating =
         filterHeating === "all" ||
         (filterHeating === "heating" && f.requires_heating) ||
@@ -123,10 +105,10 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
       if (sortBy === "name") {
         comparison = a.name.localeCompare(b.name)
       } else if (sortBy === "price") {
-        comparison = a.price_per_kg - b.price_per_kg
+        comparison = (a.price_per_kg || 0) - (b.price_per_kg || 0)
       } else if (sortBy === "type") {
-        const typeA = extractFilamentInfo(a.name).type
-        const typeB = extractFilamentInfo(b.name).type
+        const typeA = a.type || "Other"
+        const typeB = b.type || "Other"
         comparison = typeA.localeCompare(typeB)
       }
 
@@ -155,22 +137,32 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
       price_per_kg: Number.parseFloat(newFilament.price_per_kg),
       requires_heating: newFilament.requires_heating,
       heating_time_hours: 0,
+      brand: newFilament.brand || "Generic",
+      type: newFilament.type || "Other",
+      color: newFilament.color || "Other",
     })
 
     if (!error) {
-      setNewFilament({ name: "", price_per_kg: "", requires_heating: false })
+      setNewFilament({ name: "", price_per_kg: "", requires_heating: false, brand: "", type: "", color: "" })
       setIsAdding(false)
       router.refresh()
     }
   }
 
   const handleDelete = async (id: string) => {
+    setDeleteDialog({ isOpen: true, filamentId: id })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteDialog.filamentId) return
+
     const supabase = createClient()
-    const { error } = await supabase.from("filaments").delete().eq("id", id)
+    const { error } = await supabase.from("filaments").delete().eq("id", deleteDialog.filamentId)
 
     if (!error) {
-      setFilaments(filaments.filter((f) => f.id !== id))
+      setFilaments(filaments.filter((f) => f.id !== deleteDialog.filamentId))
     }
+    setDeleteDialog({ isOpen: false, filamentId: null })
   }
 
   const handleEdit = async (id: string) => {
@@ -184,6 +176,9 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
         price_per_kg: Number.parseFloat(editData.price_per_kg),
         requires_heating: editData.requires_heating,
         heating_time_hours: 0,
+        brand: editData.brand || "Generic",
+        type: editData.type || "Other",
+        color: editData.color || "Other",
       })
       .eq("id", id)
 
@@ -197,19 +192,159 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
     setEditingId(filament.id)
     setEditData({
       name: filament.name,
-      price_per_kg: filament.price_per_kg.toString(),
+      price_per_kg: filament.price_per_kg?.toString() || "",
       requires_heating: filament.requires_heating || false,
+      brand: filament.brand || "",
+      type: filament.type || "",
+      color: filament.color || "",
     })
   }
 
+  const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const fileHash = await hashString(text)
+
+      // Check if CSV was already imported
+      const supabase = createClient()
+      const { data: existingImport } = await supabase
+        .from("imported_csv_files")
+        .select("*")
+        .eq("file_hash", fileHash)
+        .single()
+
+      if (existingImport) {
+        setCsvErrorDialog({
+          isOpen: true,
+          message: `This CSV file was already imported on ${new Date(existingImport.imported_at).toLocaleDateString()}.`,
+        })
+        event.target.value = ""
+        return
+      }
+
+      const lines = text.split("\n").filter((line) => line.trim())
+      const filamentData: Array<{
+        brand: string
+        type: string
+        color: string
+        price_per_kg: number | null
+      }> = []
+
+      // Skip header row (index 0)
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i]
+        const columns = line.split(";").map((col) => col.trim())
+
+        if (columns.length < 3) continue // Need at least Brand, Type, Color
+
+        const brand = columns[0] || ""
+        const type = columns[1] || ""
+        const color = columns[2] || ""
+        const priceStr = columns[5] || "" // Column F (index 5)
+
+        // Parse European price format (comma as decimal, remove € symbol)
+        let price: number | null = null
+        if (priceStr) {
+          const cleanPrice = priceStr.replace("€", "").replace(",", ".").trim()
+          const parsed = Number.parseFloat(cleanPrice)
+          if (!isNaN(parsed)) {
+            price = parsed
+          }
+        }
+
+        // Skip EMPTY filaments
+        if (brand && type && color && type !== "EMPTY") {
+          filamentData.push({
+            brand,
+            type,
+            color,
+            price_per_kg: price,
+          })
+        }
+      }
+
+      if (filamentData.length === 0) {
+        setCsvErrorDialog({
+          isOpen: true,
+          message: "No valid filament data found in CSV file.",
+        })
+        event.target.value = ""
+        return
+      }
+
+      // Insert filaments
+      const { error: insertError } = await supabase.from("filaments").insert(
+        filamentData.map((f) => ({
+          name: `${f.brand} ${f.type} ${f.color}`,
+          brand: f.brand,
+          type: f.type,
+          color: f.color,
+          price_per_kg: f.price_per_kg,
+          requires_heating: false,
+          heating_time_hours: 0,
+        })),
+      )
+
+      if (insertError) {
+        console.error("[v0] Error importing filaments:", insertError)
+        setCsvErrorDialog({
+          isOpen: true,
+          message: "Error importing filaments. Please try again.",
+        })
+        event.target.value = ""
+        return
+      }
+
+      // Track the imported CSV
+      await supabase.from("imported_csv_files").insert({
+        file_name: file.name,
+        file_hash: fileHash,
+        records_imported: filamentData.length,
+      })
+
+      // Refresh the page to show new filaments
+      router.refresh()
+      event.target.value = ""
+    } catch (error) {
+      console.error("[v0] Error processing CSV:", error)
+      setCsvErrorDialog({
+        isOpen: true,
+        message: "Error processing CSV file. Please check the format.",
+      })
+      event.target.value = ""
+    }
+  }
+
+  const hashString = async (str: string): Promise<string> => {
+    const encoder = new TextEncoder()
+    const data = encoder.encode(str)
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
+  }
+
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-blue-900">Your Filaments</h2>
-        <Button onClick={() => setIsAdding(true)} className="bg-blue-600 hover:bg-blue-700">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Filament
-        </Button>
+        <h2 className="text-xl font-semibold text-blue-900">Filaments</h2>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => document.getElementById("csv-import")?.click()}
+            variant="outline"
+            className="bg-white border-blue-300 text-blue-900"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Import CSV
+          </Button>
+          <input id="csv-import" type="file" accept=".csv" onChange={handleCSVImport} className="hidden" />
+          <Button onClick={() => setIsAdding(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Filament
+          </Button>
+        </div>
       </div>
 
       <Card className="mb-6 bg-white border-2 border-blue-300">
@@ -365,7 +500,43 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
                 value={newFilament.name}
                 onChange={(e) => setNewFilament({ ...newFilament, name: e.target.value })}
                 className="border-blue-200"
-                placeholder="e.g., PLA Black"
+                placeholder="e.g., PLA Black Prusament"
+              />
+            </div>
+            <div>
+              <Label htmlFor="type" className="text-blue-900">
+                Type
+              </Label>
+              <ComboboxCreatable
+                value={newFilament.type}
+                onChange={(value) => setNewFilament({ ...newFilament, type: value })}
+                options={filterOptions.types}
+                placeholder="Select or type filament type..."
+                emptyText="Type to create a new filament type"
+              />
+            </div>
+            <div>
+              <Label htmlFor="brand" className="text-blue-900">
+                Brand
+              </Label>
+              <ComboboxCreatable
+                value={newFilament.brand}
+                onChange={(value) => setNewFilament({ ...newFilament, brand: value })}
+                options={filterOptions.brands}
+                placeholder="Select or type brand..."
+                emptyText="Type to create a new brand"
+              />
+            </div>
+            <div>
+              <Label htmlFor="color" className="text-blue-900">
+                Color
+              </Label>
+              <ComboboxCreatable
+                value={newFilament.color}
+                onChange={(value) => setNewFilament({ ...newFilament, color: value })}
+                options={filterOptions.colors}
+                placeholder="Select or type color..."
+                emptyText="Type to create a new color"
               />
             </div>
             <div>
@@ -408,7 +579,10 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
 
       <div className="grid gap-4">
         {filteredAndSortedFilaments.map((filament) => (
-          <Card key={filament.id} className="bg-white border-2 border-blue-300">
+          <Card
+            key={filament.id}
+            className={`border-blue-200 bg-white ${!filament.price_per_kg || filament.price_per_kg === 0 ? "border-red-500 border-2" : ""}`}
+          >
             <CardContent className="p-6">
               {editingId === filament.id ? (
                 <div className="space-y-4">
@@ -418,6 +592,36 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
                       value={editData.name}
                       onChange={(e) => setEditData({ ...editData, name: e.target.value })}
                       className="border-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-blue-900">Type</Label>
+                    <ComboboxCreatable
+                      value={editData.type}
+                      onChange={(value) => setEditData({ ...editData, type: value })}
+                      options={filterOptions.types}
+                      placeholder="Select or type filament type..."
+                      emptyText="Type to create a new filament type"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-blue-900">Brand</Label>
+                    <ComboboxCreatable
+                      value={editData.brand}
+                      onChange={(value) => setEditData({ ...editData, brand: value })}
+                      options={filterOptions.brands}
+                      placeholder="Select or type brand..."
+                      emptyText="Type to create a new brand"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-blue-900">Color</Label>
+                    <ComboboxCreatable
+                      value={editData.color}
+                      onChange={(value) => setEditData({ ...editData, color: value })}
+                      options={filterOptions.colors}
+                      placeholder="Select or type color..."
+                      emptyText="Type to create a new color"
                     />
                   </div>
                   <div>
@@ -464,10 +668,30 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-blue-900">{filament.name}</h3>
-                    <div className="flex gap-4 text-sm text-blue-600 mt-1">
-                      <span>€{filament.price_per_kg.toFixed(2)}/kg</span>
-                      <span className="text-blue-400">•</span>
-                      <span>{extractFilamentInfo(filament.name).type}</span>
+                    <div className="flex gap-4 text-sm text-blue-600 mt-1 items-center">
+                      {filament.price_per_kg && filament.price_per_kg > 0 ? (
+                        <span>€{filament.price_per_kg.toFixed(2)}/kg</span>
+                      ) : (
+                        <span className="text-red-600 font-medium">No Price</span>
+                      )}
+                      {filament.type && (
+                        <>
+                          <span className="text-blue-400">•</span>
+                          <span>{filament.type}</span>
+                        </>
+                      )}
+                      {filament.brand && (
+                        <>
+                          <span className="text-blue-400">•</span>
+                          <span>{filament.brand}</span>
+                        </>
+                      )}
+                      {filament.color && (
+                        <>
+                          <span className="text-blue-400">•</span>
+                          <span>{filament.color}</span>
+                        </>
+                      )}
                       {filament.requires_heating && (
                         <>
                           <span className="text-blue-400">•</span>
@@ -489,7 +713,7 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
                       onClick={() => handleDelete(filament.id)}
                       size="sm"
                       variant="outline"
-                      className="border-red-300 text-red-600 hover:text-red-700"
+                      className="border-red-300 text-red-600 hover:bg-red-50"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -515,6 +739,28 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
           </CardContent>
         </Card>
       )}
+
+      <DialogCustom
+        isOpen={deleteDialog.isOpen}
+        onClose={() => setDeleteDialog({ isOpen: false, filamentId: null })}
+        onConfirm={confirmDelete}
+        title="Delete Filament"
+        description="Are you sure you want to delete this filament? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
+
+      <DialogCustom
+        isOpen={csvErrorDialog.isOpen}
+        onClose={() => setCsvErrorDialog({ isOpen: false, message: "" })}
+        onConfirm={() => setCsvErrorDialog({ isOpen: false, message: "" })}
+        title="Import Error"
+        description={csvErrorDialog.message}
+        confirmText="OK"
+        showCancel={false}
+        variant="danger"
+      />
     </div>
   )
 }

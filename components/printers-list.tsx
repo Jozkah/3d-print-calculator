@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Plus, Trash2, Edit2, Check, X, ChevronDown, ChevronUp } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DialogCustom } from "@/components/ui/dialog-custom"
 
 type Printer = {
   id: string
@@ -39,6 +40,10 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
   })
   const [editData, setEditData] = useState(newPrinter)
   const router = useRouter()
+  const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; printerId: string | null }>({
+    isOpen: false,
+    printerId: null,
+  })
 
   const handleAdd = async () => {
     if (!newPrinter.name) return
@@ -72,14 +77,19 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this printer?")) return
+    setDeleteDialog({ isOpen: true, printerId: id })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteDialog.printerId) return
 
     const supabase = createClient()
-    const { error } = await supabase.from("printers").delete().eq("id", id)
+    const { error } = await supabase.from("printers").delete().eq("id", deleteDialog.printerId)
 
     if (!error) {
-      setPrinters(printers.filter((p) => p.id !== id))
+      setPrinters(printers.filter((p) => p.id !== deleteDialog.printerId))
     }
+    setDeleteDialog({ isOpen: false, printerId: null })
   }
 
   const handleEdit = async (id: string) => {
@@ -340,6 +350,17 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
           </Card>
         ))}
       </div>
+
+      <DialogCustom
+        isOpen={deleteDialog.isOpen}
+        onClose={() => setDeleteDialog({ isOpen: false, printerId: null })}
+        onConfirm={confirmDelete}
+        title="Delete Printer"
+        description="Are you sure you want to delete this printer? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   )
 }
