@@ -347,10 +347,6 @@ export function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                           <span className="text-blue-900">€{safeFixed(quote.machine_cost)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-blue-600">Drying Cost</span>
-                          <span className="text-blue-900">€{safeFixed(quote.drying_cost)}</span>
-                        </div>
-                        <div className="flex justify-between">
                           <span className="text-blue-600">Materials Cost</span>
                           <span className="text-blue-900">€{safeFixed(quote.materials_cost)}</span>
                         </div>
@@ -365,6 +361,12 @@ export function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                         <div className="flex justify-between">
                           <span className="text-blue-600">Fuel Cost</span>
                           <span className="text-blue-900">€{safeFixed(quote.fuel_cost)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-blue-600">Electricity Cost</span>
+                          <span className="text-blue-900">
+                            €{safeFixed((quote.electricity_cost || 0) + (quote.drying_cost || 0))}
+                          </span>
                         </div>
                         {quote.is_emergency && (
                           <div className="flex justify-between">
@@ -384,35 +386,75 @@ export function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                       <div className="grid grid-cols-2 gap-3">
                         <div
                           className={`p-3 rounded-lg border-2 ${
-                            quote.selected_margin === 30 ? "bg-blue-100 border-blue-500" : "bg-blue-50 border-blue-200"
+                            quote.selected_margin === 30
+                              ? "bg-blue-600 border-blue-700 shadow-lg"
+                              : "bg-blue-50 border-blue-200"
                           }`}
                         >
-                          <div className="text-xs text-blue-600 mb-1">30% Margin</div>
-                          <div className="text-lg font-semibold text-green-600">€{safeFixed(quote.margin_30)}</div>
+                          <div
+                            className={`text-xs mb-1 ${quote.selected_margin === 30 ? "text-blue-100" : "text-blue-600"}`}
+                          >
+                            30% Margin
+                          </div>
+                          <div
+                            className={`text-lg font-semibold ${quote.selected_margin === 30 ? "text-white" : "text-green-600"}`}
+                          >
+                            €{safeFixed(quote.margin_30)}
+                          </div>
                         </div>
                         <div
                           className={`p-3 rounded-lg border-2 ${
-                            quote.selected_margin === 40 ? "bg-blue-100 border-blue-500" : "bg-blue-50 border-blue-200"
+                            quote.selected_margin === 40
+                              ? "bg-blue-600 border-blue-700 shadow-lg"
+                              : "bg-blue-50 border-blue-200"
                           }`}
                         >
-                          <div className="text-xs text-blue-600 mb-1">40% Margin</div>
-                          <div className="text-lg font-semibold text-green-600">€{safeFixed(quote.margin_40)}</div>
+                          <div
+                            className={`text-xs mb-1 ${quote.selected_margin === 40 ? "text-blue-100" : "text-blue-600"}`}
+                          >
+                            40% Margin
+                          </div>
+                          <div
+                            className={`text-lg font-semibold ${quote.selected_margin === 40 ? "text-white" : "text-green-600"}`}
+                          >
+                            €{safeFixed(quote.margin_40)}
+                          </div>
                         </div>
                         <div
                           className={`p-3 rounded-lg border-2 ${
-                            quote.selected_margin === 50 ? "bg-blue-100 border-blue-500" : "bg-blue-50 border-blue-200"
+                            quote.selected_margin === 50
+                              ? "bg-blue-600 border-blue-700 shadow-lg"
+                              : "bg-blue-50 border-blue-200"
                           }`}
                         >
-                          <div className="text-xs text-blue-600 mb-1">50% Margin</div>
-                          <div className="text-lg font-semibold text-green-600">€{safeFixed(quote.margin_50)}</div>
+                          <div
+                            className={`text-xs mb-1 ${quote.selected_margin === 50 ? "text-blue-100" : "text-blue-600"}`}
+                          >
+                            50% Margin
+                          </div>
+                          <div
+                            className={`text-lg font-semibold ${quote.selected_margin === 50 ? "text-white" : "text-green-600"}`}
+                          >
+                            €{safeFixed(quote.margin_50)}
+                          </div>
                         </div>
                         <div
                           className={`p-3 rounded-lg border-2 ${
-                            quote.selected_margin === 60 ? "bg-blue-100 border-blue-500" : "bg-blue-50 border-blue-200"
+                            quote.selected_margin === 60
+                              ? "bg-blue-600 border-blue-700 shadow-lg"
+                              : "bg-blue-50 border-blue-200"
                           }`}
                         >
-                          <div className="text-xs text-blue-600 mb-1">60% Margin</div>
-                          <div className="text-lg font-semibold text-green-600">€{safeFixed(quote.margin_60)}</div>
+                          <div
+                            className={`text-xs mb-1 ${quote.selected_margin === 60 ? "text-blue-100" : "text-blue-600"}`}
+                          >
+                            60% Margin
+                          </div>
+                          <div
+                            className={`text-lg font-semibold ${quote.selected_margin === 60 ? "text-white" : "text-green-600"}`}
+                          >
+                            €{safeFixed(quote.margin_60)}
+                          </div>
                         </div>
                       </div>
                     </div>

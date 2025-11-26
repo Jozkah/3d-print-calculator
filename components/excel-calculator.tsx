@@ -53,6 +53,7 @@ type DriedBatch = {
   id: string
   material: string
   drying_time_hr: number
+  cost: number
 }
 
 type Material = {
@@ -211,6 +212,7 @@ export function ExcelCalculator({
         id: `heating_${filamentName}_${Date.now()}`,
         material: "HEATING",
         drying_time_hr: hours,
+        cost: 0, // Initialize cost to 0, it will be calculated later if needed
       }))
 
       return [...nonHeatingBatches, ...heatingBatches]
@@ -375,11 +377,34 @@ export function ExcelCalculator({
     }
 
     try {
+      const driedBatchesWithCost = driedBatches.map((batch) => {
+        const dryerCost = 90
+        const estimatedLife = 3
+        const estimatedDryerUptime = 0.1
+        const dryerUptimeHoursPerYear = 8760 * estimatedDryerUptime
+        const dryerCapitalCostPerHour = dryerCost / (dryerUptimeHoursPerYear * estimatedLife)
+
+        const electricalCostPerHour = globalSettings ? (150 / 1000) * globalSettings.electricity_cost_per_kwh : 0
+
+        const costBufferFactor = 1.3
+        const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
+
+        const cost =
+          batch.material === "HEATING"
+            ? batch.drying_time_hr * totalDryerCostPerHour * 2
+            : batch.drying_time_hr * totalDryerCostPerHour
+
+        return {
+          ...batch,
+          cost: cost,
+        }
+      })
+
       const quoteData = {
         quote_name: clientName, // Changed from quoteName to clientName
         quote_type: mode,
         printed_parts: printedParts,
-        dried_batches: driedBatches,
+        dried_batches: driedBatchesWithCost, // Save batches with cost included
         materials: materials,
         labor_items: labor,
         packaging_items: packaging,
@@ -399,7 +424,7 @@ export function ExcelCalculator({
         margin_40: margin40,
         margin_50: margin50,
         margin_60: margin60,
-        selected_margin: selectedMargin,
+        selected_margin: selectedMargin, // This stores the percentage (30, 40, 50, or 60)
         ownerA_receives: mode === "business" ? ownerAReceives : null,
         ownerB_receives: mode === "business" ? ownerBReceives : null,
       }
@@ -636,7 +661,10 @@ export function ExcelCalculator({
             <h2 className="text-xl font-bold text-blue-900">Dried Batches</h2>
             <Button
               onClick={() =>
-                setDriedBatches([...driedBatches, { id: Date.now().toString(), material: "", drying_time_hr: 0 }])
+                setDriedBatches([
+                  ...driedBatches,
+                  { id: Date.now().toString(), material: "", drying_time_hr: 0, cost: 0 },
+                ])
               }
               size="sm"
               className="bg-blue-600 hover:bg-blue-700"
@@ -1028,11 +1056,11 @@ export function ExcelCalculator({
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-blue-300">
                 <span className="text-blue-700 font-medium">Added Machine Cost:</span>
-                <span className="text-blue-900 font-bold">€{machineCost.toFixed(2)}</span>
+                <span className="text-blue-900 font-bold">€{(machineCost - totalDryingCost).toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-blue-300">
                 <span className="text-blue-700 font-medium">Electricity Cost:</span>
-                <span className="text-blue-900 font-bold">€{electricityCost.toFixed(2)}</span>
+                <span className="text-blue-900 font-bold">€{(electricityCost + totalDryingCost).toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-blue-300">
                 <span className="text-blue-700 font-medium">Total Materials Cost:</span>
