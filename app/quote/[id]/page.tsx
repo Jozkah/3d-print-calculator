@@ -17,7 +17,6 @@ interface Quote {
   labor_cost: number
   packaging_cost: number
   fuel_cost: number
-  electricity_cost: number
   emergency_fee_cost: number
   total_landed_cost: number
   selected_margin: number
@@ -74,6 +73,8 @@ export default function QuotePage() {
     (quote.drying_cost || 0) +
     (quote.materials_cost || 0)
 
+  const packagingShippingCost = (quote.packaging_cost || 0) + (quote.fuel_cost || 0)
+
   const isBusinessQuote = quote.mode === "business"
 
   return (
@@ -125,31 +126,22 @@ export default function QuotePage() {
             <tr className="bg-blue-100">
               <td className="py-4 px-4 font-medium text-gray-900">Packaging, Shipping & Transport</td>
               <td className="py-4 px-4 text-gray-700">Packaging materials, courier, and transportation</td>
-              <td className="py-4 px-4 text-right font-medium text-gray-900">
-                {((quote.packaging_cost || 0) + (quote.fuel_cost || 0)).toFixed(2)} €
-              </td>
+              <td className="py-4 px-4 text-right font-medium text-gray-900">{packagingShippingCost.toFixed(2)} €</td>
             </tr>
 
             {/* Emergency Fee */}
-            <tr className="bg-blue-200">
-              <td className="py-4 px-4 font-medium text-gray-900">
-                Emergency Fee
-                {quote.is_emergency && <div className="text-xs text-gray-600 font-normal">(if applicable)</div>}
-              </td>
-              <td className="py-4 px-4 text-gray-700">Urgent order surcharge</td>
-              <td className="py-4 px-4 text-right font-medium text-gray-900">
-                {(quote.emergency_fee_cost || 0).toFixed(2)} €
-              </td>
-            </tr>
-
-            {/* Electricity Cost */}
-            <tr className="bg-blue-100">
-              <td className="py-4 px-4 font-medium text-gray-900">Electricity Cost</td>
-              <td className="py-4 px-4 text-gray-700">Power consumption during production</td>
-              <td className="py-4 px-4 text-right font-medium text-gray-900">
-                {(quote.electricity_cost || 0).toFixed(2)} €
-              </td>
-            </tr>
+            {quote.is_emergency && quote.emergency_fee_cost > 0 && (
+              <tr className="bg-blue-200">
+                <td className="py-4 px-4 font-medium text-gray-900">
+                  Emergency Fee
+                  <div className="text-xs text-gray-600 font-normal">(if applicable)</div>
+                </td>
+                <td className="py-4 px-4 text-gray-700">Urgent order surcharge</td>
+                <td className="py-4 px-4 text-right font-medium text-gray-900">
+                  {(quote.emergency_fee_cost || 0).toFixed(2)} €
+                </td>
+              </tr>
+            )}
 
             {/* VAT - Only for business quotes */}
             {isBusinessQuote && (
@@ -184,7 +176,7 @@ export default function QuotePage() {
           <div className="bg-blue-50 p-6 rounded">
             <p className="text-sm text-gray-700 leading-relaxed">
               This quotation includes all costs associated with the 3D printing service, including materials, machine
-              time, labor, packaging, and delivery. The selected profit margin is {quote.selected_margin}%.
+              time, labor, packaging, and delivery.
               {isBusinessQuote && " VAT at 23% is included in the final price."}
             </p>
 
