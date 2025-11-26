@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -9,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, Trash2, Edit2, Check, X, Search, SlidersHorizontal, Upload } from "lucide-react"
+import { Plus, Trash2, Check, X, Search, SlidersHorizontal, Upload, Pencil, Download } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ComboboxCreatable } from "@/components/ui/combobox-creatable"
@@ -26,7 +25,11 @@ type Filament = {
   color?: string
 }
 
-export function FilamentsList({ filaments: initialFilaments }: { filaments: Filament[] }) {
+type FilamentsListProps = {
+  filaments: Filament[]
+}
+
+export function FilamentsList({ filaments: initialFilaments }: FilamentsListProps) {
   const [filaments, setFilaments] = useState(initialFilaments)
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -62,6 +65,13 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
   const [csvErrorDialog, setCsvErrorDialog] = useState<{ isOpen: boolean; message: string }>({
     isOpen: false,
     message: "",
+  })
+
+  const [bulkUpdateMode, setBulkUpdateMode] = useState(false)
+  const [selectedFilaments, setSelectedFilaments] = useState<Set<string>>(new Set())
+  const [bulkUpdateDialog, setBulkUpdateDialog] = useState<{ isOpen: boolean; newPrice: string }>({
+    isOpen: false,
+    newPrice: "",
   })
 
   const router = useRouter()
@@ -145,6 +155,10 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
     if (!error) {
       setNewFilament({ name: "", price_per_kg: "", requires_heating: false, brand: "", type: "", color: "" })
       setIsAdding(false)
+      const { data } = await supabase.from("filaments").select("*").order("name")
+      if (data) {
+        setFilaments(data)
+      }
       router.refresh()
     }
   }
@@ -184,6 +198,10 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
 
     if (!error) {
       setEditingId(null)
+      const { data } = await supabase.from("filaments").select("*").order("name")
+      if (data) {
+        setFilaments(data)
+      }
       router.refresh()
     }
   }
@@ -324,6 +342,112 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
     const hashBuffer = await crypto.subtle.digest("SHA-256", data)
     const hashArray = Array.from(new Uint8Array(hashBuffer))
     return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
+  }
+
+  const toggleFilamentSelection = (filamentId: string) => {
+    const newSelected = new Set(selectedFilaments)
+    if (newSelected.has(filamentId)) {
+      newSelected.delete(filamentId)
+    } else {
+      newSelected.add(filamentId)
+    }
+    setSelectedFilaments(newSelected)
+  }
+
+  const selectAllFiltered = () => {
+    const allIds = new Set(filteredAndSortedFilaments.map((f) => f.id))
+    setSelectedFilaments(allIds)
+  }
+
+  const deselectAll = () => {
+    setSelectedFilaments(new Set())
+  }
+
+  const handleBulkUpdatePrice = async () => {
+    if (selectedFilaments.size === 0) return
+
+    const newPrice = Number.parseFloat(bulkUpdateDialog.newPrice)
+    if (isNaN(newPrice) || newPrice < 0) {
+      setCsvErrorDialog({
+        isOpen: true,
+        message: "Please enter a valid price",
+      })
+      return
+    }
+
+    try {
+      const supabase = createClient()
+
+      // Update all selected filaments
+      const { error } = await supabase
+        .from("filaments")
+        .update({ price_per_kg: newPrice })
+        .in("id", Array.from(selectedFilaments))
+
+      if (error) throw error
+
+      // Refresh filaments list
+      const { data: updatedFilaments } = await supabase.from("filaments").select("*").order("name")
+
+      if (updatedFilaments) {
+        setFilaments(updatedFilaments)
+      }
+
+      // Reset state
+      setBulkUpdateDialog({ isOpen: false, newPrice: "" })
+      setSelectedFilaments(new Set())
+      setBulkUpdateMode(false)
+      router.refresh()
+    } catch (error: any) {
+      console.error("[v0] Error bulk updating prices:", error)
+      setCsvErrorDialog({
+        isOpen: true,
+        message: `Failed to update prices: ${error.message}`,
+      })
+    }
+  }
+
+  const handleExportCSV = () => {
+    // Determine which filaments to export
+    let filamentsToExport = filteredAndSortedFilaments
+
+    // If in bulk mode and some are selected, export only selected
+    if (bulkUpdateMode && selectedFilaments.size > 0) {
+      filamentsToExport = filteredAndSortedFilaments.filter((f) => selectedFilaments.has(f.id))
+    }
+
+    if (filamentsToExport.length === 0) {
+      setCsvErrorDialog({
+        isOpen: true,
+        message: "No filaments to export",
+      })
+      return
+    }
+
+    // Updated headers to include Heating and remove Weight/Spools
+    const headers = ["Brand", "Type/Material", "Color", "Price", "Heating"]
+    const csvRows = [headers.join(";")]
+
+    filamentsToExport.forEach((filament) => {
+      const price = filament.price_per_kg ? `€${filament.price_per_kg.toFixed(2).replace(".", ",")}` : ""
+      // Added true/false for requires_heating
+      const heating = filament.requires_heating ? "true" : "false"
+
+      const row = [filament.brand || "", filament.type || "", filament.color || "", price, heating]
+      csvRows.push(row.join(";"))
+    })
+
+    // Create blob and download
+    const csvContent = csvRows.join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute("download", `filaments_export_${new Date().toISOString().split("T")[0]}.csv`)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   return (
@@ -581,9 +705,24 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
         {filteredAndSortedFilaments.map((filament) => (
           <Card
             key={filament.id}
-            className={`border-blue-200 bg-white ${!filament.price_per_kg || filament.price_per_kg === 0 ? "border-red-500 border-2" : ""}`}
+            className={`border-blue-200 bg-white ${!filament.price_per_kg || filament.price_per_kg === 0 ? "border-red-500 border-2" : ""} ${
+              bulkUpdateMode && selectedFilaments.has(filament.id) ? "ring-2 ring-blue-500" : ""
+            }`}
           >
             <CardContent className="p-6">
+              {bulkUpdateMode && (
+                <div className="mb-4">
+                  <Checkbox
+                    id={`select_${filament.id}`}
+                    checked={selectedFilaments.has(filament.id)}
+                    onCheckedChange={() => toggleFilamentSelection(filament.id)}
+                  />
+                  <label htmlFor={`select_${filament.id}`} className="ml-2 text-sm text-gray-600 cursor-pointer">
+                    Select for bulk update
+                  </label>
+                </div>
+              )}
+
               {editingId === filament.id ? (
                 <div className="space-y-4">
                   <div>
@@ -665,58 +804,72 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-blue-900">{filament.name}</h3>
-                    <div className="flex gap-4 text-sm text-blue-600 mt-1 items-center">
-                      {filament.price_per_kg && filament.price_per_kg > 0 ? (
-                        <span>€{filament.price_per_kg.toFixed(2)}/kg</span>
-                      ) : (
-                        <span className="text-red-600 font-medium">No Price</span>
-                      )}
-                      {filament.type && (
-                        <>
-                          <span className="text-blue-400">•</span>
-                          <span>{filament.type}</span>
-                        </>
-                      )}
-                      {filament.brand && (
-                        <>
-                          <span className="text-blue-400">•</span>
-                          <span>{filament.brand}</span>
-                        </>
-                      )}
-                      {filament.color && (
-                        <>
-                          <span className="text-blue-400">•</span>
-                          <span>{filament.color}</span>
-                        </>
-                      )}
-                      {filament.requires_heating && (
-                        <>
-                          <span className="text-blue-400">•</span>
-                          <span className="text-orange-600">Requires Heating</span>
-                        </>
-                      )}
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <h3 className="font-semibold text-blue-900 text-lg">{filament.name}</h3>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setEditingId(filament.id)
+                          setEditData({
+                            name: filament.name,
+                            price_per_kg: filament.price_per_kg?.toString() || "",
+                            requires_heating: filament.requires_heating,
+                            brand: filament.brand || "",
+                            type: filament.type || "",
+                            color: filament.color || "",
+                          })
+                        }}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteDialog({ isOpen: true, filamentId: filament.id })}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => startEdit(filament)}
-                      size="sm"
-                      variant="outline"
-                      className="border-blue-300 text-blue-900"
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                    <span
+                      className={
+                        !filament.price_per_kg || filament.price_per_kg === 0 ? "text-red-600 font-semibold" : ""
+                      }
                     >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      onClick={() => handleDelete(filament.id)}
-                      size="sm"
-                      variant="outline"
-                      className="border-red-300 text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                      {filament.price_per_kg && filament.price_per_kg > 0
+                        ? `€${filament.price_per_kg.toFixed(2)}/kg`
+                        : "No Price"}
+                    </span>
+                    {filament.type && (
+                      <>
+                        <span className="text-blue-400">•</span>
+                        <span>{filament.type}</span>
+                      </>
+                    )}
+                    {filament.brand && (
+                      <>
+                        <span className="text-blue-400">•</span>
+                        <span>{filament.brand}</span>
+                      </>
+                    )}
+                    {filament.color && (
+                      <>
+                        <span className="text-blue-400">•</span>
+                        <span>{filament.color}</span>
+                      </>
+                    )}
+                    {filament.requires_heating && (
+                      <>
+                        <span className="text-blue-400">•</span>
+                        <span className="text-orange-600">Requires Heating</span>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -724,6 +877,97 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
           </Card>
         ))}
       </div>
+
+      <div className="flex items-center justify-between pt-2">
+        <Button
+          variant={bulkUpdateMode ? "default" : "outline"}
+          className={bulkUpdateMode ? "bg-blue-600 text-white" : "border-blue-300 text-blue-900 bg-transparent"}
+          onClick={() => {
+            setBulkUpdateMode(!bulkUpdateMode)
+            if (bulkUpdateMode) {
+              setSelectedFilaments(new Set())
+            }
+          }}
+        >
+          {bulkUpdateMode ? "Cancel Bulk Update" : "Bulk Update Prices"}
+        </Button>
+
+        <div className="flex gap-2 items-center">
+          {bulkUpdateMode && (
+            <>
+              <span className="text-sm text-gray-600">{selectedFilaments.size} selected</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-blue-300 text-blue-900 bg-transparent"
+                onClick={selectAllFiltered}
+              >
+                Select All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-blue-300 text-blue-900 bg-transparent"
+                onClick={deselectAll}
+              >
+                Deselect All
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="bg-blue-600 text-white"
+                onClick={() => setBulkUpdateDialog({ isOpen: true, newPrice: "" })}
+                disabled={selectedFilaments.size === 0}
+              >
+                Update {selectedFilaments.size} Price{selectedFilaments.size !== 1 ? "s" : ""}
+              </Button>
+            </>
+          )}
+          <Button variant="outline" className="border-blue-300 text-blue-900 bg-transparent" onClick={handleExportCSV}>
+            <Download className="w-4 h-4 mr-2" />
+            Export to CSV (
+            {bulkUpdateMode && selectedFilaments.size > 0
+              ? selectedFilaments.size + " selected"
+              : filteredAndSortedFilaments.length + " filaments"}
+            )
+          </Button>
+        </div>
+      </div>
+
+      {/* Export Section */}
+      {/* Removed duplicate Export to CSV button */}
+      {/* <div className="mt-8 flex justify-end">
+        <Button variant="outline" className="border-blue-300 text-blue-900 bg-transparent" onClick={handleExportCSV}>
+          <Download className="w-4 h-4 mr-2" />
+          Export to CSV (
+          {bulkUpdateMode && selectedFilaments.size > 0
+            ? selectedFilaments.size + " selected"
+            : filteredAndSortedFilaments.length + " filaments"}
+          )
+        </Button>
+      </div> */}
+
+      <DialogCustom
+        isOpen={bulkUpdateDialog.isOpen}
+        onClose={() => setBulkUpdateDialog({ isOpen: false, newPrice: "" })}
+        onConfirm={handleBulkUpdatePrice}
+        title="Update Prices"
+        message={`Set new price for ${selectedFilaments.size} selected filament${selectedFilaments.size !== 1 ? "s" : ""}:`}
+        variant="default"
+      >
+        <div className="mt-4">
+          <Label className="text-blue-900">New Price per KG (€)</Label>
+          <Input
+            type="number"
+            step="0.01"
+            value={bulkUpdateDialog.newPrice}
+            onChange={(e) => setBulkUpdateDialog({ ...bulkUpdateDialog, newPrice: e.target.value })}
+            className="border-blue-200 mt-2"
+            placeholder="0.00"
+            autoFocus
+          />
+        </div>
+      </DialogCustom>
 
       {filteredAndSortedFilaments.length === 0 && filaments.length > 0 && (
         <Card className="bg-blue-50 border-2 border-blue-200">
@@ -764,3 +1008,5 @@ export function FilamentsList({ filaments: initialFilaments }: { filaments: Fila
     </div>
   )
 }
+
+export default FilamentsList

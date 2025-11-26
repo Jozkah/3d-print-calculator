@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -13,6 +15,7 @@ interface DialogCustomProps {
   cancelText?: string
   variant?: "danger" | "default" | "success"
   showCancel?: boolean
+  children?: React.ReactNode
 }
 
 export function DialogCustom({
@@ -25,6 +28,7 @@ export function DialogCustom({
   cancelText = "Cancel",
   variant = "default",
   showCancel = true,
+  children,
 }: DialogCustomProps) {
   if (!isOpen) return null
 
@@ -55,6 +59,8 @@ export function DialogCustom({
             <h2 className="text-lg font-semibold">{title}</h2>
             <p className="text-sm text-muted-foreground">{description}</p>
           </div>
+
+          {children}
 
           <div className="flex justify-end gap-3">
             {showCancel && (
