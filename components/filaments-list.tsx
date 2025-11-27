@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ComboboxCreatable } from "@/components/ui/combobox-creatable"
 import { DialogCustom } from "@/components/ui/dialog-custom"
+import { cn } from "@/lib/utils" // Import cn for conditional styling
 
 type Filament = {
   id: string
@@ -1380,10 +1381,13 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
         <Button
           variant={bulkUpdateMode ? "default" : "outline"}
-          className={bulkUpdateMode ? "bg-blue-600 text-white" : "border-blue-300 text-blue-900 bg-transparent"}
+          className={cn(
+            "w-full sm:w-auto",
+            bulkUpdateMode ? "bg-blue-600 text-white" : "border-blue-300 text-blue-900 bg-transparent",
+          )}
           onClick={() => {
             setBulkUpdateMode(!bulkUpdateMode)
             if (bulkUpdateMode) {
@@ -1394,30 +1398,34 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
           {bulkUpdateMode ? "Cancel Bulk Update" : "Bulk Update Prices"}
         </Button>
 
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center w-full sm:w-auto">
           {bulkUpdateMode && (
             <>
-              <span className="text-sm text-gray-600">{selectedFilaments.size} selected</span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-blue-300 text-blue-900 bg-transparent"
-                onClick={selectAllFiltered}
-              >
-                Select All
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-blue-300 text-blue-900 bg-transparent"
-                onClick={deselectAll}
-              >
-                Deselect All
-              </Button>
+              <div className="flex gap-2 items-center justify-between sm:justify-start">
+                <span className="text-sm text-gray-600">{selectedFilaments.size} selected</span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-900 bg-transparent"
+                    onClick={selectAllFiltered}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-900 bg-transparent"
+                    onClick={deselectAll}
+                  >
+                    Deselect All
+                  </Button>
+                </div>
+              </div>
               <Button
                 variant="default"
                 size="sm"
-                className="bg-blue-600 text-white"
+                className="bg-blue-600 text-white w-full sm:w-auto"
                 onClick={() => setBulkUpdateDialog({ isOpen: true, newPrice: "" })}
                 disabled={selectedFilaments.size === 0}
               >
@@ -1425,13 +1433,19 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               </Button>
             </>
           )}
-          <Button variant="outline" className="border-blue-300 text-blue-900 bg-transparent" onClick={handleExportCSV}>
+          <Button
+            variant="outline"
+            className="border-blue-300 text-blue-900 bg-transparent w-full sm:w-auto"
+            onClick={handleExportCSV}
+          >
             <Download className="w-4 h-4 mr-2" />
-            Export list to CSV (
-            {bulkUpdateMode && selectedFilaments.size > 0
-              ? selectedFilaments.size + " selected"
-              : filteredAndSortedFilaments.length + " total"}
-            )
+            <span className="truncate">
+              Export list to CSV (
+              {bulkUpdateMode && selectedFilaments.size > 0
+                ? selectedFilaments.size + " selected"
+                : filteredAndSortedFilaments.length + " total"}
+              )
+            </span>
           </Button>
         </div>
       </div>
