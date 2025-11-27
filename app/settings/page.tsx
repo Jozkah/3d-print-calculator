@@ -38,8 +38,8 @@ export default function SettingsPage() {
             <Link href="/settings/filaments">
               <div className="bg-white border-2 border-blue-200 rounded-lg p-8 hover:border-blue-400 transition-colors">
                 <Palette className="w-12 h-12 text-blue-600 mb-4" />
-                <h3 className="text-2xl font-semibold text-blue-900 mb-2">Filaments</h3>
-                <p className="text-blue-600">Manage filament types and prices per kg</p>
+                <h3 className="text-2xl font-semibold text-blue-900 mb-2">Filaments & Materials</h3>
+                <p className="text-blue-600">Manage filament types, laser materials and prices</p>
               </div>
             </Link>
           </div>

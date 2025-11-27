@@ -6,7 +6,17 @@ import { ArrowLeft } from "lucide-react"
 
 export default async function FilamentsPage() {
   const supabase = await createClient()
-  const { data: filaments } = await supabase.from("filaments").select("*").order("created_at", { ascending: true })
+  const { data: filaments } = await supabase
+    .from("filaments")
+    .select("*")
+    .eq("material_type", "filament")
+    .order("created_at", { ascending: true })
+
+  const { data: materials } = await supabase
+    .from("filaments")
+    .select("*")
+    .eq("material_type", "material")
+    .order("created_at", { ascending: true })
 
   return (
     <div className="min-h-screen bg-white">
@@ -17,12 +27,12 @@ export default async function FilamentsPage() {
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold text-blue-900">Manage Filaments</h1>
+          <h1 className="text-2xl font-bold text-blue-900">Manage Filaments & Materials</h1>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <FilamentsList filaments={filaments || []} />
+        <FilamentsList filaments={filaments || []} materials={materials || []} />
       </main>
     </div>
   )
