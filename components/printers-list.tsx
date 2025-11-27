@@ -227,13 +227,14 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-0 mb-6">
         <h2 className="text-xl font-semibold text-blue-900">3D Printers</h2>
-        <Button onClick={() => setIsAdding(true)} className="bg-blue-600 hover:bg-blue-700">
+        <Button onClick={() => setIsAdding(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
           <Plus className="w-4 h-4 mr-2" />
           Add Printer
         </Button>
       </div>
+      {/* </CHANGE> */}
 
       {isAdding && (
         <Card className="mb-6 border-blue-200">
@@ -243,16 +244,17 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
           </CardHeader>
           <CardContent className="space-y-4">
             {renderPrinterForm(newPrinter, setNewPrinter)}
-            <div className="flex gap-2 pt-4">
-              <Button onClick={handleAdd} className="bg-green-600 hover:bg-green-700">
+            <div className="flex flex-col sm:flex-row gap-2 pt-4">
+              <Button onClick={handleAdd} className="bg-green-600 hover:bg-green-700 w-full sm:w-auto">
                 <Check className="w-4 h-4 mr-2" />
                 Save
               </Button>
-              <Button onClick={() => setIsAdding(false)} variant="outline">
+              <Button onClick={() => setIsAdding(false)} variant="outline" className="w-full sm:w-auto">
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
             </div>
+            {/* </CHANGE> */}
           </CardContent>
         </Card>
       )}

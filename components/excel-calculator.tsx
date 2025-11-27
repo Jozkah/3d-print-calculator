@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, Save } from "lucide-react"
+import { Plus, Trash2, Save, ChevronsUpDown, Check } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast" // Assuming toast is available
 import { DialogCustom } from "@/components/ui/dialog-custom" // Import DialogCustom
+import { cn } from "@/lib/utils" // Assuming cn utility is available
 
 // Placeholder for LaserMaterial type if it's defined elsewhere
 type LaserMaterial = {
@@ -119,6 +120,9 @@ type ExcelCalculatorProps = {
   // If it's intended for the LaserCalculator component, it should be passed down.
   laserMaterials?: LaserMaterial[]
 }
+
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 export function ExcelCalculator({
   printers: initialPrinters,
@@ -552,6 +556,20 @@ export function ExcelCalculator({
 
   const batchesLabel = calculatorType !== "3d-print" ? "Processing Batches" : "Dried Batches"
 
+  const addPrintedPart = () => {
+    setPrintedParts([
+      ...printedParts,
+      {
+        id: Date.now().toString(),
+        name: "",
+        filament_id: "",
+        printer_id: "",
+        filament_grams: 0,
+        printing_time_hr: 0,
+      },
+    ])
+  }
+
   return (
     <div className="min-h-screen bg-white">
       {/* ADDED: Error dialog for validation failures */}
@@ -579,38 +597,45 @@ export function ExcelCalculator({
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {mode === "business" && (
-          <div className="mb-6 flex gap-2">
-            <Button
-              variant={calculatorType === "3d-print" ? "default" : "outline"}
-              onClick={() => setCalculatorType("3d-print")}
-            >
-              3D Printing
-            </Button>
-            <Button
-              variant={calculatorType === "laser-engraving" ? "default" : "outline"}
-              onClick={() => setCalculatorType("laser-engraving")}
-            >
-              Laser Engraving
-            </Button>
-            <Button
-              variant={calculatorType === "laser-cutting" ? "default" : "outline"}
-              onClick={() => setCalculatorType("laser-cutting")}
-            >
-              Laser Cutting
-            </Button>
-            <Button
-              variant={calculatorType === "stickers" ? "default" : "outline"}
-              onClick={() => setCalculatorType("stickers")}
-            >
-              Stickers
-            </Button>
+          <div className="mb-6 -mx-4 px-4 overflow-x-auto">
+            <div className="flex gap-2 min-w-max pb-2">
+              <Button
+                variant={calculatorType === "3d-print" ? "default" : "outline"}
+                onClick={() => setCalculatorType("3d-print")}
+                className="whitespace-nowrap min-w-[120px]"
+              >
+                3D Printing
+              </Button>
+              <Button
+                variant={calculatorType === "laser-engraving" ? "default" : "outline"}
+                onClick={() => setCalculatorType("laser-engraving")}
+                className="whitespace-nowrap min-w-[120px]"
+              >
+                Laser Engraving
+              </Button>
+              <Button
+                variant={calculatorType === "laser-cutting" ? "default" : "outline"}
+                onClick={() => setCalculatorType("laser-cutting")}
+                className="whitespace-nowrap min-w-[120px]"
+              >
+                Laser Cutting
+              </Button>
+              <Button
+                variant={calculatorType === "stickers" ? "default" : "outline"}
+                onClick={() => setCalculatorType("stickers")}
+                className="whitespace-nowrap min-w-[120px]"
+              >
+                Stickers
+              </Button>
+            </div>
           </div>
         )}
 
         {/* Quote Details */}
         <Card className="p-6 bg-white border-2 border-blue-300">
           <h2 className="text-xl font-bold text-blue-900 mb-4">Quote Details</h2>
-          <div className="grid md:grid-cols-2 gap-4">
+          {/* Changed to stack on mobile for better readability */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="clientName" className="text-blue-900">
                 Client Name
@@ -656,45 +681,38 @@ export function ExcelCalculator({
         {/* Printed Parts Table */}
         <Card className="p-6 bg-white border-2 border-blue-300">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-blue-900">{partsLabel}</h2>
-            <Button
-              onClick={() =>
-                setPrintedParts([
-                  ...printedParts,
-                  {
-                    id: Date.now().toString(),
-                    name: "",
-                    filament_id: "",
-                    printer_id: "",
-                    filament_grams: 0,
-                    printing_time_hr: 0,
-                  },
-                ])
-              }
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700"
-            >
+            <h3 className="text-lg font-bold text-blue-900">
+              {calculatorType === "3d-print"
+                ? "Printed Parts (Filament Input)"
+                : calculatorType === "laser-engraving"
+                  ? "Laser Engraved Items"
+                  : calculatorType === "laser-cutting"
+                    ? "Laser Cut Items"
+                    : "Printed Stickers"}
+            </h3>
+            <Button onClick={addPrintedPart} className="bg-blue-600 hover:bg-blue-700">
               <Plus className="w-4 h-4 mr-2" />
-              Add {calculatorType !== "3d-print" ? "Item" : "Part"}
+              Add Part
             </Button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+          {/* Made table scroll horizontally on mobile with better mobile layout */}
+          <div className="overflow-x-auto -mx-6 px-6">
+            <table className="w-full border-collapse min-w-[600px]">
               <thead>
                 <tr className="bg-blue-100 border-b-2 border-blue-300">
-                  <th className="p-3 text-left text-blue-900 font-semibold">Part Name</th>
+                  <th className="p-3 text-left text-blue-900 font-semibold min-w-[120px]">Part Name</th>
                   {calculatorType === "3d-print" && (
-                    <th className="p-3 text-left text-blue-900 font-semibold">Printer</th>
+                    <th className="p-3 text-left text-blue-900 font-semibold min-w-[120px]">Printer</th>
                   )}
-                  <th className="p-3 text-left text-blue-900 font-semibold">
+                  <th className="p-3 text-left text-blue-900 font-semibold min-w-[120px]">
                     {calculatorType === "3d-print" ? "Filament" : "Material"}
                   </th>
                   {calculatorType === "3d-print" && (
-                    <th className="p-3 text-left text-blue-900 font-semibold">Weight (g)</th>
+                    <th className="p-3 text-left text-blue-900 font-semibold min-w-[100px]">Weight (g)</th>
                   )}
-                  <th className="p-3 text-left text-blue-900 font-semibold">Print Time (hr)</th>
-                  <th className="p-3 text-left text-blue-900 font-semibold">Cost (€)</th>
-                  <th className="p-3"></th>
+                  <th className="p-3 text-left text-blue-900 font-semibold min-w-[100px]">Print Time (hr)</th>
+                  <th className="p-3 text-left text-blue-900 font-semibold min-w-[100px]">Cost (€)</th>
+                  <th className="p-3 min-w-[50px]"></th>
                 </tr>
               </thead>
               <tbody>
@@ -748,31 +766,59 @@ export function ExcelCalculator({
                           </Select>
                         </td>
                       )}
-                      <td className="p-2">
-                        <Select
-                          value={part.filament_id}
-                          onValueChange={(value) => {
-                            const updated = [...printedParts]
-                            updated[index].filament_id = value
-                            if (calculatorType !== "3d-print" && h2sPrinter) {
-                              updated[index].printer_id = h2sPrinter.id
-                            }
-                            setPrintedParts(updated)
-                          }}
-                        >
-                          <SelectTrigger className="border-blue-200 bg-white">
-                            <SelectValue
-                              placeholder={`Select ${calculatorType === "3d-print" ? "filament" : "material"}`}
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableFilaments.map((filament) => (
-                              <SelectItem key={filament.id} value={filament.id}>
-                                {filament.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <td className="border-r border-blue-200 bg-white p-1 sm:p-2">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between border-blue-200 bg-white text-left font-normal"
+                            >
+                              {part.filament_id
+                                ? availableFilaments.find((f) => f.id === part.filament_id)?.name ||
+                                  `Select ${calculatorType === "3d-print" ? "filament" : "material"}`
+                                : `Select ${calculatorType === "3d-print" ? "filament" : "material"}`}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0" align="start">
+                            <Command>
+                              <CommandInput
+                                placeholder={`Search ${calculatorType === "3d-print" ? "filaments" : "materials"}...`}
+                                className="h-9"
+                              />
+                              <CommandList>
+                                <CommandEmpty>
+                                  No {calculatorType === "3d-print" ? "filament" : "material"} found.
+                                </CommandEmpty>
+                                <CommandGroup>
+                                  {availableFilaments.map((filament) => (
+                                    <CommandItem
+                                      key={filament.id}
+                                      value={filament.name}
+                                      onSelect={() => {
+                                        const updated = [...printedParts]
+                                        updated[index].filament_id = filament.id
+                                        if (calculatorType !== "3d-print" && h2sPrinter) {
+                                          updated[index].printer_id = h2sPrinter.id
+                                        }
+                                        setPrintedParts(updated)
+                                      }}
+                                    >
+                                      {filament.name}
+                                      <Check
+                                        className={cn(
+                                          "ml-auto h-4 w-4",
+                                          part.filament_id === filament.id ? "opacity-100" : "opacity-0",
+                                        )}
+                                      />
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
                       </td>
                       {calculatorType === "3d-print" && (
                         <td className="p-2">
@@ -1274,57 +1320,61 @@ export function ExcelCalculator({
 
           <div className="mt-8 pt-6 border-t-2 border-blue-400">
             <h3 className="text-xl font-bold text-blue-900 mb-4">Profit Margins (Click to Select)</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Improved mobile grid layout for profit margins */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <div
-                className={`p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
+                className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                   selectedMargin === 30
                     ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                     : "bg-white border-blue-300"
                 }`}
                 onClick={() => setSelectedMargin(30)}
               >
-                <div className="text-blue-700 text-sm font-medium mb-1">30% Margin</div>
-                <div className="text-blue-900 text-xl font-bold">€{margin30WithVAT.toFixed(2)}</div>
+                <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">30% Margin</div>
+                <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin30WithVAT.toFixed(2)}</div>
               </div>
               <div
-                className={`p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
+                className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                   selectedMargin === 40
                     ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                     : "bg-white border-blue-300"
                 }`}
                 onClick={() => setSelectedMargin(40)}
               >
-                <div className="text-blue-700 text-sm font-medium mb-1">40% Margin</div>
-                <div className="text-blue-900 text-xl font-bold">€{margin40WithVAT.toFixed(2)}</div>
+                <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">40% Margin</div>
+                <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin40WithVAT.toFixed(2)}</div>
               </div>
               <div
-                className={`p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
+                className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                   selectedMargin === 50
                     ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                     : "bg-white border-blue-300"
                 }`}
                 onClick={() => setSelectedMargin(50)}
               >
-                <div className="text-blue-700 text-sm font-medium mb-1">50% Margin</div>
-                <div className="text-blue-900 text-xl font-bold">€{margin50WithVAT.toFixed(2)}</div>
+                <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">50% Margin</div>
+                <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin50WithVAT.toFixed(2)}</div>
               </div>
               <div
-                className={`p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
+                className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                   selectedMargin === 60
                     ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                     : "bg-white border-blue-300"
                 }`}
                 onClick={() => setSelectedMargin(60)}
               >
-                <div className="text-blue-700 text-sm font-medium mb-1">60% Margin</div>
-                <div className="text-blue-900 text-xl font-bold">€{margin60WithVAT.toFixed(2)}</div>
+                <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">60% Margin</div>
+                <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin60WithVAT.toFixed(2)}</div>
               </div>
             </div>
 
-            <div className="mt-6 p-6 bg-blue-50 rounded-lg border-2 border-blue-400">
-              <div className="flex justify-between items-center">
-                <div className="text-blue-700 font-semibold">Final Client Price ({selectedMargin}% Margin)</div>
-                <div className="text-blue-900 text-3xl font-bold">€{finalClientPrice.toFixed(2)}</div>
+            <div className="mt-6 p-4 sm:p-6 bg-blue-50 rounded-lg border-2 border-blue-400">
+              {/* Made final price section stack on mobile for better readability */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div className="text-blue-700 font-semibold text-sm sm:text-base">
+                  Final Client Price ({selectedMargin}% Margin)
+                </div>
+                <div className="text-blue-900 text-2xl sm:text-3xl font-bold">€{finalClientPrice.toFixed(2)}</div>
               </div>
             </div>
 

@@ -244,44 +244,46 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                   {quote.printed_parts && quote.printed_parts.length > 0 && (
                     <div className="mb-6">
                       <h3 className="text-sm font-semibold text-blue-900 mb-3">Printed Parts</h3>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm border-2 border-blue-300">
-                          <thead className="bg-blue-600 text-white">
-                            <tr>
-                              <th className="border border-blue-400 px-3 py-2 text-left">Part Name</th>
-                              <th className="border border-blue-400 px-3 py-2 text-left">Printer</th>
-                              <th className="border border-blue-400 px-3 py-2 text-left">Filament</th>
-                              <th className="border border-blue-400 px-3 py-2 text-right">Weight (g)</th>
-                              <th className="border border-blue-400 px-3 py-2 text-right">Time (h)</th>
-                              <th className="border border-blue-400 px-3 py-2 text-right">Cost</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white">
-                            {quote.printed_parts.map((part: any, index: number) => {
-                              const filament = filaments.find((f) => f.id === part.filament_id)
-                              const cost = filament ? (filament.price_per_kg * (part.filament_grams || 0)) / 1000 : 0
+                      <div className="overflow-x-auto -mx-4 sm:mx-0">
+                        <div className="inline-block min-w-full align-middle">
+                          <table className="w-full text-sm border-2 border-blue-300">
+                            <thead className="bg-blue-600 text-white">
+                              <tr>
+                                <th className="border border-blue-400 px-3 py-2 text-left">Part Name</th>
+                                <th className="border border-blue-400 px-3 py-2 text-left">Printer</th>
+                                <th className="border border-blue-400 px-3 py-2 text-left">Filament</th>
+                                <th className="border border-blue-400 px-3 py-2 text-right">Weight (g)</th>
+                                <th className="border border-blue-400 px-3 py-2 text-right">Time (h)</th>
+                                <th className="border border-blue-400 px-3 py-2 text-right">Cost</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white">
+                              {quote.printed_parts.map((part: any, index: number) => {
+                                const filament = filaments.find((f) => f.id === part.filament_id)
+                                const cost = filament ? (filament.price_per_kg * (part.filament_grams || 0)) / 1000 : 0
 
-                              return (
-                                <tr key={index}>
-                                  <td className="border border-blue-300 px-3 py-2">{part.name || "N/A"}</td>
-                                  <td className="border border-blue-300 px-3 py-2">
-                                    {getPrinterName(part.printer_id)}
-                                  </td>
-                                  <td className="border border-blue-300 px-3 py-2">
-                                    {getFilamentName(part.filament_id)}
-                                  </td>
-                                  <td className="border border-blue-300 px-3 py-2 text-right">
-                                    {part.filament_grams || 0}
-                                  </td>
-                                  <td className="border border-blue-300 px-3 py-2 text-right">
-                                    {part.printing_time_hr || 0}
-                                  </td>
-                                  <td className="border border-blue-300 px-3 py-2 text-right">€{safeFixed(cost)}</td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
+                                return (
+                                  <tr key={index}>
+                                    <td className="border border-blue-300 px-3 py-2">{part.name || "N/A"}</td>
+                                    <td className="border border-blue-300 px-3 py-2">
+                                      {getPrinterName(part.printer_id)}
+                                    </td>
+                                    <td className="border border-blue-300 px-3 py-2">
+                                      {getFilamentName(part.filament_id)}
+                                    </td>
+                                    <td className="border border-blue-300 px-3 py-2 text-right">
+                                      {part.filament_grams || 0}
+                                    </td>
+                                    <td className="border border-blue-300 px-3 py-2 text-right">
+                                      {part.printing_time_hr || 0}
+                                    </td>
+                                    <td className="border border-blue-300 px-3 py-2 text-right">€{safeFixed(cost)}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -289,34 +291,36 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                   {quote.dried_batches && quote.dried_batches.length > 0 && (
                     <div className="mb-6">
                       <h3 className="text-sm font-semibold text-blue-900 mb-3">Dried Batches</h3>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm border-2 border-blue-300">
-                          <thead className="bg-blue-600 text-white">
-                            <tr>
-                              <th className="border border-blue-400 px-3 py-2 text-left">Filament</th>
-                              <th className="border border-blue-400 px-3 py-2 text-right">Hours</th>
-                              <th className="border border-blue-400 px-3 py-2 text-right">Cost</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white">
-                            {quote.dried_batches.map((batch: any, index: number) => (
-                              <tr key={index}>
-                                <td className="border border-blue-300 px-3 py-2">{batch.material || "N/A"}</td>
-                                <td className="border border-blue-300 px-3 py-2 text-right">
-                                  {batch.drying_time_hr || 0}
-                                </td>
-                                <td className="border border-blue-300 px-3 py-2 text-right">
-                                  €{safeFixed(batch.cost)}
-                                </td>
+                      <div className="overflow-x-auto -mx-4 sm:mx-0">
+                        <div className="inline-block min-w-full align-middle">
+                          <table className="w-full text-sm border-2 border-blue-300">
+                            <thead className="bg-blue-600 text-white">
+                              <tr>
+                                <th className="border border-blue-400 px-3 py-2 text-left">Filament</th>
+                                <th className="border border-blue-400 px-3 py-2 text-right">Hours</th>
+                                <th className="border border-blue-400 px-3 py-2 text-right">Cost</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="bg-white">
+                              {quote.dried_batches.map((batch: any, index: number) => (
+                                <tr key={index}>
+                                  <td className="border border-blue-300 px-3 py-2">{batch.material || "N/A"}</td>
+                                  <td className="border border-blue-300 px-3 py-2 text-right">
+                                    {batch.drying_time_hr || 0}
+                                  </td>
+                                  <td className="border border-blue-300 px-3 py-2 text-right">
+                                    €{safeFixed(batch.cost)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  <div className="grid md:grid-cols-3 gap-4 mb-6">
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                     {quote.materials && quote.materials.length > 0 && (
                       <div>
                         <h3 className="text-sm font-semibold text-blue-900 mb-2">Materials</h3>
@@ -360,7 +364,7 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                     )}
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-6 pt-4 border-t-2 border-blue-200">
+                  <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 pt-4 border-t-2 border-blue-200">
                     <div>
                       <h3 className="text-sm font-semibold text-blue-900 mb-3">Cost Breakdown</h3>
                       <div className="space-y-2 text-sm">
@@ -409,7 +413,7 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
 
                     <div>
                       <h3 className="text-sm font-semibold text-blue-900 mb-3">Profit Margins</h3>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
                         <div
                           className={`p-3 rounded-lg border-2 ${
                             Number(quote.selected_margin) === 30

@@ -16,14 +16,18 @@ export default async function PersonalPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="border-b-2 border-blue-200 bg-white">
-        <div className="max-w-[1600px] mx-auto p-6 flex items-center gap-4">
+        <div className="max-w-[1600px] mx-auto p-4 sm:p-6 flex items-center gap-2 sm:gap-4">
           <Link href="/">
-            <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-800">
+            <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-800 shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
-          <h1 className="text-3xl font-bold text-blue-600">Personal Calculator</h1>
-          <p className="text-gray-600 mt-2">Calculate costs for personal projects</p>
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-blue-600 truncate">Personal Calculator</h1>
+            <p className="text-sm sm:text-base text-gray-600 mt-1 hidden sm:block">
+              Calculate costs for personal projects
+            </p>
+          </div>
         </div>
       </div>
       <ExcelCalculator

@@ -572,14 +572,15 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="flex justify-end items-center mb-6 gap-2">
+      <div className="flex flex-wrap justify-end items-center gap-2 mb-6">
         <Button
           onClick={() => document.getElementById("csv-import")?.click()}
           variant="outline"
-          className="bg-white border-blue-300 text-blue-900"
+          className="bg-white border-blue-300 text-blue-900 text-sm sm:text-base"
         >
           <Upload className="w-4 h-4 mr-2" />
-          Import CSV
+          <span className="hidden sm:inline">Import CSV</span>
+          <span className="sm:hidden">Import</span>
         </Button>
         <input id="csv-import" type="file" accept=".csv" onChange={handleCSVImport} className="hidden" />
         <Button
@@ -597,10 +598,11 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               size: "", // Reset size
             })
           }}
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-blue-600 hover:bg-blue-700 text-sm sm:text-base"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Add Filament
+          <span className="hidden sm:inline">Add Filament</span>
+          <span className="sm:hidden">Filament</span>
         </Button>
         <Button
           onClick={() => {
@@ -617,12 +619,14 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               size: "", // Initialize size
             })
           }}
-          className="bg-green-600 hover:bg-green-700"
+          className="bg-green-600 hover:bg-green-700 text-sm sm:text-base"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Add Material
+          <span className="hidden sm:inline">Add Material</span>
+          <span className="sm:hidden">Material</span>
         </Button>
       </div>
+      {/* </CHANGE> */}
 
       <Card className="mb-6 bg-white border-2 border-blue-300">
         <CardContent className="p-4">
@@ -640,17 +644,18 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               </div>
               <Button
                 variant="outline"
-                className="border-blue-300 text-blue-900 bg-transparent"
+                className="border-blue-300 text-blue-900 bg-transparent shrink-0"
                 onClick={() => setShowFilters(!showFilters)}
               >
-                <SlidersHorizontal className="w-4 h-4 mr-2" />
-                Filters
+                <SlidersHorizontal className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Filters</span>
               </Button>
             </div>
+            {/* </CHANGE> */}
 
             {/* Filter Controls */}
             {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-blue-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-blue-200">
                 <div>
                   <Label className="text-blue-900 text-sm mb-2">Type</Label>
                   <Select value={filterType} onValueChange={setFilterType}>
