@@ -17,6 +17,7 @@ interface Quote {
   labor_cost: number
   packaging_cost: number
   fuel_cost: number
+  electricity_cost: number
   emergency_fee_cost: number
   total_landed_cost: number
   selected_margin: number
@@ -70,8 +71,8 @@ export default function QuotePage() {
   const printingAndMaterialsCost =
     (quote.total_printing_cost || 0) +
     (quote.machine_cost || 0) +
-    (quote.drying_cost || 0) +
-    (quote.materials_cost || 0)
+    (quote.materials_cost || 0) +
+    (quote.electricity_cost || 0)
 
   const packagingShippingCost = (quote.packaging_cost || 0) + (quote.fuel_cost || 0)
 
