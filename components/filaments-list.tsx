@@ -70,6 +70,8 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
   const [filterType, setFilterType] = useState("all")
   const [filterColor, setFilterColor] = useState("all")
   const [filterHeating, setFilterHeating] = useState("all")
+  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false)
+  // </CHANGE>
   const [sortBy, setSortBy] = useState<"name" | "price" | "type">("name")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; filamentId: string | null }>({
@@ -109,10 +111,10 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
   }, [filaments])
 
   const filteredAndSortedFilaments = useMemo(() => {
-    console.log("[v0] Total filaments:", filaments.length)
-    console.log("[v0] Filaments by type:", {
-      filaments: filaments.filter((f) => f.material_type === "filament").length,
-      materials: filaments.filter((f) => f.material_type === "material").length,
+    const nameCounts = new Map<string, number>()
+    filaments.forEach((f) => {
+      const count = nameCounts.get(f.name) || 0
+      nameCounts.set(f.name, count + 1)
     })
 
     const filtered = filaments.filter((f) => {
@@ -126,7 +128,10 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         (filterHeating === "heating" && f.requires_heating) ||
         (filterHeating === "no-heating" && !f.requires_heating)
 
-      return matchesSearch && matchesBrand && matchesType && matchesColor && matchesHeating
+      const matchesDuplicateFilter = !showDuplicatesOnly || (nameCounts.get(f.name) || 0) > 1
+      // </CHANGE>
+
+      return matchesSearch && matchesBrand && matchesType && matchesColor && matchesHeating && matchesDuplicateFilter
     })
 
     // Sort
@@ -147,7 +152,17 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     })
 
     return filtered
-  }, [filaments, searchQuery, filterBrand, filterType, filterColor, filterHeating, sortBy, sortOrder])
+  }, [
+    filaments,
+    searchQuery,
+    filterBrand,
+    filterType,
+    filterColor,
+    filterHeating,
+    sortBy,
+    sortOrder,
+    showDuplicatesOnly,
+  ])
 
   const filamentItems = filteredAndSortedFilaments.filter((f) => {
     const isFil = f.material_type === "filament" || !f.material_type
@@ -159,13 +174,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     return isMat
   })
 
-  console.log("[v0] After filtering - filaments:", filamentItems.length, "materials:", materialItems.length)
-  if (materialItems.length > 0) {
-    console.log("[v0] Sample material:", materialItems[0])
-  } else if (filamentItems.length > 0) {
-    console.log("[v0] No materials found. Sample filament:", filamentItems[0])
-  }
-
   const displayFilaments = filamentItems
   const displayMaterials = materialItems
 
@@ -175,30 +183,18 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     setFilterType("all")
     setFilterColor("all")
     setFilterHeating("all")
+    setShowDuplicatesOnly(false)
+    // </CHANGE>
     setSortBy("name")
     setSortOrder("asc")
   }
 
   const handleAdd = async () => {
-    console.log("[v0] handleAdd called with:", newFilament)
-    console.log("[v0] Adding type:", newFilament.material_type, "isAddingMaterial:", isAddingMaterial)
-
     if (!newFilament.name || !newFilament.price_per_kg) {
-      console.log("[v0] Missing required fields - name or price")
       return
     }
 
     const supabase = createClient()
-
-    console.log("[v0] Inserting new filament/material:", {
-      name: newFilament.name,
-      price_per_kg: Number.parseFloat(newFilament.price_per_kg),
-      material_type: newFilament.material_type,
-      brand: newFilament.brand || "Generic",
-      type: newFilament.type || "Other",
-      thickness: newFilament.thickness || null,
-      size: newFilament.size || null,
-    })
 
     const { data, error } = await supabase.from("filaments").insert({
       name: newFilament.name,
@@ -214,9 +210,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     })
 
     if (error) {
-      console.log("[v0] Error inserting:", error)
+      // Handle error appropriately, maybe show a toast
     } else {
-      console.log("[v0] Successfully inserted, fetching updated list")
+      // Item was added successfully
     }
 
     if (!error) {
@@ -235,15 +231,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       setIsAddingMaterial(false)
       const { data } = await supabase.from("filaments").select("*").order("name")
       if (data) {
-        console.log("[v0] Updated filaments list with", data.length, "items")
-        const byType = data.reduce(
-          (acc, item) => {
-            acc[item.material_type || "unknown"] = (acc[item.material_type || "unknown"] || 0) + 1
-            return acc
-          },
-          {} as Record<string, number>,
-        )
-        console.log("[v0] Breakdown by material_type:", byType)
         setFilaments(data)
       }
       router.refresh()
@@ -258,10 +245,11 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     if (!deleteDialog.filamentId) return
 
     const supabase = createClient()
-    const { error } = await supabase.from("filaments").delete().eq("id", deleteDialog.filamentId)
+    const { error, data } = await supabase.from("filaments").delete().eq("id", deleteDialog.filamentId).select()
 
     if (!error) {
-      setFilaments(filaments.filter((f) => f.id !== deleteDialog.filamentId))
+      const newFilaments = filaments.filter((f) => f.id !== deleteDialog.filamentId)
+      setFilaments(newFilaments)
     }
     setDeleteDialog({ isOpen: false, filamentId: null })
   }
@@ -344,9 +332,12 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         type: string
         color: string
         price_per_kg: number | null
+        requires_heating: boolean
         material_type: string
-        size?: string // Added size field
+        thickness?: string
+        size?: string
       }> = []
+      // </CHANGE>
 
       // Skip header row (index 0)
       for (let i = 1; i < lines.length; i++) {
@@ -358,9 +349,12 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         const brand = columns[0] || ""
         const type = columns[1] || ""
         const color = columns[2] || ""
-        const priceStr = columns[5] || "" // Column F (index 5)
-        const materialType = columns[6] || "filament" // Column G (index 6)
-        const size = columns[7] || "" // Column H (index 7) for size
+        const priceStr = columns[3] || "" // Column D (index 3) - Price
+        const heatingStr = columns[4] || "false" // Column E (index 4) - Heating
+        const materialType = columns[5] || "filament" // Column F (index 5) - Material Type
+        const thickness = columns[6] || "" // Column G (index 6) - Thickness
+        const size = columns[7] || "" // Column H (index 7) - Size
+        // </CHANGE>
 
         // Parse European price format (comma as decimal, remove € symbol)
         let price: number | null = null
@@ -372,15 +366,20 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
           }
         }
 
+        const requiresHeating = heatingStr.toLowerCase() === "true"
+        // </CHANGE>
+
         // Skip EMPTY filaments
-        if (brand && type && color && type !== "EMPTY") {
+        if (brand && type && type !== "EMPTY") {
           filamentData.push({
             brand,
             type,
             color,
             price_per_kg: price,
+            requires_heating: requiresHeating,
             material_type: materialType,
-            size: size, // Include size
+            thickness: thickness || undefined,
+            size: size || undefined,
           })
         }
       }
@@ -397,18 +396,20 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       // Insert filaments
       const { error: insertError } = await supabase.from("filaments").insert(
         filamentData.map((f) => ({
-          name: `${f.brand} ${f.type} ${f.color}`,
+          name:
+            f.material_type === "material" ? `${f.brand} ${f.type}`.trim() : `${f.brand} ${f.type} ${f.color}`.trim(),
           brand: f.brand,
           type: f.type,
-          color: f.color,
+          color: f.color || null,
           price_per_kg: f.price_per_kg,
-          requires_heating: false,
-          heating_time_hours: 0,
+          requires_heating: f.requires_heating,
+          heating_time_hours: f.requires_heating ? 4 : 0, // Default to 4 hours if heating required
           material_type: f.material_type,
-          // Added size to insert operation
+          thickness: f.thickness || null,
           size: f.size || null,
         })),
       )
+      // </CHANGE>
 
       if (insertError) {
         console.error("[v0] Error importing filaments:", insertError)
@@ -543,16 +544,17 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         filament.color || "",
         price,
         heating,
-        filament.material_type,
+        filament.material_type || "filament",
         filament.thickness || "",
-        filament.size || "", // Added size export
+        filament.size || "",
       ]
       csvRows.push(row.join(";"))
     })
 
-    // Create blob and download
     const csvContent = csvRows.join("\n")
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const BOM = "\uFEFF" // UTF-8 BOM
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" })
+    // </CHANGE>
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.setAttribute("href", url)
@@ -748,6 +750,20 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="flex items-center space-x-2 pt-6">
+                  <input
+                    type="checkbox"
+                    id="show-duplicates"
+                    checked={showDuplicatesOnly}
+                    onChange={(e) => setShowDuplicatesOnly(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-blue-300 rounded focus:ring-blue-500"
+                  />
+                  <Label htmlFor="show-duplicates" className="text-blue-900 text-sm cursor-pointer">
+                    Show Duplicates Only
+                  </Label>
+                </div>
+                {/* </CHANGE> */}
 
                 <div className="flex items-end">
                   <Button

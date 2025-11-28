@@ -77,6 +77,28 @@ export default function QuotePage() {
 
   const isBusinessQuote = quote.mode === "business"
 
+  const totalLandedCost =
+    printingAndMaterialsCost +
+    (quote.labor_cost || 0) +
+    packagingShippingCost +
+    (quote.is_emergency ? quote.emergency_fee_cost || 0 : 0)
+
+  const marginMultiplier = 1 + (quote.selected_margin || 0) / 100
+  const priceWithMargin = totalLandedCost * marginMultiplier
+
+  // Add VAT for business quotes
+  const vatAmount = isBusinessQuote ? priceWithMargin * 0.23 : 0
+  const finalPrice = priceWithMargin + vatAmount
+
+  console.log("[v0] Quote calculations:", {
+    totalLandedCost,
+    selectedMargin: quote.selected_margin,
+    marginMultiplier,
+    priceWithMargin,
+    vatAmount,
+    finalPrice,
+  })
+
   return (
     <div className="min-h-screen bg-white">
       {/* Print button - hidden when printing */}
@@ -111,7 +133,7 @@ export default function QuotePage() {
               <td className="py-4 px-4 font-medium text-gray-900">3D Printing & Materials</td>
               <td className="py-4 px-4 text-gray-700">Printing time, machine cost and material usage</td>
               <td className="py-4 px-4 text-right font-medium text-gray-900">
-                {printingAndMaterialsCost.toFixed(2)} €
+                {(printingAndMaterialsCost * marginMultiplier).toFixed(2)} €
               </td>
             </tr>
 
@@ -119,14 +141,18 @@ export default function QuotePage() {
             <tr className="bg-blue-200">
               <td className="py-4 px-4 font-medium text-gray-900">Labor</td>
               <td className="py-4 px-4 text-gray-700">Assembly, post-processing, or design work</td>
-              <td className="py-4 px-4 text-right font-medium text-gray-900">{(quote.labor_cost || 0).toFixed(2)} €</td>
+              <td className="py-4 px-4 text-right font-medium text-gray-900">
+                {((quote.labor_cost || 0) * marginMultiplier).toFixed(2)} €
+              </td>
             </tr>
 
             {/* Packaging, Shipping & Transport */}
             <tr className="bg-blue-100">
               <td className="py-4 px-4 font-medium text-gray-900">Packaging, Shipping & Transport</td>
               <td className="py-4 px-4 text-gray-700">Packaging materials, courier, and transportation</td>
-              <td className="py-4 px-4 text-right font-medium text-gray-900">{packagingShippingCost.toFixed(2)} €</td>
+              <td className="py-4 px-4 text-right font-medium text-gray-900">
+                {(packagingShippingCost * marginMultiplier).toFixed(2)} €
+              </td>
             </tr>
 
             {/* Emergency Fee */}
@@ -138,7 +164,7 @@ export default function QuotePage() {
                 </td>
                 <td className="py-4 px-4 text-gray-700">Urgent order surcharge</td>
                 <td className="py-4 px-4 text-right font-medium text-gray-900">
-                  {(quote.emergency_fee_cost || 0).toFixed(2)} €
+                  {((quote.emergency_fee_cost || 0) * marginMultiplier).toFixed(2)} €
                 </td>
               </tr>
             )}
@@ -149,9 +175,7 @@ export default function QuotePage() {
                 <td className="py-4 px-4 font-medium text-gray-900" colSpan={2}>
                   <div className="text-right">VAT</div>
                 </td>
-                <td className="py-4 px-4 text-right font-medium text-gray-900">
-                  {(quote.vat_amount || 0).toFixed(2)} €
-                </td>
+                <td className="py-4 px-4 text-right font-medium text-gray-900">{vatAmount.toFixed(2)} €</td>
               </tr>
             )}
 
@@ -160,9 +184,7 @@ export default function QuotePage() {
               <td className="py-4 px-4 font-bold text-gray-900" colSpan={2}>
                 <div className="text-right text-lg">Total:</div>
               </td>
-              <td className="py-4 px-4 text-right font-bold text-gray-900 text-lg">
-                {(quote.final_client_price || 0).toFixed(2)} €
-              </td>
+              <td className="py-4 px-4 text-right font-bold text-gray-900 text-lg">{finalPrice.toFixed(2)} €</td>
             </tr>
           </tbody>
         </table>

@@ -385,11 +385,11 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                           <span className="text-blue-900">€{safeFixed(quote.labor_cost)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-blue-600">Packaging Cost</span>
+                          <span className="text-blue-600">Packaging & Shipping Cost</span>
                           <span className="text-blue-900">€{safeFixed(quote.packaging_cost)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-blue-600">Fuel Cost</span>
+                          <span className="text-blue-600">Transportation Cost</span>
                           <span className="text-blue-900">€{safeFixed(quote.fuel_cost)}</span>
                         </div>
                         <div className="flex justify-between">

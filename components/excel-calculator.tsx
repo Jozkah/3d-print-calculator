@@ -795,7 +795,7 @@ export function ExcelCalculator({
                                   {availableFilaments.map((filament) => (
                                     <CommandItem
                                       key={filament.id}
-                                      value={filament.name}
+                                      value={`${filament.id}-${filament.name}`}
                                       onSelect={() => {
                                         const updated = [...printedParts]
                                         updated[index].filament_id = filament.id
@@ -1259,8 +1259,11 @@ export function ExcelCalculator({
               </tbody>
             </table>
           </div>
+          {/* Renamed Total Packaging Cost to "Total Packaging & Shipping Cost" */}
           <div className="mt-4 text-right">
-            <span className="text-blue-900 font-bold">Total Packaging Cost: €{totalPackagingCost.toFixed(2)}</span>
+            <span className="text-blue-900 font-bold">
+              Total Packaging & Shipping Cost: €{totalPackagingCost.toFixed(2)}
+            </span>
           </div>
         </Card>
 
@@ -1291,12 +1294,14 @@ export function ExcelCalculator({
               </div>
             </div>
             <div className="space-y-3">
+              {/* Renamed Total Packaging Cost to "Total Packaging & Shipping Cost" */}
               <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                <span className="text-blue-700 font-medium">Total Packaging Cost:</span>
+                <span className="text-blue-700 font-medium">Total Packaging & Shipping Cost:</span>
                 <span className="text-blue-900 font-bold">€{totalPackagingCost.toFixed(2)}</span>
               </div>
+              {/* Renamed "Added Fuel Cost" to "Additional Transportation Cost" */}
               <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                <span className="text-blue-700 font-medium">Added Fuel Cost:</span>
+                <span className="text-blue-700 font-medium">Additional Transportation Cost:</span>
                 <span className="text-blue-900 font-bold">€{fuelCost.toFixed(2)}</span>
               </div>
               {isEmergency && (
