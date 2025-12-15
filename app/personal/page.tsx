@@ -2,16 +2,40 @@ import { createClient } from "@/lib/supabase/server"
 import { ExcelCalculator } from "@/components/excel-calculator"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, AlertCircle } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-export default async function PersonalPage() {
+export default async function PersonalPage({
+  searchParams,
+}: {
+  searchParams: { edit?: string }
+}) {
   const supabase = await createClient()
 
-  const [{ data: printers }, { data: filaments }, { data: globalSettingsData }] = await Promise.all([
-    supabase.from("printers").select("*").order("created_at", { ascending: true }),
-    supabase.from("filaments").select("*").order("created_at", { ascending: true }),
-    supabase.from("global_settings").select("*").limit(1).single(),
-  ])
+  let printers = []
+  let filaments = []
+  let globalSettingsData = null
+  let error = null
+
+  try {
+    const [printersResult, filamentsResult, globalSettingsResult] = await Promise.all([
+      supabase.from("printers").select("*").order("created_at", { ascending: true }),
+      supabase.from("filaments").select("*").order("created_at", { ascending: true }),
+      supabase.from("global_settings").select("*").limit(1).single(),
+    ])
+
+    printers = printersResult.data || []
+    filaments = filamentsResult.data || []
+    globalSettingsData = globalSettingsResult.data
+
+    // Check for Supabase errors
+    if (printersResult.error || filamentsResult.error || globalSettingsResult.error) {
+      error = printersResult.error || filamentsResult.error || globalSettingsResult.error
+    }
+  } catch (e) {
+    error = e
+    console.error("[v0] Database connection error:", e)
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -30,12 +54,32 @@ export default async function PersonalPage() {
           </div>
         </div>
       </div>
-      <ExcelCalculator
-        mode="personal"
-        printers={printers || []}
-        filaments={filaments || []}
-        globalSettings={globalSettingsData}
-      />
+
+      {error ? (
+        <div className="max-w-[1600px] mx-auto p-4 sm:p-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Database Connection Error</AlertTitle>
+            <AlertDescription>
+              Unable to connect to the database. This could be due to:
+              <ul className="list-disc ml-5 mt-2">
+                <li>Your Supabase instance may be paused or experiencing downtime</li>
+                <li>Network connectivity issues</li>
+                <li>Configuration problems</li>
+              </ul>
+              <p className="mt-2">Please check your Supabase dashboard and try again in a few minutes.</p>
+            </AlertDescription>
+          </Alert>
+        </div>
+      ) : (
+        <ExcelCalculator
+          mode="personal"
+          printers={printers}
+          filaments={filaments}
+          globalSettings={globalSettingsData}
+          editingQuoteId={searchParams.edit}
+        />
+      )}
     </div>
   )
 }

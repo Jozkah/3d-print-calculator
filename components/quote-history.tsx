@@ -5,10 +5,9 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Trash2, ChevronDown, ChevronUp, Share2, Download } from "lucide-react"
+import { Trash2, ChevronDown, ChevronUp, Share2, Download, Pencil } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
-import { DialogCustom } from "@/components/ui/dialog-custom"
 
 type Quote = {
   id: string
@@ -39,6 +38,7 @@ type Quote = {
   ownerA_receives: number
   ownerB_receives: number
   created_at: string
+  is_draft?: boolean // Added draft status field
 }
 
 const safeFixed = (value: any, decimals = 2) => {
@@ -59,6 +59,12 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
   const handleDownload = (id: string) => {
     // Placeholder for download logic
     console.log(`Download quote with id: ${id}`)
+  }
+
+  const handleEdit = (quote: Quote) => {
+    // Navigate to the appropriate calculator page with the quote ID
+    const route = quote.quote_type === "business" ? "/business" : "/personal"
+    router.push(`${route}?edit=${quote.id}`)
   }
 
   useEffect(() => {
@@ -130,401 +136,346 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="mb-6">
-        <p className="text-blue-900">Total quotes: {quotes.length}</p>
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold">
+          Total quotes: {quotes.length}
+          {quotes.filter((q) => q.is_draft).length > 0 && (
+            <span className="ml-2 text-sm text-muted-foreground">
+              ({quotes.filter((q) => q.is_draft).length} draft{quotes.filter((q) => q.is_draft).length !== 1 ? "s" : ""}
+              )
+            </span>
+          )}
+        </h2>
       </div>
 
-      <div className="space-y-4">
-        {quotes.map((quote) => {
-          const totalParts = (quote.printed_parts || []).length
-          const totalMaterials = (quote.materials || []).length
-          const totalLabor = (quote.labor_items || []).length
-          const totalPackaging = (quote.packaging_items || []).length
-          const totalDriedBatches = (quote.dried_batches || []).length
+      {quotes.map((quote) => {
+        const totalParts = (quote.printed_parts || []).length
+        const totalMaterials = (quote.materials || []).length
+        const totalLabor = (quote.labor_items || []).length
+        const totalPackaging = (quote.packaging_items || []).length
+        const totalDriedBatches = (quote.dried_batches || []).length
 
-          return (
-            <Card key={quote.id} className="bg-white border-2 border-blue-300">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <CardTitle className="text-blue-900 text-xl">{quote.quote_name || "Unnamed Quote"}</CardTitle>
-                      <Badge
-                        variant="outline"
-                        className={
-                          quote.quote_type === "personal"
-                            ? "border-blue-500 text-blue-600"
-                            : "border-green-500 text-green-600"
-                        }
-                      >
-                        {quote.quote_type}
+        return (
+          <Card key={quote.id} className="overflow-hidden">
+            <CardHeader className="bg-primary/5">
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg sm:text-xl break-words">
+                    {quote.quote_name}
+                    {quote.is_draft && (
+                      <Badge variant="secondary" className="ml-2">
+                        Draft
                       </Badge>
-                      {quote.is_emergency && (
-                        <Badge variant="outline" className="border-red-500 text-red-600">
-                          Emergency
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-sm text-blue-600 space-y-1">
-                      <p>
-                        {totalParts} part{totalParts !== 1 ? "s" : ""} | {totalMaterials} material
-                        {totalMaterials !== 1 ? "s" : ""} | {totalLabor} labor item{totalLabor !== 1 ? "s" : ""} |{" "}
-                        {totalPackaging} packaging item{totalPackaging !== 1 ? "s" : ""}
-                      </p>
-                      <p>
-                        Created: {new Date(quote.created_at).toLocaleDateString()} at{" "}
-                        {new Date(quote.created_at).toLocaleTimeString()}
-                      </p>
+                    )}
+                    <Badge variant={quote.quote_type === "business" ? "default" : "secondary"} className="ml-2">
+                      {quote.quote_type}
+                    </Badge>
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground break-all">
+                    {totalParts} part{totalParts !== 1 ? "s" : ""} | {totalMaterials} material
+                    {totalMaterials !== 1 ? "s" : ""} | {totalLabor} labor item{totalLabor !== 1 ? "s" : ""} |{" "}
+                    {totalPackaging} packaging item{totalPackaging !== 1 ? "s" : ""}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Created: {new Date(quote.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                  <Button variant="outline" size="sm" onClick={() => router.push(`/quote/${quote.id}`)}>
+                    <Share2 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleDownload(quote.id)}>
+                    <Download className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleEdit(quote)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setExpandedId(expandedId === quote.id ? null : quote.id)}
+                  >
+                    {expandedId === quote.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => handleDelete(quote.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+
+            {expandedId === quote.id && (
+              <CardContent className="border-t-2 border-blue-200">
+                {quote.printed_parts && quote.printed_parts.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-semibold text-blue-900 mb-3">Printed Parts</h3>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle">
+                        <table className="w-full text-sm border-2 border-blue-300">
+                          <thead className="bg-blue-600 text-white">
+                            <tr>
+                              <th className="border border-blue-400 px-3 py-2 text-left">Part Name</th>
+                              <th className="border border-blue-400 px-3 py-2 text-left">Printer</th>
+                              <th className="border border-blue-400 px-3 py-2 text-left">Filament</th>
+                              <th className="border border-blue-400 px-3 py-2 text-right">Weight (g)</th>
+                              <th className="border border-blue-400 px-3 py-2 text-right">Time (h)</th>
+                              <th className="border border-blue-400 px-3 py-2 text-right">Cost</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white">
+                            {quote.printed_parts.map((part: any, index: number) => {
+                              const filament = filaments.find((f) => f.id === part.filament_id)
+                              const cost = filament ? (filament.price_per_kg * (part.filament_grams || 0)) / 1000 : 0
+
+                              return (
+                                <tr key={index}>
+                                  <td className="border border-blue-300 px-3 py-2">{part.name || "N/A"}</td>
+                                  <td className="border border-blue-300 px-3 py-2">
+                                    {getPrinterName(part.printer_id)}
+                                  </td>
+                                  <td className="border border-blue-300 px-3 py-2">
+                                    {getFilamentName(part.filament_id)}
+                                  </td>
+                                  <td className="border border-blue-300 px-3 py-2 text-right">
+                                    {part.filament_grams || 0}
+                                  </td>
+                                  <td className="border border-blue-300 px-3 py-2 text-right">
+                                    {part.printing_time_hr || 0}
+                                  </td>
+                                  <td className="border border-blue-300 px-3 py-2 text-right">€{safeFixed(cost)}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => {
-                        const url = `${window.location.origin}/quote/${quote.id}`
-                        navigator.clipboard
-                          .writeText(url)
-                          .then(() => {
-                            toast({
-                              title: "Link Copied!",
-                              description: "Shareable quote link copied to clipboard",
-                            })
-                          })
-                          .catch((err) => {
-                            toast({
-                              title: "Error",
-                              description: "Failed to copy link to clipboard",
-                              variant: "destructive",
-                            })
-                          })
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="border-blue-300 text-blue-600 hover:text-blue-700"
-                    >
-                      <Share2 className="w-4 h-4" />
-                    </Button>
+                )}
 
-                    {/* Updated PDF download to use router navigation instead of window.open */}
-                    <Button
-                      onClick={() => handleDownload(quote.id)}
-                      size="sm"
-                      variant="outline"
-                      className="border-blue-300 text-blue-600 hover:text-blue-700"
-                    >
-                      <Download className="w-4 h-4" />
-                    </Button>
+                {quote.dried_batches && quote.dried_batches.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-semibold text-blue-900 mb-3">Dried Batches</h3>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle">
+                        <table className="w-full text-sm border-2 border-blue-300">
+                          <thead className="bg-blue-600 text-white">
+                            <tr>
+                              <th className="border border-blue-400 px-3 py-2 text-left">Filament</th>
+                              <th className="border border-blue-400 px-3 py-2 text-right">Hours</th>
+                              <th className="border border-blue-400 px-3 py-2 text-right">Cost</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white">
+                            {quote.dried_batches.map((batch: any, index: number) => (
+                              <tr key={index}>
+                                <td className="border border-blue-300 px-3 py-2">{batch.material || "N/A"}</td>
+                                <td className="border border-blue-300 px-3 py-2 text-right">
+                                  {batch.drying_time_hr || 0}
+                                </td>
+                                <td className="border border-blue-300 px-3 py-2 text-right">
+                                  €{safeFixed(batch.cost)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-                    <Button
-                      onClick={() => toggleExpand(quote.id)}
-                      size="sm"
-                      variant="outline"
-                      className="border-blue-300 text-blue-900"
-                    >
-                      {expandedId === quote.id ? (
-                        <ChevronUp className="w-4 h-4" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4" />
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                  {quote.materials && quote.materials.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-blue-900 mb-2">Materials</h3>
+                      <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-2">
+                        {quote.materials.map((item: any, index: number) => (
+                          <div key={index} className="flex justify-between text-sm">
+                            <span className="text-blue-600">{item.description || "N/A"}</span>
+                            <span className="text-blue-900">€{safeFixed(item.cost)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {quote.labor_items && quote.labor_items.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-blue-900 mb-2">Labor</h3>
+                      <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-2">
+                        {quote.labor_items.map((item: any, index: number) => (
+                          <div key={index} className="flex justify-between text-sm">
+                            <span className="text-blue-600">{item.description || "N/A"}</span>
+                            <span className="text-blue-900">€{safeFixed(item.cost)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {quote.packaging_items && quote.packaging_items.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-blue-900 mb-2">Packaging</h3>
+                      <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-2">
+                        {quote.packaging_items.map((item: any, index: number) => (
+                          <div key={index} className="flex justify-between text-sm">
+                            <span className="text-blue-600">{item.description || "N/A"}</span>
+                            <span className="text-blue-900">€{safeFixed(item.cost)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 pt-4 border-t-2 border-blue-200">
+                  <div>
+                    <h3 className="text-sm font-semibold text-blue-900 mb-3">Cost Breakdown</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-blue-600">Total Printing Cost</span>
+                        <span className="text-blue-900">€{safeFixed(quote.total_printing_cost)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-600">Machine Cost</span>
+                        <span className="text-blue-900">€{safeFixed(quote.machine_cost)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-600">Materials Cost</span>
+                        <span className="text-blue-900">€{safeFixed(quote.materials_cost)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-600">Labor Cost</span>
+                        <span className="text-blue-900">€{safeFixed(quote.labor_cost)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-600">Packaging & Shipping Cost</span>
+                        <span className="text-blue-900">€{safeFixed(quote.packaging_cost)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-600">Transportation Cost</span>
+                        <span className="text-blue-900">€{safeFixed(quote.fuel_cost)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-600">Electricity Cost</span>
+                        <span className="text-blue-900">
+                          €{safeFixed((quote.electricity_cost || 0) + (quote.drying_cost || 0))}
+                        </span>
+                      </div>
+                      {quote.is_emergency && (
+                        <div className="flex justify-between">
+                          <span className="text-blue-600">Emergency Fee</span>
+                          <span className="text-blue-900">€{safeFixed(quote.emergency_fee)}</span>
+                        </div>
                       )}
-                    </Button>
-                    <Button
-                      onClick={() => handleDelete(quote.id)}
-                      size="sm"
-                      variant="outline"
-                      className="border-red-300 text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                      <div className="flex justify-between border-t-2 border-blue-200 pt-2">
+                        <span className="text-blue-600 font-semibold">Total Landed Cost</span>
+                        <span className="text-blue-900 font-semibold">€{safeFixed(quote.landed_cost)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold text-blue-900 mb-3">Profit Margins</h3>
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                      <div
+                        className={`p-3 rounded-lg border-2 ${
+                          Number(quote.selected_margin) === 30
+                            ? "bg-blue-600 border-blue-700 shadow-lg"
+                            : "bg-blue-50 border-blue-200"
+                        }`}
+                      >
+                        <div
+                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 30 ? "text-blue-100" : "text-blue-600"}`}
+                        >
+                          30% Margin
+                        </div>
+                        <div
+                          className={`text-lg font-semibold ${Number(quote.selected_margin) === 30 ? "text-white" : "text-green-600"}`}
+                        >
+                          €{safeFixed(quote.margin_30)}
+                        </div>
+                      </div>
+                      <div
+                        className={`p-3 rounded-lg border-2 ${
+                          Number(quote.selected_margin) === 40
+                            ? "bg-blue-600 border-blue-700 shadow-lg"
+                            : "bg-blue-50 border-blue-200"
+                        }`}
+                      >
+                        <div
+                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 40 ? "text-blue-100" : "text-blue-600"}`}
+                        >
+                          40% Margin
+                        </div>
+                        <div
+                          className={`text-lg font-semibold ${Number(quote.selected_margin) === 40 ? "text-white" : "text-green-600"}`}
+                        >
+                          €{safeFixed(quote.margin_40)}
+                        </div>
+                      </div>
+                      <div
+                        className={`p-3 rounded-lg border-2 ${
+                          Number(quote.selected_margin) === 50
+                            ? "bg-blue-600 border-blue-700 shadow-lg"
+                            : "bg-blue-50 border-blue-200"
+                        }`}
+                      >
+                        <div
+                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 50 ? "text-blue-100" : "text-blue-600"}`}
+                        >
+                          50% Margin
+                        </div>
+                        <div
+                          className={`text-lg font-semibold ${Number(quote.selected_margin) === 50 ? "text-white" : "text-green-600"}`}
+                        >
+                          €{safeFixed(quote.margin_50)}
+                        </div>
+                      </div>
+                      <div
+                        className={`p-3 rounded-lg border-2 ${
+                          Number(quote.selected_margin) === 60
+                            ? "bg-blue-600 border-blue-700 shadow-lg"
+                            : "bg-blue-50 border-blue-200"
+                        }`}
+                      >
+                        <div
+                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 60 ? "text-blue-100" : "text-blue-600"}`}
+                        >
+                          60% Margin
+                        </div>
+                        <div
+                          className={`text-lg font-semibold ${Number(quote.selected_margin) === 60 ? "text-white" : "text-green-600"}`}
+                        >
+                          €{safeFixed(quote.margin_60)}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </CardHeader>
 
-              {expandedId === quote.id && (
-                <CardContent className="border-t-2 border-blue-200">
-                  {quote.printed_parts && quote.printed_parts.length > 0 && (
-                    <div className="mb-6">
-                      <h3 className="text-sm font-semibold text-blue-900 mb-3">Printed Parts</h3>
-                      <div className="overflow-x-auto -mx-4 sm:mx-0">
-                        <div className="inline-block min-w-full align-middle">
-                          <table className="w-full text-sm border-2 border-blue-300">
-                            <thead className="bg-blue-600 text-white">
-                              <tr>
-                                <th className="border border-blue-400 px-3 py-2 text-left">Part Name</th>
-                                <th className="border border-blue-400 px-3 py-2 text-left">Printer</th>
-                                <th className="border border-blue-400 px-3 py-2 text-left">Filament</th>
-                                <th className="border border-blue-400 px-3 py-2 text-right">Weight (g)</th>
-                                <th className="border border-blue-400 px-3 py-2 text-right">Time (h)</th>
-                                <th className="border border-blue-400 px-3 py-2 text-right">Cost</th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white">
-                              {quote.printed_parts.map((part: any, index: number) => {
-                                const filament = filaments.find((f) => f.id === part.filament_id)
-                                const cost = filament ? (filament.price_per_kg * (part.filament_grams || 0)) / 1000 : 0
-
-                                return (
-                                  <tr key={index}>
-                                    <td className="border border-blue-300 px-3 py-2">{part.name || "N/A"}</td>
-                                    <td className="border border-blue-300 px-3 py-2">
-                                      {getPrinterName(part.printer_id)}
-                                    </td>
-                                    <td className="border border-blue-300 px-3 py-2">
-                                      {getFilamentName(part.filament_id)}
-                                    </td>
-                                    <td className="border border-blue-300 px-3 py-2 text-right">
-                                      {part.filament_grams || 0}
-                                    </td>
-                                    <td className="border border-blue-300 px-3 py-2 text-right">
-                                      {part.printing_time_hr || 0}
-                                    </td>
-                                    <td className="border border-blue-300 px-3 py-2 text-right">€{safeFixed(cost)}</td>
-                                  </tr>
-                                )
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
+                {quote.quote_type === "business" && (quote.ownerA_receives || quote.ownerB_receives) && (
+                  <div className="mt-6 pt-4 border-t-2 border-blue-200">
+                    <h3 className="text-sm font-semibold text-blue-900 mb-3">Profit Split</h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-300">
+                        <div className="text-sm text-blue-600 mb-1">Owner A Receives</div>
+                        <div className="text-2xl font-bold text-blue-900">€{safeFixed(quote.ownerA_receives)}</div>
                       </div>
-                    </div>
-                  )}
-
-                  {quote.dried_batches && quote.dried_batches.length > 0 && (
-                    <div className="mb-6">
-                      <h3 className="text-sm font-semibold text-blue-900 mb-3">Dried Batches</h3>
-                      <div className="overflow-x-auto -mx-4 sm:mx-0">
-                        <div className="inline-block min-w-full align-middle">
-                          <table className="w-full text-sm border-2 border-blue-300">
-                            <thead className="bg-blue-600 text-white">
-                              <tr>
-                                <th className="border border-blue-400 px-3 py-2 text-left">Filament</th>
-                                <th className="border border-blue-400 px-3 py-2 text-right">Hours</th>
-                                <th className="border border-blue-400 px-3 py-2 text-right">Cost</th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white">
-                              {quote.dried_batches.map((batch: any, index: number) => (
-                                <tr key={index}>
-                                  <td className="border border-blue-300 px-3 py-2">{batch.material || "N/A"}</td>
-                                  <td className="border border-blue-300 px-3 py-2 text-right">
-                                    {batch.drying_time_hr || 0}
-                                  </td>
-                                  <td className="border border-blue-300 px-3 py-2 text-right">
-                                    €{safeFixed(batch.cost)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                    {quote.materials && quote.materials.length > 0 && (
-                      <div>
-                        <h3 className="text-sm font-semibold text-blue-900 mb-2">Materials</h3>
-                        <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-2">
-                          {quote.materials.map((item: any, index: number) => (
-                            <div key={index} className="flex justify-between text-sm">
-                              <span className="text-blue-600">{item.description || "N/A"}</span>
-                              <span className="text-blue-900">€{safeFixed(item.cost)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {quote.labor_items && quote.labor_items.length > 0 && (
-                      <div>
-                        <h3 className="text-sm font-semibold text-blue-900 mb-2">Labor</h3>
-                        <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-2">
-                          {quote.labor_items.map((item: any, index: number) => (
-                            <div key={index} className="flex justify-between text-sm">
-                              <span className="text-blue-600">{item.description || "N/A"}</span>
-                              <span className="text-blue-900">€{safeFixed(item.cost)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {quote.packaging_items && quote.packaging_items.length > 0 && (
-                      <div>
-                        <h3 className="text-sm font-semibold text-blue-900 mb-2">Packaging</h3>
-                        <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-2">
-                          {quote.packaging_items.map((item: any, index: number) => (
-                            <div key={index} className="flex justify-between text-sm">
-                              <span className="text-blue-600">{item.description || "N/A"}</span>
-                              <span className="text-blue-900">€{safeFixed(item.cost)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 pt-4 border-t-2 border-blue-200">
-                    <div>
-                      <h3 className="text-sm font-semibold text-blue-900 mb-3">Cost Breakdown</h3>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-blue-600">Total Printing Cost</span>
-                          <span className="text-blue-900">€{safeFixed(quote.total_printing_cost)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-blue-600">Machine Cost</span>
-                          <span className="text-blue-900">€{safeFixed(quote.machine_cost)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-blue-600">Materials Cost</span>
-                          <span className="text-blue-900">€{safeFixed(quote.materials_cost)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-blue-600">Labor Cost</span>
-                          <span className="text-blue-900">€{safeFixed(quote.labor_cost)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-blue-600">Packaging & Shipping Cost</span>
-                          <span className="text-blue-900">€{safeFixed(quote.packaging_cost)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-blue-600">Transportation Cost</span>
-                          <span className="text-blue-900">€{safeFixed(quote.fuel_cost)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-blue-600">Electricity Cost</span>
-                          <span className="text-blue-900">
-                            €{safeFixed((quote.electricity_cost || 0) + (quote.drying_cost || 0))}
-                          </span>
-                        </div>
-                        {quote.is_emergency && (
-                          <div className="flex justify-between">
-                            <span className="text-blue-600">Emergency Fee</span>
-                            <span className="text-blue-900">€{safeFixed(quote.emergency_fee)}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between border-t-2 border-blue-200 pt-2">
-                          <span className="text-blue-600 font-semibold">Total Landed Cost</span>
-                          <span className="text-blue-900 font-semibold">€{safeFixed(quote.landed_cost)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="text-sm font-semibold text-blue-900 mb-3">Profit Margins</h3>
-                      <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                        <div
-                          className={`p-3 rounded-lg border-2 ${
-                            Number(quote.selected_margin) === 30
-                              ? "bg-blue-600 border-blue-700 shadow-lg"
-                              : "bg-blue-50 border-blue-200"
-                          }`}
-                        >
-                          <div
-                            className={`text-xs mb-1 ${Number(quote.selected_margin) === 30 ? "text-blue-100" : "text-blue-600"}`}
-                          >
-                            30% Margin
-                          </div>
-                          <div
-                            className={`text-lg font-semibold ${Number(quote.selected_margin) === 30 ? "text-white" : "text-green-600"}`}
-                          >
-                            €{safeFixed(quote.margin_30)}
-                          </div>
-                        </div>
-                        <div
-                          className={`p-3 rounded-lg border-2 ${
-                            Number(quote.selected_margin) === 40
-                              ? "bg-blue-600 border-blue-700 shadow-lg"
-                              : "bg-blue-50 border-blue-200"
-                          }`}
-                        >
-                          <div
-                            className={`text-xs mb-1 ${Number(quote.selected_margin) === 40 ? "text-blue-100" : "text-blue-600"}`}
-                          >
-                            40% Margin
-                          </div>
-                          <div
-                            className={`text-lg font-semibold ${Number(quote.selected_margin) === 40 ? "text-white" : "text-green-600"}`}
-                          >
-                            €{safeFixed(quote.margin_40)}
-                          </div>
-                        </div>
-                        <div
-                          className={`p-3 rounded-lg border-2 ${
-                            Number(quote.selected_margin) === 50
-                              ? "bg-blue-600 border-blue-700 shadow-lg"
-                              : "bg-blue-50 border-blue-200"
-                          }`}
-                        >
-                          <div
-                            className={`text-xs mb-1 ${Number(quote.selected_margin) === 50 ? "text-blue-100" : "text-blue-600"}`}
-                          >
-                            50% Margin
-                          </div>
-                          <div
-                            className={`text-lg font-semibold ${Number(quote.selected_margin) === 50 ? "text-white" : "text-green-600"}`}
-                          >
-                            €{safeFixed(quote.margin_50)}
-                          </div>
-                        </div>
-                        <div
-                          className={`p-3 rounded-lg border-2 ${
-                            Number(quote.selected_margin) === 60
-                              ? "bg-blue-600 border-blue-700 shadow-lg"
-                              : "bg-blue-50 border-blue-200"
-                          }`}
-                        >
-                          <div
-                            className={`text-xs mb-1 ${Number(quote.selected_margin) === 60 ? "text-blue-100" : "text-blue-600"}`}
-                          >
-                            60% Margin
-                          </div>
-                          <div
-                            className={`text-lg font-semibold ${Number(quote.selected_margin) === 60 ? "text-white" : "text-green-600"}`}
-                          >
-                            €{safeFixed(quote.margin_60)}
-                          </div>
-                        </div>
+                      <div className="bg-green-50 p-4 rounded-lg border-2 border-green-300">
+                        <div className="text-sm text-green-600 mb-1">Owner B Receives</div>
+                        <div className="text-2xl font-bold text-green-900">€{safeFixed(quote.ownerB_receives)}</div>
                       </div>
                     </div>
                   </div>
-
-                  {quote.quote_type === "business" && (quote.ownerA_receives || quote.ownerB_receives) && (
-                    <div className="mt-6 pt-4 border-t-2 border-blue-200">
-                      <h3 className="text-sm font-semibold text-blue-900 mb-3">Profit Split</h3>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-300">
-                          <div className="text-sm text-blue-600 mb-1">Owner A Receives</div>
-                          <div className="text-2xl font-bold text-blue-900">€{safeFixed(quote.ownerA_receives)}</div>
-                        </div>
-                        <div className="bg-green-50 p-4 rounded-lg border-2 border-green-300">
-                          <div className="text-sm text-green-600 mb-1">Owner B Receives</div>
-                          <div className="text-2xl font-bold text-green-900">€{safeFixed(quote.ownerB_receives)}</div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              )}
-            </Card>
-          )
-        })}
-      </div>
-
-      <DialogCustom
-        isOpen={deleteDialogOpen}
-        onClose={() => {
-          setDeleteDialogOpen(false)
-          setQuoteToDelete(null)
-        }}
-        onConfirm={confirmDelete}
-        title="Delete Quote"
-        description="Are you sure you want to delete this quote? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
-        variant="danger"
-      />
+                )}
+              </CardContent>
+            )}
+          </Card>
+        )
+      })}
     </div>
   )
 }

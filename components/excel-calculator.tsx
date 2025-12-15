@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, Save, ChevronsUpDown, Check } from "lucide-react"
+import { Plus, Trash2, ChevronsUpDown, Check } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast" // Assuming toast is available
 import { DialogCustom } from "@/components/ui/dialog-custom" // Import DialogCustom
 import { cn } from "@/lib/utils" // Assuming cn utility is available
@@ -119,6 +119,7 @@ type ExcelCalculatorProps = {
   // Keeping laserMaterials from original code, though it's not used in the main part of this component.
   // If it's intended for the LaserCalculator component, it should be passed down.
   laserMaterials?: LaserMaterial[]
+  editingQuoteId?: string
 }
 
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -132,6 +133,7 @@ export function ExcelCalculator({
   mode,
   selectedMargin: propSelectedMargin, // Renamed to avoid conflict with state
   laserMode, // This prop was in the original code but not used. Keeping it for now.
+  editingQuoteId, // New prop for loading existing quote
 }: ExcelCalculatorProps) {
   const { toast } = useToast() // Initialize toast
   const supabase = createClient() // Declare supabase client here
@@ -155,6 +157,9 @@ export function ExcelCalculator({
 
   // ADDED STATE FOR MARGIN SELECTION
   const [selectedMargin, setSelectedMargin] = useState<30 | 40 | 50 | 60>(propSelectedMargin || 50)
+
+  const [isEditingQuote, setIsEditingQuote] = useState(false)
+  const [currentQuoteId, setCurrentQuoteId] = useState<string | null>(null)
 
   const availableFilaments = filaments.filter((f) => {
     if (calculatorType === "3d-print") {
@@ -241,6 +246,50 @@ export function ExcelCalculator({
       supabase.removeChannel(filamentsChannel)
     }
   }, [])
+
+  useEffect(() => {
+    const loadQuoteForEditing = async () => {
+      if (!editingQuoteId) return
+
+      console.log("[v0] Loading quote for editing:", editingQuoteId)
+
+      const { data: quote, error } = await supabase.from("quotes").select("*").eq("id", editingQuoteId).single()
+
+      if (error || !quote) {
+        console.error("[v0] Error loading quote:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load quote for editing",
+          variant: "destructive",
+        })
+        return
+      }
+
+      console.log("[v0] Quote loaded successfully:", quote)
+
+      // Load all quote data into state
+      setClientName(quote.quote_name)
+      setIsEmergency(quote.is_emergency || false)
+      setDistanceTraveledKm(quote.distance_traveled_km || 0)
+      setSelectedMargin(quote.selected_margin || 50)
+
+      setPrintedParts(quote.printed_parts || [])
+      setDriedBatches(quote.dried_batches || [])
+      setMaterials(quote.materials || [])
+      setLabor(quote.labor_items || [])
+      setPackaging(quote.packaging_items || [])
+
+      setIsEditingQuote(true)
+      setCurrentQuoteId(editingQuoteId)
+
+      toast({
+        title: "Quote Loaded",
+        description: `Editing quote: ${quote.quote_name}`,
+      })
+    }
+
+    loadQuoteForEditing()
+  }, [editingQuoteId])
 
   useEffect(() => {
     // Create a map of heating requirements from printed parts
@@ -504,34 +553,131 @@ export function ExcelCalculator({
         selected_margin: selectedMargin, // This stores the percentage (30, 40, 50, or 60)
         ownerA_receives: mode === "business" ? ownerAReceives : null,
         ownerB_receives: mode === "business" ? ownerBReceives : null,
+        is_draft: false, // Mark as finalized when saved
       }
 
       console.log("[v0] Quote data prepared:", quoteData)
-      console.log("[v0] Inserting into database...")
 
-      const { error } = await supabase.from("quotes").insert([quoteData])
+      if (isEditingQuote && currentQuoteId) {
+        console.log("[v0] Updating existing quote:", currentQuoteId)
+        const { error } = await supabase.from("quotes").update(quoteData).eq("id", currentQuoteId)
 
-      if (error) {
-        console.log("[v0] Database error:", error)
-        throw error
+        if (error) {
+          console.log("[v0] Database error:", error)
+          throw error
+        }
+
+        console.log("[v0] Quote updated successfully")
+        setSaveDialogMessage(`Quote "${clientName}" has been updated successfully!`)
+      } else {
+        console.log("[v0] Inserting new quote...")
+        const { error } = await supabase.from("quotes").insert([quoteData])
+
+        if (error) {
+          console.log("[v0] Database error:", error)
+          throw error
+        }
+
+        console.log("[v0] Quote saved successfully")
+        setSaveDialogMessage(`Quote "${clientName}" has been saved successfully!`)
       }
 
-      console.log("[v0] Quote saved successfully to database")
-      console.log("[v0] Setting dialog message and showing dialog")
-
-      // CHANGED: Show custom success dialog instead of toast
-      setSaveDialogMessage(`Quote "${clientName}" has been saved successfully!`)
       setShowSaveDialog(true)
-
-      console.log("[v0] Dialog state set to:", true)
-      console.log("[v0] Dialog message:", `Quote "${clientName}" has been saved successfully!`)
-
       setClientName("") // Changed from quoteName to clientName
+
+      setIsEditingQuote(false)
+      setCurrentQuoteId(null)
     } catch (error: any) {
       console.error("[v0] Error saving quote:", error)
       toast({
         title: "Error",
         description: `Error saving quote: ${error.message}`,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleSaveAsDraft = async () => {
+    console.log("[v0] handleSaveAsDraft called")
+
+    if (!clientName.trim()) {
+      setErrorDialogTitle("Client Name Required")
+      setErrorDialogMessage("Please enter a client name before saving the draft.")
+      setShowErrorDialog(true)
+      return
+    }
+
+    try {
+      const driedBatchesWithCost = driedBatches.map((batch) => {
+        const dryerCost = 90
+        const estimatedLife = 3
+        const estimatedDryerUptime = 0.1
+        const dryerUptimeHoursPerYear = 8760 * estimatedDryerUptime
+        const dryerCapitalCostPerHour = dryerCost / (dryerUptimeHoursPerYear * estimatedLife)
+        const electricalCostPerHour = globalSettings ? (150 / 1000) * globalSettings.electricity_cost_per_kwh : 0
+        const costBufferFactor = 1.3
+        const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
+        const cost =
+          batch.material === "HEATING"
+            ? batch.drying_time_hr * totalDryerCostPerHour * 2
+            : batch.drying_time_hr * totalDryerCostPerHour
+        return { ...batch, cost }
+      })
+
+      const quoteData = {
+        quote_name: clientName,
+        quote_type: mode,
+        printed_parts: printedParts,
+        dried_batches: driedBatchesWithCost,
+        materials: materials,
+        labor_items: labor,
+        packaging_items: packaging,
+        distance_traveled_km: distanceTraveledKm,
+        is_emergency: isEmergency,
+        total_printing_cost: totalPrintingCost,
+        machine_cost: machineCost,
+        drying_cost: totalDryingCost,
+        materials_cost: totalMaterialsCost,
+        labor_cost: totalLaborCost,
+        packaging_cost: totalPackagingCost,
+        fuel_cost: fuelCost,
+        emergency_fee: emergencyFee,
+        electricity_cost: electricityCost,
+        landed_cost: totalLandedCost,
+        margin_30: margin30,
+        margin_40: margin40,
+        margin_50: margin50,
+        margin_60: margin60,
+        selected_margin: selectedMargin,
+        ownerA_receives: mode === "business" ? ownerAReceives : null,
+        ownerB_receives: mode === "business" ? ownerBReceives : null,
+        is_draft: true, // Mark as draft
+      }
+
+      if (isEditingQuote && currentQuoteId) {
+        const { error } = await supabase.from("quotes").update(quoteData).eq("id", currentQuoteId)
+
+        if (error) throw error
+
+        toast({
+          title: "Success",
+          description: `Draft "${clientName}" has been updated!`,
+        })
+      } else {
+        const { error } = await supabase.from("quotes").insert([quoteData])
+
+        if (error) throw error
+
+        toast({
+          title: "Success",
+          description: `Draft "${clientName}" has been saved!`,
+        })
+      }
+    } catch (error: any) {
+      console.error("[v0] Error saving draft:", error)
+      toast({
+        title: "Error",
+        description: `Error saving draft: ${error.message}`,
         variant: "destructive",
       })
     }
@@ -1407,10 +1553,12 @@ export function ExcelCalculator({
             )}
           </div>
 
-          <div className="mt-8 flex justify-center">
-            <Button onClick={handleSaveQuote} size="lg" className="bg-green-600 hover:bg-green-700">
-              <Save className="w-5 h-5 mr-2" />
-              Save Quote to History
+          <div className="mt-8 flex justify-center gap-2 sm:gap-4">
+            <Button onClick={handleSaveQuote} className="flex-1 bg-green-600 hover:bg-green-700 text-white" size="lg">
+              {isEditingQuote ? "Update Quote" : "Save Quote"}
+            </Button>
+            <Button onClick={handleSaveAsDraft} variant="default" className="flex-1" size="lg">
+              {isEditingQuote ? "Update Draft" : "Save as Draft"}
             </Button>
           </div>
         </Card>
