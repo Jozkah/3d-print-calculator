@@ -1071,26 +1071,63 @@ export function ExcelCalculator({
                   return (
                     <tr key={batch.id} className="border-b border-blue-200">
                       <td className="p-2">
-                        <Select
-                          value={batch.material}
-                          onValueChange={(value) => {
-                            const updated = [...driedBatches]
-                            updated[index].material = value
-                            setDriedBatches(updated)
-                          }}
-                        >
-                          <SelectTrigger className="border-blue-200 bg-white">
-                            <SelectValue placeholder="Select material" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="HEATING">HEATING</SelectItem>
-                            {filaments.map((filament) => (
-                              <SelectItem key={filament.id} value={filament.name}>
-                                {filament.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between border-blue-200 bg-white"
+                            >
+                              {batch.material || "Select material"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0">
+                            <Command>
+                              <CommandInput placeholder="Search materials..." className="h-9" />
+                              <CommandList>
+                                <CommandEmpty>No material found.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    value="HEATING"
+                                    onSelect={() => {
+                                      const updated = [...driedBatches]
+                                      updated[index].material = "HEATING"
+                                      setDriedBatches(updated)
+                                    }}
+                                  >
+                                    HEATING
+                                    <Check
+                                      className={cn(
+                                        "ml-auto h-4 w-4",
+                                        batch.material === "HEATING" ? "opacity-100" : "opacity-0",
+                                      )}
+                                    />
+                                  </CommandItem>
+                                  {filaments.map((filament) => (
+                                    <CommandItem
+                                      key={filament.id}
+                                      value={`${filament.id}-${filament.name}`}
+                                      onSelect={() => {
+                                        const updated = [...driedBatches]
+                                        updated[index].material = filament.name
+                                        setDriedBatches(updated)
+                                      }}
+                                    >
+                                      {filament.name}
+                                      <Check
+                                        className={cn(
+                                          "ml-auto h-4 w-4",
+                                          batch.material === filament.name ? "opacity-100" : "opacity-0",
+                                        )}
+                                      />
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
                       </td>
                       <td className="p-2">
                         <Input
