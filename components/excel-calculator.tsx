@@ -161,6 +161,8 @@ export function ExcelCalculator({
   const [isEditingQuote, setIsEditingQuote] = useState(false)
   const [currentQuoteId, setCurrentQuoteId] = useState<string | null>(null)
 
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
+
   const availableFilaments = filaments.filter((f) => {
     if (calculatorType === "3d-print") {
       return !f.material_type || f.material_type === "filament"
@@ -249,47 +251,73 @@ export function ExcelCalculator({
 
   useEffect(() => {
     const loadQuoteForEditing = async () => {
-      if (!editingQuoteId) return
-
-      console.log("[v0] Loading quote for editing:", editingQuoteId)
-
-      const { data: quote, error } = await supabase.from("quotes").select("*").eq("id", editingQuoteId).single()
-
-      if (error || !quote) {
-        console.error("[v0] Error loading quote:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load quote for editing",
-          variant: "destructive",
-        })
+      if (!editingQuoteId) {
+        console.log("[v0] No editingQuoteId provided, skipping load")
         return
       }
 
-      console.log("[v0] Quote loaded successfully:", quote)
+      console.log("[v0] Loading quote for editing:", editingQuoteId)
 
-      // Load all quote data into state
-      setClientName(quote.quote_name)
-      setIsEmergency(quote.is_emergency || false)
-      setDistanceTraveledKm(quote.distance_traveled_km || 0)
-      setSelectedMargin(quote.selected_margin || 50)
+      try {
+        const { data: quote, error } = await supabase.from("quotes").select("*").eq("id", editingQuoteId).single()
 
-      setPrintedParts(quote.printed_parts || [])
-      setDriedBatches(quote.dried_batches || [])
-      setMaterials(quote.materials || [])
-      setLabor(quote.labor_items || [])
-      setPackaging(quote.packaging_items || [])
+        if (error) {
+          console.error("[v0] Error loading quote:", error)
+          toast({
+            title: "Error",
+            description: "Failed to load quote for editing",
+            variant: "destructive",
+          })
+          return
+        }
 
-      setIsEditingQuote(true)
-      setCurrentQuoteId(editingQuoteId)
+        if (!quote) {
+          console.error("[v0] Quote not found")
+          toast({
+            title: "Error",
+            description: "Quote not found",
+            variant: "destructive",
+          })
+          return
+        }
 
-      toast({
-        title: "Quote Loaded",
-        description: `Editing quote: ${quote.quote_name}`,
-      })
+        console.log("[v0] Quote loaded successfully:", quote)
+        console.log("[v0] Restoring printed parts:", quote.printed_parts)
+        console.log("[v0] Restoring dried batches:", quote.dried_batches)
+
+        // Load all quote data into state
+        setClientName(quote.quote_name || "")
+        setIsEmergency(quote.is_emergency || false)
+        setDistanceTraveledKm(quote.distance_traveled_km || 0)
+        setSelectedMargin(quote.selected_margin || 50)
+
+        setPrintedParts(Array.isArray(quote.printed_parts) ? quote.printed_parts : [])
+        setDriedBatches(Array.isArray(quote.dried_batches) ? quote.dried_batches : [])
+        setMaterials(Array.isArray(quote.materials) ? quote.materials : [])
+        setLabor(Array.isArray(quote.labor_items) ? quote.labor_items : [])
+        setPackaging(Array.isArray(quote.packaging_items) ? quote.packaging_items : [])
+
+        setIsEditingQuote(true)
+        setCurrentQuoteId(editingQuoteId)
+
+        console.log("[v0] State updated successfully")
+
+        toast({
+          title: "Quote Loaded",
+          description: `Editing ${quote.is_draft ? "draft" : "quote"}: ${quote.quote_name}`,
+        })
+      } catch (err) {
+        console.error("[v0] Unexpected error loading quote:", err)
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred",
+          variant: "destructive",
+        })
+      }
     }
 
     loadQuoteForEditing()
-  }, [editingQuoteId])
+  }, [editingQuoteId]) // Keep minimal dependencies to avoid re-runs
 
   useEffect(() => {
     // Create a map of heating requirements from printed parts
@@ -601,11 +629,21 @@ export function ExcelCalculator({
     console.log("[v0] handleSaveAsDraft called")
 
     if (!clientName.trim()) {
-      setErrorDialogTitle("Client Name Required")
-      setErrorDialogMessage("Please enter a client name before saving the draft.")
-      setShowErrorDialog(true)
+      console.log("[v0] Client name is empty, showing error")
+      toast({
+        title: "Client Name Required",
+        description: "Please enter a client name before saving the draft.",
+        variant: "destructive",
+      })
       return
     }
+
+    if (isSavingDraft) {
+      console.log("[v0] Already saving, ignoring duplicate click")
+      return
+    }
+
+    setIsSavingDraft(true)
 
     try {
       const driedBatchesWithCost = driedBatches.map((batch) => {
@@ -655,6 +693,7 @@ export function ExcelCalculator({
       }
 
       if (isEditingQuote && currentQuoteId) {
+        console.log("[v0] Updating existing draft:", currentQuoteId)
         const { error } = await supabase.from("quotes").update(quoteData).eq("id", currentQuoteId)
 
         if (error) throw error
@@ -664,6 +703,7 @@ export function ExcelCalculator({
           description: `Draft "${clientName}" has been updated!`,
         })
       } else {
+        console.log("[v0] Creating new draft")
         const { error } = await supabase.from("quotes").insert([quoteData])
 
         if (error) throw error
@@ -680,6 +720,8 @@ export function ExcelCalculator({
         description: `Error saving draft: ${error.message}`,
         variant: "destructive",
       })
+    } finally {
+      setIsSavingDraft(false)
     }
   }
 
@@ -1021,148 +1063,150 @@ export function ExcelCalculator({
         </Card>
 
         {/* Dried Batches / Processing Batches Table */}
-        <Card className="p-6 bg-white border-2 border-blue-300">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-blue-900">{batchesLabel}</h2>
-            <Button
-              onClick={() =>
-                setDriedBatches([
-                  ...driedBatches,
-                  { id: Date.now().toString(), material: "", drying_time_hr: 0, cost: 0 },
-                ])
-              }
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Batch
-            </Button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-blue-100 border-b-2 border-blue-300">
-                  <th className="p-3 text-left text-blue-900 font-semibold">Material</th>
-                  <th className="p-3 text-left text-blue-900 font-semibold">Drying Time (hr)</th>
-                  <th className="p-3 text-left text-blue-900 font-semibold">Cost (€)</th>
-                  <th className="p-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {driedBatches.map((batch, index) => {
-                  const dryerCost = 90
-                  const estimatedLife = 3
-                  const estimatedDryerUptime = 0.1
-                  const dryerUptimeHoursPerYear = 8760 * estimatedDryerUptime
-                  const dryerCapitalCostPerHour = dryerCost / (dryerUptimeHoursPerYear * estimatedLife)
+        {calculatorType === "3d-print" && (
+          <Card className="p-6 bg-white border-2 border-blue-300">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-blue-900">{batchesLabel}</h2>
+              <Button
+                onClick={() =>
+                  setDriedBatches([
+                    ...driedBatches,
+                    { id: Date.now().toString(), material: "", drying_time_hr: 0, cost: 0 },
+                  ])
+                }
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Batch
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-blue-100 border-b-2 border-blue-300">
+                    <th className="p-3 text-left text-blue-900 font-semibold">Material</th>
+                    <th className="p-3 text-left text-blue-900 font-semibold">Drying Time (hr)</th>
+                    <th className="p-3 text-left text-blue-900 font-semibold">Cost (€)</th>
+                    <th className="p-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {driedBatches.map((batch, index) => {
+                    const dryerCost = 90
+                    const estimatedLife = 3
+                    const estimatedDryerUptime = 0.1
+                    const dryerUptimeHoursPerYear = 8760 * estimatedDryerUptime
+                    const dryerCapitalCostPerHour = dryerCost / (dryerUptimeHoursPerYear * estimatedLife)
 
-                  const electricalCostPerHour = globalSettings
-                    ? (150 / 1000) * globalSettings.electricity_cost_per_kwh
-                    : 0
+                    const electricalCostPerHour = globalSettings
+                      ? (150 / 1000) * globalSettings.electricity_cost_per_kwh
+                      : 0
 
-                  const costBufferFactor = 1.3
-                  const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
+                    const costBufferFactor = 1.3
+                    const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
 
-                  const cost =
-                    batch.material === "HEATING"
-                      ? batch.drying_time_hr * totalDryerCostPerHour * 2
-                      : batch.drying_time_hr * totalDryerCostPerHour
+                    const cost =
+                      batch.material === "HEATING"
+                        ? batch.drying_time_hr * totalDryerCostPerHour * 2
+                        : batch.drying_time_hr * totalDryerCostPerHour
 
-                  return (
-                    <tr key={batch.id} className="border-b border-blue-200">
-                      <td className="p-2">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className="w-full justify-between border-blue-200 bg-white"
-                            >
-                              {batch.material || "Select material"}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[300px] p-0">
-                            <Command>
-                              <CommandInput placeholder="Search materials..." className="h-9" />
-                              <CommandList>
-                                <CommandEmpty>No material found.</CommandEmpty>
-                                <CommandGroup>
-                                  <CommandItem
-                                    value="HEATING"
-                                    onSelect={() => {
-                                      const updated = [...driedBatches]
-                                      updated[index].material = "HEATING"
-                                      setDriedBatches(updated)
-                                    }}
-                                  >
-                                    HEATING
-                                    <Check
-                                      className={cn(
-                                        "ml-auto h-4 w-4",
-                                        batch.material === "HEATING" ? "opacity-100" : "opacity-0",
-                                      )}
-                                    />
-                                  </CommandItem>
-                                  {filaments.map((filament) => (
+                    return (
+                      <tr key={batch.id} className="border-b border-blue-200">
+                        <td className="p-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className="w-full justify-between border-blue-200 bg-white"
+                              >
+                                {batch.material || "Select material"}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0">
+                              <Command>
+                                <CommandInput placeholder="Search materials..." className="h-9" />
+                                <CommandList>
+                                  <CommandEmpty>No material found.</CommandEmpty>
+                                  <CommandGroup>
                                     <CommandItem
-                                      key={filament.id}
-                                      value={`${filament.id}-${filament.name}`}
+                                      value="HEATING"
                                       onSelect={() => {
                                         const updated = [...driedBatches]
-                                        updated[index].material = filament.name
+                                        updated[index].material = "HEATING"
                                         setDriedBatches(updated)
                                       }}
                                     >
-                                      {filament.name}
+                                      HEATING
                                       <Check
                                         className={cn(
                                           "ml-auto h-4 w-4",
-                                          batch.material === filament.name ? "opacity-100" : "opacity-0",
+                                          batch.material === "HEATING" ? "opacity-100" : "opacity-0",
                                         )}
                                       />
                                     </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
-                      </td>
-                      <td className="p-2">
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={batch.drying_time_hr || ""}
-                          onChange={(e) => {
-                            const updated = [...driedBatches]
-                            updated[index].drying_time_hr = Number.parseFloat(e.target.value) || 0
-                            setDriedBatches(updated)
-                          }}
-                          className="border-blue-200 bg-white"
-                        />
-                      </td>
-                      <td className="p-2 text-blue-900 font-semibold">€{cost.toFixed(2)}</td>
-                      <td className="p-2">
-                        <Button
-                          onClick={() => setDriedBatches(driedBatches.filter((_, i) => i !== index))}
-                          size="sm"
-                          variant="ghost"
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 text-right">
-            <span className="text-blue-900 font-bold">Total Drying Cost: €{totalDryingCost.toFixed(2)}</span>
-          </div>
-        </Card>
+                                    {filaments.map((filament) => (
+                                      <CommandItem
+                                        key={filament.id}
+                                        value={`${filament.id}-${filament.name}`}
+                                        onSelect={() => {
+                                          const updated = [...driedBatches]
+                                          updated[index].material = filament.name
+                                          setDriedBatches(updated)
+                                        }}
+                                      >
+                                        {filament.name}
+                                        <Check
+                                          className={cn(
+                                            "ml-auto h-4 w-4",
+                                            batch.material === filament.name ? "opacity-100" : "opacity-0",
+                                          )}
+                                        />
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </td>
+                        <td className="p-2">
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={batch.drying_time_hr || ""}
+                            onChange={(e) => {
+                              const updated = [...driedBatches]
+                              updated[index].drying_time_hr = Number.parseFloat(e.target.value) || 0
+                              setDriedBatches(updated)
+                            }}
+                            className="border-blue-200 bg-white"
+                          />
+                        </td>
+                        <td className="p-2 text-blue-900 font-semibold">€{cost.toFixed(2)}</td>
+                        <td className="p-2">
+                          <Button
+                            onClick={() => setDriedBatches(driedBatches.filter((_, i) => i !== index))}
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 text-right">
+              <span className="text-blue-900 font-bold">Total Drying Cost: €{totalDryingCost.toFixed(2)}</span>
+            </div>
+          </Card>
+        )}
 
         {/* Materials Table */}
         <Card className="p-6 bg-white border-2 border-blue-300">
@@ -1594,8 +1638,8 @@ export function ExcelCalculator({
             <Button onClick={handleSaveQuote} className="flex-1 bg-green-600 hover:bg-green-700 text-white" size="lg">
               {isEditingQuote ? "Update Quote" : "Save Quote"}
             </Button>
-            <Button onClick={handleSaveAsDraft} variant="default" className="flex-1" size="lg">
-              {isEditingQuote ? "Update Draft" : "Save as Draft"}
+            <Button onClick={handleSaveAsDraft} variant="default" className="flex-1" size="lg" disabled={isSavingDraft}>
+              {isSavingDraft ? "Saving..." : isEditingQuote ? "Update Draft" : "Save as Draft"}
             </Button>
           </div>
         </Card>

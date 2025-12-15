@@ -5,6 +5,16 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Trash2, ChevronDown, ChevronUp, Share2, Download, Pencil } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -103,6 +113,7 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
       })
     }
 
+    setDeleteDialogOpen(false)
     setQuoteToDelete(null)
   }
 
@@ -157,9 +168,9 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
         const totalDriedBatches = (quote.dried_batches || []).length
 
         return (
-          <Card key={quote.id} className="overflow-hidden">
-            <CardHeader className="bg-primary/5">
-              <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+          <Card key={quote.id} className="overflow-hidden bg-white border border-gray-200 shadow-sm">
+            <CardHeader className={`bg-white ${expandedId === quote.id ? "border-b border-gray-200" : ""}`}>
+              <div className="flex items-center justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <CardTitle className="text-lg sm:text-xl break-words">
                     {quote.quote_name}
@@ -206,21 +217,21 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
             </CardHeader>
 
             {expandedId === quote.id && (
-              <CardContent className="border-t-2 border-blue-200">
+              <CardContent className="bg-white pt-6">
                 {quote.printed_parts && quote.printed_parts.length > 0 && (
                   <div className="mb-6">
                     <h3 className="text-sm font-semibold text-blue-900 mb-3">Printed Parts</h3>
                     <div className="overflow-x-auto -mx-4 sm:mx-0">
                       <div className="inline-block min-w-full align-middle">
-                        <table className="w-full text-sm border-2 border-blue-300">
+                        <table className="w-full text-sm border-2 border-gray-200">
                           <thead className="bg-blue-600 text-white">
                             <tr>
-                              <th className="border border-blue-400 px-3 py-2 text-left">Part Name</th>
-                              <th className="border border-blue-400 px-3 py-2 text-left">Printer</th>
-                              <th className="border border-blue-400 px-3 py-2 text-left">Filament</th>
-                              <th className="border border-blue-400 px-3 py-2 text-right">Weight (g)</th>
-                              <th className="border border-blue-400 px-3 py-2 text-right">Time (h)</th>
-                              <th className="border border-blue-400 px-3 py-2 text-right">Cost</th>
+                              <th className="border border-gray-300 px-3 py-2 text-left">Part Name</th>
+                              <th className="border border-gray-300 px-3 py-2 text-left">Printer</th>
+                              <th className="border border-gray-300 px-3 py-2 text-left">Filament</th>
+                              <th className="border border-gray-300 px-3 py-2 text-right">Weight (g)</th>
+                              <th className="border border-gray-300 px-3 py-2 text-right">Time (h)</th>
+                              <th className="border border-gray-300 px-3 py-2 text-right">Cost</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white">
@@ -230,20 +241,20 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
 
                               return (
                                 <tr key={index}>
-                                  <td className="border border-blue-300 px-3 py-2">{part.name || "N/A"}</td>
-                                  <td className="border border-blue-300 px-3 py-2">
+                                  <td className="border border-gray-200 px-3 py-2">{part.name || "N/A"}</td>
+                                  <td className="border border-gray-200 px-3 py-2">
                                     {getPrinterName(part.printer_id)}
                                   </td>
-                                  <td className="border border-blue-300 px-3 py-2">
+                                  <td className="border border-gray-200 px-3 py-2">
                                     {getFilamentName(part.filament_id)}
                                   </td>
-                                  <td className="border border-blue-300 px-3 py-2 text-right">
+                                  <td className="border border-gray-200 px-3 py-2 text-right">
                                     {part.filament_grams || 0}
                                   </td>
-                                  <td className="border border-blue-300 px-3 py-2 text-right">
+                                  <td className="border border-gray-200 px-3 py-2 text-right">
                                     {part.printing_time_hr || 0}
                                   </td>
-                                  <td className="border border-blue-300 px-3 py-2 text-right">€{safeFixed(cost)}</td>
+                                  <td className="border border-gray-200 px-3 py-2 text-right">€{safeFixed(cost)}</td>
                                 </tr>
                               )
                             })}
@@ -259,22 +270,22 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                     <h3 className="text-sm font-semibold text-blue-900 mb-3">Dried Batches</h3>
                     <div className="overflow-x-auto -mx-4 sm:mx-0">
                       <div className="inline-block min-w-full align-middle">
-                        <table className="w-full text-sm border-2 border-blue-300">
+                        <table className="w-full text-sm border-2 border-gray-200">
                           <thead className="bg-blue-600 text-white">
                             <tr>
-                              <th className="border border-blue-400 px-3 py-2 text-left">Filament</th>
-                              <th className="border border-blue-400 px-3 py-2 text-right">Hours</th>
-                              <th className="border border-blue-400 px-3 py-2 text-right">Cost</th>
+                              <th className="border border-gray-300 px-3 py-2 text-left">Filament</th>
+                              <th className="border border-gray-300 px-3 py-2 text-right">Hours</th>
+                              <th className="border border-gray-300 px-3 py-2 text-right">Cost</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white">
                             {quote.dried_batches.map((batch: any, index: number) => (
                               <tr key={index}>
-                                <td className="border border-blue-300 px-3 py-2">{batch.material || "N/A"}</td>
-                                <td className="border border-blue-300 px-3 py-2 text-right">
+                                <td className="border border-gray-200 px-3 py-2">{batch.material || "N/A"}</td>
+                                <td className="border border-gray-200 px-3 py-2 text-right">
                                   {batch.drying_time_hr || 0}
                                 </td>
-                                <td className="border border-blue-300 px-3 py-2 text-right">
+                                <td className="border border-gray-200 px-3 py-2 text-right">
                                   €{safeFixed(batch.cost)}
                                 </td>
                               </tr>
@@ -290,11 +301,11 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                   {quote.materials && quote.materials.length > 0 && (
                     <div>
                       <h3 className="text-sm font-semibold text-blue-900 mb-2">Materials</h3>
-                      <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-2">
+                      <div className="bg-white p-3 rounded border border-gray-200 space-y-2">
                         {quote.materials.map((item: any, index: number) => (
                           <div key={index} className="flex justify-between text-sm">
-                            <span className="text-blue-600">{item.description || "N/A"}</span>
-                            <span className="text-blue-900">€{safeFixed(item.cost)}</span>
+                            <span className="text-gray-600">{item.description || "N/A"}</span>
+                            <span className="text-gray-900">€{safeFixed(item.cost)}</span>
                           </div>
                         ))}
                       </div>
@@ -304,11 +315,11 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                   {quote.labor_items && quote.labor_items.length > 0 && (
                     <div>
                       <h3 className="text-sm font-semibold text-blue-900 mb-2">Labor</h3>
-                      <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-2">
+                      <div className="bg-white p-3 rounded border border-gray-200 space-y-2">
                         {quote.labor_items.map((item: any, index: number) => (
                           <div key={index} className="flex justify-between text-sm">
-                            <span className="text-blue-600">{item.description || "N/A"}</span>
-                            <span className="text-blue-900">€{safeFixed(item.cost)}</span>
+                            <span className="text-gray-600">{item.description || "N/A"}</span>
+                            <span className="text-gray-900">€{safeFixed(item.cost)}</span>
                           </div>
                         ))}
                       </div>
@@ -318,11 +329,11 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                   {quote.packaging_items && quote.packaging_items.length > 0 && (
                     <div>
                       <h3 className="text-sm font-semibold text-blue-900 mb-2">Packaging</h3>
-                      <div className="bg-blue-50 p-3 rounded border border-blue-200 space-y-2">
+                      <div className="bg-white p-3 rounded border border-gray-200 space-y-2">
                         {quote.packaging_items.map((item: any, index: number) => (
                           <div key={index} className="flex justify-between text-sm">
-                            <span className="text-blue-600">{item.description || "N/A"}</span>
-                            <span className="text-blue-900">€{safeFixed(item.cost)}</span>
+                            <span className="text-gray-600">{item.description || "N/A"}</span>
+                            <span className="text-gray-900">€{safeFixed(item.cost)}</span>
                           </div>
                         ))}
                       </div>
@@ -330,49 +341,49 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                   )}
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 pt-4 border-t-2 border-blue-200">
+                <div className="grid sm:grid-cols-2 gap-4 sm:gap-6 pt-4 border-t-2 border-gray-200">
                   <div>
                     <h3 className="text-sm font-semibold text-blue-900 mb-3">Cost Breakdown</h3>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-blue-600">Total Printing Cost</span>
-                        <span className="text-blue-900">€{safeFixed(quote.total_printing_cost)}</span>
+                        <span className="text-gray-600">Total Printing Cost</span>
+                        <span className="text-gray-900">€{safeFixed(quote.total_printing_cost)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-blue-600">Machine Cost</span>
-                        <span className="text-blue-900">€{safeFixed(quote.machine_cost)}</span>
+                        <span className="text-gray-600">Machine Cost</span>
+                        <span className="text-gray-900">€{safeFixed(quote.machine_cost)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-blue-600">Materials Cost</span>
-                        <span className="text-blue-900">€{safeFixed(quote.materials_cost)}</span>
+                        <span className="text-gray-600">Materials Cost</span>
+                        <span className="text-gray-900">€{safeFixed(quote.materials_cost)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-blue-600">Labor Cost</span>
-                        <span className="text-blue-900">€{safeFixed(quote.labor_cost)}</span>
+                        <span className="text-gray-600">Labor Cost</span>
+                        <span className="text-gray-900">€{safeFixed(quote.labor_cost)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-blue-600">Packaging & Shipping Cost</span>
-                        <span className="text-blue-900">€{safeFixed(quote.packaging_cost)}</span>
+                        <span className="text-gray-600">Packaging & Shipping Cost</span>
+                        <span className="text-gray-900">€{safeFixed(quote.packaging_cost)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-blue-600">Transportation Cost</span>
-                        <span className="text-blue-900">€{safeFixed(quote.fuel_cost)}</span>
+                        <span className="text-gray-600">Transportation Cost</span>
+                        <span className="text-gray-900">€{safeFixed(quote.fuel_cost)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-blue-600">Electricity Cost</span>
-                        <span className="text-blue-900">
+                        <span className="text-gray-600">Electricity Cost</span>
+                        <span className="text-gray-900">
                           €{safeFixed((quote.electricity_cost || 0) + (quote.drying_cost || 0))}
                         </span>
                       </div>
                       {quote.is_emergency && (
                         <div className="flex justify-between">
-                          <span className="text-blue-600">Emergency Fee</span>
-                          <span className="text-blue-900">€{safeFixed(quote.emergency_fee)}</span>
+                          <span className="text-gray-600">Emergency Fee</span>
+                          <span className="text-gray-900">€{safeFixed(quote.emergency_fee)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between border-t-2 border-blue-200 pt-2">
-                        <span className="text-blue-600 font-semibold">Total Landed Cost</span>
-                        <span className="text-blue-900 font-semibold">€{safeFixed(quote.landed_cost)}</span>
+                      <div className="flex justify-between border-t-2 border-gray-200 pt-2">
+                        <span className="text-gray-600 font-semibold">Total Landed Cost</span>
+                        <span className="text-gray-900 font-semibold">€{safeFixed(quote.landed_cost)}</span>
                       </div>
                     </div>
                   </div>
@@ -384,11 +395,11 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                         className={`p-3 rounded-lg border-2 ${
                           Number(quote.selected_margin) === 30
                             ? "bg-blue-600 border-blue-700 shadow-lg"
-                            : "bg-blue-50 border-blue-200"
+                            : "bg-white border-gray-200"
                         }`}
                       >
                         <div
-                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 30 ? "text-blue-100" : "text-blue-600"}`}
+                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 30 ? "text-blue-100" : "text-gray-600"}`}
                         >
                           30% Margin
                         </div>
@@ -402,11 +413,11 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                         className={`p-3 rounded-lg border-2 ${
                           Number(quote.selected_margin) === 40
                             ? "bg-blue-600 border-blue-700 shadow-lg"
-                            : "bg-blue-50 border-blue-200"
+                            : "bg-white border-gray-200"
                         }`}
                       >
                         <div
-                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 40 ? "text-blue-100" : "text-blue-600"}`}
+                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 40 ? "text-blue-100" : "text-gray-600"}`}
                         >
                           40% Margin
                         </div>
@@ -420,11 +431,11 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                         className={`p-3 rounded-lg border-2 ${
                           Number(quote.selected_margin) === 50
                             ? "bg-blue-600 border-blue-700 shadow-lg"
-                            : "bg-blue-50 border-blue-200"
+                            : "bg-white border-gray-200"
                         }`}
                       >
                         <div
-                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 50 ? "text-blue-100" : "text-blue-600"}`}
+                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 50 ? "text-blue-100" : "text-gray-600"}`}
                         >
                           50% Margin
                         </div>
@@ -438,11 +449,11 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                         className={`p-3 rounded-lg border-2 ${
                           Number(quote.selected_margin) === 60
                             ? "bg-blue-600 border-blue-700 shadow-lg"
-                            : "bg-blue-50 border-blue-200"
+                            : "bg-white border-gray-200"
                         }`}
                       >
                         <div
-                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 60 ? "text-blue-100" : "text-blue-600"}`}
+                          className={`text-xs mb-1 ${Number(quote.selected_margin) === 60 ? "text-blue-100" : "text-gray-600"}`}
                         >
                           60% Margin
                         </div>
@@ -457,16 +468,16 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                 </div>
 
                 {quote.quote_type === "business" && (quote.ownerA_receives || quote.ownerB_receives) && (
-                  <div className="mt-6 pt-4 border-t-2 border-blue-200">
+                  <div className="mt-6 pt-4 border-t-2 border-gray-200">
                     <h3 className="text-sm font-semibold text-blue-900 mb-3">Profit Split</h3>
                     <div className="grid md:grid-cols-2 gap-4">
-                      <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-300">
-                        <div className="text-sm text-blue-600 mb-1">Owner A Receives</div>
-                        <div className="text-2xl font-bold text-blue-900">€{safeFixed(quote.ownerA_receives)}</div>
+                      <div className="bg-white p-4 rounded-lg border-2 border-gray-300">
+                        <div className="text-sm text-gray-600 mb-1">Owner A Receives</div>
+                        <div className="text-2xl font-bold text-gray-900">€{safeFixed(quote.ownerA_receives)}</div>
                       </div>
-                      <div className="bg-green-50 p-4 rounded-lg border-2 border-green-300">
-                        <div className="text-sm text-green-600 mb-1">Owner B Receives</div>
-                        <div className="text-2xl font-bold text-green-900">€{safeFixed(quote.ownerB_receives)}</div>
+                      <div className="bg-white p-4 rounded-lg border-2 border-gray-300">
+                        <div className="text-sm text-gray-600 mb-1">Owner B Receives</div>
+                        <div className="text-2xl font-bold text-gray-900">€{safeFixed(quote.ownerB_receives)}</div>
                       </div>
                     </div>
                   </div>
@@ -476,6 +487,23 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
           </Card>
         )
       })}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Quote</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this quote? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
