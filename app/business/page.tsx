@@ -8,8 +8,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 export default async function BusinessPage({
   searchParams,
 }: {
-  searchParams: { edit?: string }
+  searchParams: Promise<{ edit?: string }>
 }) {
+  const params = await searchParams
   const supabase = await createClient()
 
   let printers = []
@@ -77,7 +78,7 @@ export default async function BusinessPage({
           printers={printers}
           filaments={filaments}
           globalSettings={globalSettingsData}
-          editingQuoteId={searchParams.edit}
+          editingQuoteId={params.edit}
         />
       )}
     </div>
