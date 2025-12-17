@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 // Whitelist of allowed IP addresses
-const ALLOWED_IPS = ["0.0.0.0"]
+const ALLOWED_IPS = ["0.0.0.0", "0.0.0.0"]
 
 export function proxy(request: NextRequest) {
   // Get the IP address from the request
