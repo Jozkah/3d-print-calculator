@@ -9,7 +9,7 @@ import { Download, Loader2 } from "lucide-react"
 interface Quote {
   id: string
   quote_name: string
-  mode: string
+  quote_type: string
   total_printing_cost: number
   machine_cost: number
   drying_cost: number
@@ -17,12 +17,9 @@ interface Quote {
   labor_cost: number
   packaging_cost: number
   fuel_cost: number
-  electricity_cost: number
-  emergency_fee_cost: number
-  total_landed_cost: number
-  selected_margin: number
-  final_client_price: number
-  vat_amount: number
+  emergency_fee: number
+  landed_cost: number
+  selected_margin: string
   is_emergency: boolean
   created_at: string
 }
@@ -68,34 +65,42 @@ export default function QuotePage() {
     )
   }
 
-  const printingAndMaterialsCost =
-    (quote.total_printing_cost || 0) +
-    (quote.machine_cost || 0) +
-    (quote.materials_cost || 0) +
-    (quote.electricity_cost || 0)
+  // Get the price with the selected margin from the stored value
+  const marginPercentage = Number.parseFloat(quote.selected_margin || "0") / 100
+  const marginMultiplier = marginPercentage > 0 ? 1 / (1 - marginPercentage) : 1
 
+  // Calculate Labor and Packaging with margin
+  const laborCost = quote.labor_cost || 0
   const packagingShippingCost = (quote.packaging_cost || 0) + (quote.fuel_cost || 0)
 
-  const isBusinessQuote = quote.mode === "business"
+  const laborWithMargin = laborCost * marginMultiplier
+  const packagingWithMargin = packagingShippingCost * marginMultiplier
 
-  const totalLandedCost =
-    printingAndMaterialsCost +
-    (quote.labor_cost || 0) +
-    packagingShippingCost +
-    (quote.is_emergency ? quote.emergency_fee_cost || 0 : 0)
-
-  const marginMultiplier = 1 + (quote.selected_margin || 0) / 100
+  // Get the total with margin (without emergency fee)
+  const totalLandedCost = quote.landed_cost || 0
   const priceWithMargin = totalLandedCost * marginMultiplier
 
-  // Add VAT for business quotes
-  const vatAmount = isBusinessQuote ? priceWithMargin * 0.23 : 0
-  const finalPrice = priceWithMargin + vatAmount
+  const printingAndMaterialsWithMargin = priceWithMargin - laborWithMargin - packagingWithMargin
+
+  // Add emergency fee AFTER margin calculation
+  const emergencyFeeCost = quote.is_emergency ? quote.emergency_fee || 0 : 0
+  const priceWithMarginAndEmergency = priceWithMargin + emergencyFeeCost
+
+  // Add VAT for business quotes (23%)
+  const isBusinessQuote = quote.quote_type === "business"
+  const vatAmount = isBusinessQuote ? priceWithMarginAndEmergency * 0.23 : 0
+  const finalPrice = priceWithMarginAndEmergency + vatAmount
 
   console.log("[v0] Quote calculations:", {
+    printingAndMaterialsWithMargin,
+    laborCost,
+    packagingShippingCost,
     totalLandedCost,
     selectedMargin: quote.selected_margin,
-    marginMultiplier,
+    marginPercentage,
     priceWithMargin,
+    emergencyFeeCost,
+    priceWithMarginAndEmergency,
     vatAmount,
     finalPrice,
   })
@@ -129,44 +134,31 @@ export default function QuotePage() {
             </tr>
           </thead>
           <tbody>
-            {/* 3D Printing & Materials */}
             <tr className="bg-blue-100">
               <td className="py-4 px-4 font-medium text-gray-900">3D Printing & Materials</td>
               <td className="py-4 px-4 text-gray-700">Printing time, machine cost and material usage</td>
               <td className="py-4 px-4 text-right font-medium text-gray-900">
-                {(printingAndMaterialsCost * marginMultiplier).toFixed(2)} €
+                {printingAndMaterialsWithMargin.toFixed(2)} €
               </td>
             </tr>
 
-            {/* Labor */}
             <tr className="bg-blue-200">
               <td className="py-4 px-4 font-medium text-gray-900">Labor</td>
               <td className="py-4 px-4 text-gray-700">Assembly, post-processing, or design work</td>
-              <td className="py-4 px-4 text-right font-medium text-gray-900">
-                {((quote.labor_cost || 0) * marginMultiplier).toFixed(2)} €
-              </td>
+              <td className="py-4 px-4 text-right font-medium text-gray-900">{laborWithMargin.toFixed(2)} €</td>
             </tr>
 
-            {/* Packaging, Shipping & Transport */}
             <tr className="bg-blue-100">
               <td className="py-4 px-4 font-medium text-gray-900">Packaging, Shipping & Transport</td>
               <td className="py-4 px-4 text-gray-700">Packaging materials, courier, and transportation</td>
-              <td className="py-4 px-4 text-right font-medium text-gray-900">
-                {(packagingShippingCost * marginMultiplier).toFixed(2)} €
-              </td>
+              <td className="py-4 px-4 text-right font-medium text-gray-900">{packagingWithMargin.toFixed(2)} €</td>
             </tr>
 
-            {/* Emergency Fee */}
-            {quote.is_emergency && quote.emergency_fee_cost > 0 && (
+            {quote.is_emergency && emergencyFeeCost > 0 && (
               <tr className="bg-blue-200">
-                <td className="py-4 px-4 font-medium text-gray-900">
-                  Emergency Fee
-                  <div className="text-xs text-gray-600 font-normal">(if applicable)</div>
-                </td>
+                <td className="py-4 px-4 font-medium text-gray-900">Emergency Fee</td>
                 <td className="py-4 px-4 text-gray-700">Urgent order surcharge</td>
-                <td className="py-4 px-4 text-right font-medium text-gray-900">
-                  {((quote.emergency_fee_cost || 0) * marginMultiplier).toFixed(2)} €
-                </td>
+                <td className="py-4 px-4 text-right font-medium text-gray-900">{emergencyFeeCost.toFixed(2)} €</td>
               </tr>
             )}
 
@@ -174,7 +166,7 @@ export default function QuotePage() {
             {isBusinessQuote && (
               <tr className="bg-blue-200">
                 <td className="py-4 px-4 font-medium text-gray-900" colSpan={2}>
-                  <div className="text-right">VAT</div>
+                  <div className="text-right">VAT (23%)</div>
                 </td>
                 <td className="py-4 px-4 text-right font-medium text-gray-900">{vatAmount.toFixed(2)} €</td>
               </tr>

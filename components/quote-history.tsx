@@ -15,7 +15,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Trash2, ChevronDown, ChevronUp, Share2, Download, Pencil } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Share2,
+  Download,
+  Pencil,
+  AlertTriangle,
+  Clock,
+  Truck,
+  CheckCircle,
+  XCircle,
+  Ban,
+  RefreshCw,
+} from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 
@@ -48,7 +63,17 @@ type Quote = {
   ownerA_receives: number
   ownerB_receives: number
   created_at: string
-  is_draft?: boolean // Added draft status field
+  is_draft?: boolean
+  status?: string // Added status field
+}
+
+const STATUS_CONFIG = {
+  pending: { label: "Pending", color: "bg-gray-100 text-gray-700 border-gray-300", icon: Clock },
+  in_progress: { label: "In Progress", color: "bg-blue-100 text-blue-700 border-blue-300", icon: Clock },
+  shipping: { label: "Shipping", color: "bg-purple-100 text-purple-700 border-purple-300", icon: Truck },
+  finished: { label: "Finished", color: "bg-green-100 text-green-700 border-green-300", icon: CheckCircle },
+  canceled: { label: "Canceled", color: "bg-red-100 text-red-700 border-red-300", icon: XCircle },
+  invalid: { label: "Invalid", color: "bg-orange-100 text-orange-700 border-orange-300", icon: Ban },
 }
 
 const safeFixed = (value: any, decimals = 2) => {
@@ -131,6 +156,45 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
     return filament?.name || "N/A"
   }
 
+  const updateStatus = async (quoteId: string, newStatus: string) => {
+    const supabase = createClient()
+    const { error } = await supabase.from("quotes").update({ status: newStatus }).eq("id", quoteId)
+
+    if (!error) {
+      setQuotes(quotes.map((q) => (q.id === quoteId ? { ...q, status: newStatus } : q)))
+      toast({
+        title: "Status Updated",
+        description: `Quote status changed to ${STATUS_CONFIG[newStatus as keyof typeof STATUS_CONFIG]?.label || newStatus}`,
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to update status",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const convertQuoteType = async (quoteId: string, currentType: string) => {
+    const newType = currentType === "personal" ? "business" : "personal"
+    const supabase = createClient()
+    const { error } = await supabase.from("quotes").update({ quote_type: newType }).eq("id", quoteId)
+
+    if (!error) {
+      setQuotes(quotes.map((q) => (q.id === quoteId ? { ...q, quote_type: newType } : q)))
+      toast({
+        title: "Quote Converted",
+        description: `Quote converted from ${currentType} to ${newType}`,
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to convert quote type",
+        variant: "destructive",
+      })
+    }
+  }
+
   if (quotes.length === 0) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -167,23 +231,56 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
         const totalPackaging = (quote.packaging_items || []).length
         const totalDriedBatches = (quote.dried_batches || []).length
 
+        const currentStatus = quote.status || "pending"
+        const statusConfig = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending
+        const StatusIcon = statusConfig.icon
+
         return (
           <Card key={quote.id} className="overflow-hidden bg-white border border-gray-200 shadow-sm">
             <CardHeader className={`bg-white ${expandedId === quote.id ? "border-b border-gray-200" : ""}`}>
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg sm:text-xl break-words">
-                    {quote.quote_name}
-                    {quote.is_draft && (
-                      <Badge variant="secondary" className="ml-2">
-                        Draft
-                      </Badge>
-                    )}
-                    <Badge variant={quote.quote_type === "business" ? "default" : "secondary"} className="ml-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-lg sm:text-xl flex flex-wrap items-center gap-2">
+                    <span className="break-words">{quote.quote_name}</span>
+                    {quote.is_draft && <Badge variant="secondary">Draft</Badge>}
+                    <Badge variant={quote.quote_type === "business" ? "default" : "secondary"}>
                       {quote.quote_type}
                     </Badge>
+                    {quote.is_emergency && (
+                      <Badge className="bg-red-500 hover:bg-red-600 text-white border-0">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        Emergency
+                      </Badge>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Badge
+                          className={`cursor-pointer ${statusConfig.color} border hover:opacity-80 transition-opacity`}
+                          variant="outline"
+                        >
+                          <StatusIcon className="h-3 w-3 mr-1" />
+                          {statusConfig.label}
+                          <ChevronDown className="h-3 w-3 ml-1" />
+                        </Badge>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        {Object.entries(STATUS_CONFIG).map(([key, config]) => {
+                          const Icon = config.icon
+                          return (
+                            <DropdownMenuItem
+                              key={key}
+                              onClick={() => updateStatus(quote.id, key)}
+                              className={`cursor-pointer ${currentStatus === key ? "bg-accent" : ""}`}
+                            >
+                              <Icon className="h-4 w-4 mr-2" />
+                              {config.label}
+                            </DropdownMenuItem>
+                          )
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground break-all">
+                  <p className="text-sm text-muted-foreground break-words mt-1">
                     {totalParts} part{totalParts !== 1 ? "s" : ""} | {totalMaterials} material
                     {totalMaterials !== 1 ? "s" : ""} | {totalLabor} labor item{totalLabor !== 1 ? "s" : ""} |{" "}
                     {totalPackaging} packaging item{totalPackaging !== 1 ? "s" : ""}
@@ -192,24 +289,59 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                     Created: {new Date(quote.created_at).toLocaleString()}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                  <Button variant="outline" size="sm" onClick={() => router.push(`/quote/${quote.id}`)}>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/quote/${quote.id}`)}
+                    className="h-9 w-9 p-0"
+                    title="View Quote"
+                  >
                     <Share2 className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleDownload(quote.id)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDownload(quote.id)}
+                    className="h-9 w-9 p-0"
+                    title="Download"
+                  >
                     <Download className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleEdit(quote)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEdit(quote)}
+                    className="h-9 w-9 p-0"
+                    title="Edit Quote"
+                  >
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => convertQuoteType(quote.id, quote.quote_type)}
+                    className="h-9 w-9 p-0"
+                    title={`Convert to ${quote.quote_type === "personal" ? "Business" : "Personal"}`}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => setExpandedId(expandedId === quote.id ? null : quote.id)}
+                    className="h-9 w-9 p-0"
+                    title={expandedId === quote.id ? "Collapse" : "Expand"}
                   >
                     {expandedId === quote.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(quote.id)}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(quote.id)}
+                    className="h-9 w-9 p-0"
+                    title="Delete Quote"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>

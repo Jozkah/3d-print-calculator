@@ -22,7 +22,7 @@ type GlobalSettings = {
 }
 
 type LaserCalculatorProps = {
-  type: "laser-engraving" | "laser-cutting" | "stickers"
+  type: "laser-engraving" | "laser-cutting" | "stickers" | "cnc"
   materials: LaserMaterial[]
   globalSettings: GlobalSettings
   mode: "personal" | "business"
@@ -31,7 +31,7 @@ type LaserCalculatorProps = {
 export function LaserCalculator({ type, materials, globalSettings, mode }: LaserCalculatorProps) {
   const [selectedMaterial, setSelectedMaterial] = useState<string>("")
   const [processingTimeMinutes, setProcessingTimeMinutes] = useState<number>(0)
-  const [powerConsumptionWatts, setPowerConsumptionWatts] = useState<number>(0)
+  const [powerConsumptionWatts, setPowerConsumptionWatts] = useState<number>(type === "cnc" ? 200 : 0)
   const [materialQuantity, setMaterialQuantity] = useState<number>(1)
   const [laborHours, setLaborHours] = useState<number>(0)
   const [packagingCost, setPackagingCost] = useState<number>(0)
@@ -60,7 +60,13 @@ export function LaserCalculator({ type, materials, globalSettings, mode }: Laser
       <div className="space-y-6">
         <Card className="p-6">
           <h2 className="text-xl font-bold text-blue-600 mb-4">
-            {type === "laser-engraving" ? "Laser Engraving" : type === "laser-cutting" ? "Laser Cutting" : "Stickers"}
+            {type === "laser-engraving"
+              ? "Laser Engraving"
+              : type === "laser-cutting"
+                ? "Laser Cutting"
+                : type === "cnc"
+                  ? "CNC Milling"
+                  : "Stickers"}
           </h2>
 
           <div className="space-y-4">
@@ -133,7 +139,10 @@ export function LaserCalculator({ type, materials, globalSettings, mode }: Laser
                     e.preventDefault()
                   }
                 }}
+                disabled={type === "cnc"}
+                className={type === "cnc" ? "bg-gray-100" : ""}
               />
+              {type === "cnc" && <p className="text-sm text-gray-500 mt-1">Fixed at 200W for Makera Carvera AIR</p>}
             </div>
 
             {/* Labor Hours */}

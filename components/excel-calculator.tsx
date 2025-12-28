@@ -122,7 +122,7 @@ type ExcelCalculatorProps = {
   editingQuoteId?: string
 }
 
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList, CommandItem } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 export function ExcelCalculator({
@@ -139,9 +139,9 @@ export function ExcelCalculator({
   const supabase = createClient() // Declare supabase client here
 
   // ADDED STATE FOR CALCULATION TYPE SELECTION
-  const [calculatorType, setCalculatorType] = useState<"3d-print" | "laser-engraving" | "laser-cutting" | "stickers">(
-    "3d-print",
-  )
+  const [calculatorType, setCalculatorType] = useState<
+    "3d-print" | "laser-engraving" | "laser-cutting" | "stickers" | "cnc"
+  >("3d-print")
 
   const [printedParts, setPrintedParts] = useState<PrintedPart[]>([])
   const [driedBatches, setDriedBatches] = useState<DriedBatch[]>([])
@@ -156,7 +156,8 @@ export function ExcelCalculator({
   const [distanceTraveledKm, setDistanceTraveledKm] = useState(0)
 
   // ADDED STATE FOR MARGIN SELECTION
-  const [selectedMargin, setSelectedMargin] = useState<30 | 40 | 50 | 60>(propSelectedMargin || 50)
+  const [selectedMargin, setSelectedMargin] = useState<number>(propSelectedMargin || 50)
+  const [customMargin, setCustomMargin] = useState<number>(65)
 
   const [isEditingQuote, setIsEditingQuote] = useState(false)
   const [currentQuoteId, setCurrentQuoteId] = useState<string | null>(null)
@@ -167,7 +168,8 @@ export function ExcelCalculator({
     if (calculatorType === "3d-print") {
       return !f.material_type || f.material_type === "filament"
     }
-    return f.material_type === "material"
+    // If not 3d-print, consider any material type as available
+    return true
   })
 
   const h2sPrinter = printers.find((p) => p.name.toLowerCase().includes("h2s"))
@@ -286,6 +288,7 @@ export function ExcelCalculator({
         console.log("[v0] Restoring dried batches:", quote.dried_batches)
 
         // Load all quote data into state
+        setCalculatorType(quote.calculator_type || "3d-print") // Load calculator type
         setClientName(quote.quote_name || "")
         setIsEmergency(quote.is_emergency || false)
         setDistanceTraveledKm(quote.distance_traveled_km || 0)
@@ -361,6 +364,7 @@ export function ExcelCalculator({
     if (calculatorType !== "3d-print" && globalSettings) {
       const materialCost = filament.price_per_kg // For materials, this is price per sheet
       const electricityCost = part.printing_time_hr * globalSettings.electricity_cost_per_kwh
+      // Assuming the '11' is a factor for non-3D print material cost calculation
       return sum + (materialCost + electricityCost) * 11
     }
 
@@ -416,7 +420,7 @@ export function ExcelCalculator({
       totalMachineCost += part.printing_time_hr * totalPrinterCostPerHour
     })
 
-    return totalMachineCost + totalDryingCost
+    return totalMachineCost
   })()
 
   const totalMaterialsCost = materials.reduce((sum, m) => sum + m.quantity * m.unit_cost, 0)
@@ -432,42 +436,61 @@ export function ExcelCalculator({
 
   const emergencyFee = isEmergency && globalSettings ? globalSettings.emergency_fee_fixed : 0
 
-  const electricityCost = (() => {
-    if (!globalSettings) return 0
-    let total = 0
-    printedParts.forEach((part) => {
-      if (part.printing_time_hr > 0 && part.printer_id) {
-        const printer = printers.find((p) => p.id === part.printer_id)
-        if (printer) {
-          total +=
-            part.printing_time_hr *
-            (printer.average_power_consumption_watts / 1000) *
-            globalSettings.electricity_cost_per_kwh
-        }
-      }
-    })
-    return total
-  })()
+  const totalGramage = printedParts.reduce((sum, part) => {
+    return sum + (part.filament_grams || 0)
+  }, 0)
 
+  // Calculate total electricity cost for the quote
+  const totalPrinterElectricity = printedParts.reduce((sum, part) => {
+    if (!part.printing_time_hr || !part.printer_id) return sum
+    const printer = printers.find((p) => p.id === part.printer_id)
+    if (!printer || !globalSettings) return sum
+    return (
+      sum +
+      (printer.average_power_consumption_watts / 1000) * globalSettings.electricity_cost_per_kwh * part.printing_time_hr
+    )
+  }, 0)
+  const electricityCost = totalPrinterElectricity // Only printer electricity is relevant here, drying cost is separate
+
+  // Landed cost calculation should account for all direct costs before margin
   const totalLandedCost =
-    totalMaterialsCost + fuelCost + totalPrintingCost + machineCost + totalLaborCost + totalPackagingCost + emergencyFee
+    totalPrintingCost +
+    machineCost + // Includes printer capital and electricity, but electricityCost variable recalculates for clarity
+    totalDryingCost + // Drying electricity is included in totalDryingCost calculation
+    totalMaterialsCost +
+    totalLaborCost +
+    totalPackagingCost +
+    fuelCost
 
-  const margin30 = isEmergency && globalSettings ? totalLandedCost - emergencyFee : totalLandedCost / (1 - 0.3)
-  const margin40 = isEmergency && globalSettings ? totalLandedCost - emergencyFee : totalLandedCost / (1 - 0.4)
-  const margin50 = isEmergency && globalSettings ? totalLandedCost - emergencyFee : totalLandedCost / (1 - 0.5)
-  const margin60 = isEmergency && globalSettings ? totalLandedCost - emergencyFee : totalLandedCost / (1 - 0.6)
+  // Margin calculations
+  const margin30 = totalLandedCost / (1 - 0.3) + emergencyFee
+  const margin40 = totalLandedCost / (1 - 0.4) + emergencyFee
+  const margin50 = totalLandedCost / (1 - 0.5) + emergencyFee
+  const margin60 = totalLandedCost / (1 - 0.6) + emergencyFee // Added margin60 calculation
+  const customMarginValue = totalLandedCost / (1 - customMargin / 100) + emergencyFee
 
   const selectedMarginValue =
-    selectedMargin === 30 ? margin30 : selectedMargin === 40 ? margin40 : selectedMargin === 50 ? margin50 : margin60
+    selectedMargin === 30
+      ? margin30
+      : selectedMargin === 40
+        ? margin40
+        : selectedMargin === 50
+          ? margin50
+          : selectedMargin === 60
+            ? margin60
+            : // Added case for margin60
+              totalLandedCost / (1 - selectedMargin / 100) + emergencyFee
 
   const vatRate = 0.23
   const vatAmountFromLandedCost = mode === "business" ? totalLandedCost * vatRate : 0
   const vatAmountFromSellingPrice = mode === "business" ? selectedMarginValue * vatRate : 0
 
+  // Calculations with VAT included
   const margin30WithVAT = mode === "business" ? margin30 * (1 + vatRate) : margin30
   const margin40WithVAT = mode === "business" ? margin40 * (1 + vatRate) : margin40
   const margin50WithVAT = mode === "business" ? margin50 * (1 + vatRate) : margin50
-  const margin60WithVAT = mode === "business" ? margin60 * (1 + vatRate) : margin60
+  const margin60WithVAT = mode === "business" ? margin60 * (1 + vatRate) : margin60 // Added VAT for margin60
+  const customMarginWithVAT = mode === "business" ? customMarginValue * (1 + vatRate) : customMarginValue
 
   const finalClientPrice = mode === "business" ? selectedMarginValue * (1 + vatRate) : selectedMarginValue
 
@@ -477,32 +500,30 @@ export function ExcelCalculator({
 
   if (mode === "business") {
     const ownerPrinter = printedParts.length > 0 ? printers.find((p) => p.id === printedParts[0].printer_id) : null
-    const owner = ownerPrinter?.owner || "Owner B"
+    const owner = ownerPrinter?.owner || "Owner B" // Default to Owner B if no printer owner found
 
     const totalProfit = selectedMarginValue - totalLandedCost
     const halfProfit = totalProfit / 2
     const halfEmergency = emergencyFee / 2
 
+    // Use the `electricityCost` variable which sums printer electricity
+    const totalIndirectCostsForOwner A = machineCost + totalLaborCost + fuelCost
+    const totalIndirectCostsForOwner B = totalPrintingCost + totalMaterialsCost + totalPackagingCost
+
     if (owner === "Owner A") {
-      ownerAReceives = machineCost + totalLaborCost + fuelCost + halfProfit + halfEmergency
-      ownerBReceives =
-        totalPrintingCost +
-        totalMaterialsCost +
-        totalPackagingCost +
-        halfProfit +
-        halfEmergency +
-        vatAmountFromSellingPrice
+      ownerAReceives = totalIndirectCostsForOwner A + halfProfit + halfEmergency
+      ownerBReceives = totalIndirectCostsForOwner B + halfProfit + halfEmergency + vatAmountFromSellingPrice
     } else {
-      ownerAReceives = totalLaborCost + fuelCost + halfProfit + halfEmergency + electricityCost
+      // If owner is Owner B or not specified, Owner A receives a different set of costs
+      ownerAReceives = totalLaborCost + fuelCost + halfProfit + halfEmergency + electricityCost // Owner A gets labor, fuel, profit split, and electricity
       ownerBReceives =
-        machineCost +
+        machineCost + // Owner B gets machine cost
         totalPrintingCost +
         totalMaterialsCost +
         totalPackagingCost +
         halfProfit +
         halfEmergency +
-        vatAmountFromSellingPrice -
-        electricityCost // Subtract electricity cost from Owner B's share since Owner A receives it
+        vatAmountFromSellingPrice // Owner B gets other direct costs, profit split, VAT
     }
   }
 
@@ -555,8 +576,9 @@ export function ExcelCalculator({
       })
 
       const quoteData = {
+        quote_type: calculatorType, // Save the selected calculator type
         quote_name: clientName, // Changed from quoteName to clientName
-        quote_type: mode,
+        quote_type_mode: mode, // Save the mode (personal/business)
         printed_parts: printedParts,
         dried_batches: driedBatchesWithCost, // Save batches with cost included
         materials: materials,
@@ -572,13 +594,14 @@ export function ExcelCalculator({
         packaging_cost: totalPackagingCost,
         fuel_cost: fuelCost,
         emergency_fee: emergencyFee,
-        electricity_cost: electricityCost,
-        landed_cost: totalLandedCost,
+        electricity_cost: electricityCost, // Save total electricity cost
+        landed_cost: totalLandedCost, // This should be calculated without emergency fee before applying margin
         margin_30: margin30,
         margin_40: margin40,
         margin_50: margin50,
         margin_60: margin60,
-        selected_margin: selectedMargin, // This stores the percentage (30, 40, 50, or 60)
+        custom_margin_value: customMargin, // Store the custom margin percentage
+        selected_margin_percentage: selectedMargin, // This stores the percentage (30, 40, 50, or 60)
         ownerA_receives: mode === "business" ? ownerAReceives : null,
         ownerB_receives: mode === "business" ? ownerBReceives : null,
         is_draft: false, // Mark as finalized when saved
@@ -663,8 +686,9 @@ export function ExcelCalculator({
       })
 
       const quoteData = {
+        quote_type: calculatorType, // Save the selected calculator type
         quote_name: clientName,
-        quote_type: mode,
+        quote_type_mode: mode,
         printed_parts: printedParts,
         dried_batches: driedBatchesWithCost,
         materials: materials,
@@ -681,12 +705,13 @@ export function ExcelCalculator({
         fuel_cost: fuelCost,
         emergency_fee: emergencyFee,
         electricity_cost: electricityCost,
-        landed_cost: totalLandedCost,
+        landed_cost: totalLandedCost, // This should be calculated without emergency fee before applying margin
         margin_30: margin30,
         margin_40: margin40,
         margin_50: margin50,
         margin_60: margin60,
-        selected_margin: selectedMargin,
+        custom_margin_value: customMargin,
+        selected_margin_percentage: selectedMargin,
         ownerA_receives: mode === "business" ? ownerAReceives : null,
         ownerB_receives: mode === "business" ? ownerBReceives : null,
         is_draft: true, // Mark as draft
@@ -733,6 +758,7 @@ export function ExcelCalculator({
     )
   }
 
+  // Dynamically set labels based on calculator type
   const partsLabel =
     calculatorType === "laser-engraving"
       ? "Laser Engraved Items"
@@ -740,7 +766,9 @@ export function ExcelCalculator({
         ? "Laser Cut Items"
         : calculatorType === "stickers"
           ? "Printed Stickers"
-          : "Printed Parts (Filament Input)"
+          : calculatorType === "cnc" // Added CNC label
+            ? "CNC Milled Parts"
+            : "Printed Parts (Filament Input)"
 
   const batchesLabel = calculatorType !== "3d-print" ? "Processing Batches" : "Dried Batches"
 
@@ -751,7 +779,7 @@ export function ExcelCalculator({
         id: Date.now().toString(),
         name: "",
         filament_id: "",
-        printer_id: "",
+        printer_id: "", // Initialize printer_id
         filament_grams: 0,
         printing_time_hr: 0,
       },
@@ -784,6 +812,7 @@ export function ExcelCalculator({
         showCancel={false}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {/* ADDED: CNC Milling button to calculator type selector */}
         {mode === "business" && (
           <div className="mb-6 -mx-4 px-4 overflow-x-auto">
             <div className="flex gap-2 min-w-max pb-2">
@@ -814,6 +843,14 @@ export function ExcelCalculator({
                 className="whitespace-nowrap min-w-[120px]"
               >
                 Stickers
+              </Button>
+              {/* Added CNC Milling button */}
+              <Button
+                variant={calculatorType === "cnc" ? "default" : "outline"}
+                onClick={() => setCalculatorType("cnc")}
+                className="whitespace-nowrap min-w-[120px]"
+              >
+                CNC Milling
               </Button>
             </div>
           </div>
@@ -869,15 +906,7 @@ export function ExcelCalculator({
         {/* Printed Parts Table */}
         <Card className="p-6 bg-white border-2 border-blue-300">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-bold text-blue-900">
-              {calculatorType === "3d-print"
-                ? "Printed Parts (Filament Input)"
-                : calculatorType === "laser-engraving"
-                  ? "Laser Engraved Items"
-                  : calculatorType === "laser-cutting"
-                    ? "Laser Cut Items"
-                    : "Printed Stickers"}
-            </h3>
+            <h3 className="text-lg font-bold text-blue-900">{partsLabel}</h3>
             <Button onClick={addPrintedPart} className="bg-blue-600 hover:bg-blue-700">
               <Plus className="w-4 h-4 mr-2" />
               Add Part
@@ -909,10 +938,13 @@ export function ExcelCalculator({
                   let cost = 0
                   if (filament) {
                     if (calculatorType !== "3d-print" && globalSettings) {
+                      // Assuming filament.price_per_kg is used for material cost in non-3D print scenarios
                       const materialCost = filament.price_per_kg
                       const electricityCost = part.printing_time_hr * globalSettings.electricity_cost_per_kwh
+                      // Assuming the '11' is a factor for non-3D print material cost calculation
                       cost = (materialCost + electricityCost) * 11
                     } else {
+                      // For 3D print, calculate cost based on grams
                       cost = (filament.price_per_kg * part.filament_grams) / 1000
                     }
                   }
@@ -987,6 +1019,7 @@ export function ExcelCalculator({
                                       onSelect={() => {
                                         const updated = [...printedParts]
                                         updated[index].filament_id = filament.id
+                                        // If it's not a 3D print and H2S printer is available, auto-select it
                                         if (calculatorType !== "3d-print" && h2sPrinter) {
                                           updated[index].printer_id = h2sPrinter.id
                                         }
@@ -1063,150 +1096,150 @@ export function ExcelCalculator({
         </Card>
 
         {/* Dried Batches / Processing Batches Table */}
-        {calculatorType === "3d-print" && (
-          <Card className="p-6 bg-white border-2 border-blue-300">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-blue-900">{batchesLabel}</h2>
-              <Button
-                onClick={() =>
-                  setDriedBatches([
-                    ...driedBatches,
-                    { id: Date.now().toString(), material: "", drying_time_hr: 0, cost: 0 },
-                  ])
-                }
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Batch
-              </Button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-blue-100 border-b-2 border-blue-300">
-                    <th className="p-3 text-left text-blue-900 font-semibold">Material</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Drying Time (hr)</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Cost (€)</th>
-                    <th className="p-3"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {driedBatches.map((batch, index) => {
-                    const dryerCost = 90
-                    const estimatedLife = 3
-                    const estimatedDryerUptime = 0.1
-                    const dryerUptimeHoursPerYear = 8760 * estimatedDryerUptime
-                    const dryerCapitalCostPerHour = dryerCost / (dryerUptimeHoursPerYear * estimatedLife)
+        {/* This section is now shown for all calculator types, with dynamic label */}
+        <Card className="p-6 bg-white border-2 border-blue-300">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-blue-900">{batchesLabel}</h2>
+            <Button
+              onClick={() =>
+                setDriedBatches([
+                  ...driedBatches,
+                  { id: Date.now().toString(), material: "", drying_time_hr: 0, cost: 0 },
+                ])
+              }
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Batch
+            </Button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-blue-100 border-b-2 border-blue-300">
+                  <th className="p-3 text-left text-blue-900 font-semibold">Material</th>
+                  <th className="p-3 text-left text-blue-900 font-semibold">Drying Time (hr)</th>
+                  <th className="p-3 text-left text-blue-900 font-semibold">Cost (€)</th>
+                  <th className="p-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {driedBatches.map((batch, index) => {
+                  const dryerCost = 90
+                  const estimatedLife = 3
+                  const estimatedDryerUptime = 0.1
+                  const dryerUptimeHoursPerYear = 8760 * estimatedDryerUptime
+                  const dryerCapitalCostPerHour = dryerCost / (dryerUptimeHoursPerYear * estimatedLife)
 
-                    const electricalCostPerHour = globalSettings
-                      ? (150 / 1000) * globalSettings.electricity_cost_per_kwh
-                      : 0
+                  const electricalCostPerHour = globalSettings
+                    ? (150 / 1000) * globalSettings.electricity_cost_per_kwh
+                    : 0
 
-                    const costBufferFactor = 1.3
-                    const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
+                  const costBufferFactor = 1.3
+                  const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
 
-                    const cost =
-                      batch.material === "HEATING"
-                        ? batch.drying_time_hr * totalDryerCostPerHour * 2
-                        : batch.drying_time_hr * totalDryerCostPerHour
+                  const cost =
+                    batch.material === "HEATING"
+                      ? batch.drying_time_hr * totalDryerCostPerHour * 2
+                      : batch.drying_time_hr * totalDryerCostPerHour
 
-                    return (
-                      <tr key={batch.id} className="border-b border-blue-200">
-                        <td className="p-2">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                className="w-full justify-between border-blue-200 bg-white"
-                              >
-                                {batch.material || "Select material"}
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[300px] p-0">
-                              <Command>
-                                <CommandInput placeholder="Search materials..." className="h-9" />
-                                <CommandList>
-                                  <CommandEmpty>No material found.</CommandEmpty>
-                                  <CommandGroup>
+                  return (
+                    <tr key={batch.id} className="border-b border-blue-200">
+                      <td className="p-2">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between border-blue-200 bg-white"
+                            >
+                              {batch.material || "Select material"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0">
+                            <Command>
+                              <CommandInput placeholder="Search materials..." className="h-9" />
+                              <CommandList>
+                                <CommandEmpty>No material found.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    value="HEATING"
+                                    onSelect={() => {
+                                      const updated = [...driedBatches]
+                                      updated[index].material = "HEATING"
+                                      setDriedBatches(updated)
+                                    }}
+                                  >
+                                    HEATING
+                                    <Check
+                                      className={cn(
+                                        "ml-auto h-4 w-4",
+                                        batch.material === "HEATING" ? "opacity-100" : "opacity-0",
+                                      )}
+                                    />
+                                  </CommandItem>
+                                  {/* Displaying all filaments as materials for non-3D print scenarios */}
+                                  {filaments.map((filament) => (
                                     <CommandItem
-                                      value="HEATING"
+                                      key={filament.id}
+                                      value={`${filament.id}-${filament.name}`}
                                       onSelect={() => {
                                         const updated = [...driedBatches]
-                                        updated[index].material = "HEATING"
+                                        updated[index].material = filament.name
                                         setDriedBatches(updated)
                                       }}
                                     >
-                                      HEATING
+                                      {filament.name}
                                       <Check
                                         className={cn(
                                           "ml-auto h-4 w-4",
-                                          batch.material === "HEATING" ? "opacity-100" : "opacity-0",
+                                          batch.material === filament.name ? "opacity-100" : "opacity-0",
                                         )}
                                       />
                                     </CommandItem>
-                                    {filaments.map((filament) => (
-                                      <CommandItem
-                                        key={filament.id}
-                                        value={`${filament.id}-${filament.name}`}
-                                        onSelect={() => {
-                                          const updated = [...driedBatches]
-                                          updated[index].material = filament.name
-                                          setDriedBatches(updated)
-                                        }}
-                                      >
-                                        {filament.name}
-                                        <Check
-                                          className={cn(
-                                            "ml-auto h-4 w-4",
-                                            batch.material === filament.name ? "opacity-100" : "opacity-0",
-                                          )}
-                                        />
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
-                        </td>
-                        <td className="p-2">
-                          <Input
-                            type="number"
-                            step="0.1"
-                            value={batch.drying_time_hr || ""}
-                            onChange={(e) => {
-                              const updated = [...driedBatches]
-                              updated[index].drying_time_hr = Number.parseFloat(e.target.value) || 0
-                              setDriedBatches(updated)
-                            }}
-                            className="border-blue-200 bg-white"
-                          />
-                        </td>
-                        <td className="p-2 text-blue-900 font-semibold">€{cost.toFixed(2)}</td>
-                        <td className="p-2">
-                          <Button
-                            onClick={() => setDriedBatches(driedBatches.filter((_, i) => i !== index))}
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-4 text-right">
-              <span className="text-blue-900 font-bold">Total Drying Cost: €{totalDryingCost.toFixed(2)}</span>
-            </div>
-          </Card>
-        )}
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </td>
+                      <td className="p-2">
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={batch.drying_time_hr || ""}
+                          onChange={(e) => {
+                            const updated = [...driedBatches]
+                            updated[index].drying_time_hr = Number.parseFloat(e.target.value) || 0
+                            setDriedBatches(updated)
+                          }}
+                          className="border-blue-200 bg-white"
+                        />
+                      </td>
+                      <td className="p-2 text-blue-900 font-semibold">€{cost.toFixed(2)}</td>
+                      <td className="p-2">
+                        <Button
+                          onClick={() => setDriedBatches(driedBatches.filter((_, i) => i !== index))}
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 text-right">
+            <span className="text-blue-900 font-bold">Total Drying Cost: €{totalDryingCost.toFixed(2)}</span>
+          </div>
+        </Card>
 
         {/* Materials Table */}
         <Card className="p-6 bg-white border-2 border-blue-300">
@@ -1486,7 +1519,6 @@ export function ExcelCalculator({
               </tbody>
             </table>
           </div>
-          {/* Renamed Total Packaging Cost to "Total Packaging & Shipping Cost" */}
           <div className="mt-4 text-right">
             <span className="text-blue-900 font-bold">
               Total Packaging & Shipping Cost: €{totalPackagingCost.toFixed(2)}
@@ -1505,14 +1537,18 @@ export function ExcelCalculator({
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-blue-300">
                 <span className="text-blue-700 font-medium">Added Machine Cost:</span>
-                <span className="text-blue-900 font-bold">€{(machineCost - totalDryingCost).toFixed(2)}</span>
+                {/* Adjusted to show only printer capital and electricity, excluding drying cost from this line */}
+                <span className="text-blue-900 font-bold">€{machineCost.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                <span className="text-blue-700 font-medium">Electricity Cost:</span>
+                <span className="text-blue-700 font-medium">Electricity Cost (Printers & Dryer):</span>
+                {/* Combined printer and drying electricity */}
                 <span className="text-blue-900 font-bold">€{(electricityCost + totalDryingCost).toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                <span className="text-blue-700 font-medium">Total Materials Cost:</span>
+                <span className="text-blue-700 font-medium">
+                  Total Materials Cost: {calculatorType === "3d-print" && `(${totalGramage.toFixed(0)}g)`}
+                </span>
                 <span className="text-blue-900 font-bold">€{totalMaterialsCost.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-blue-300">
@@ -1521,12 +1557,10 @@ export function ExcelCalculator({
               </div>
             </div>
             <div className="space-y-3">
-              {/* Renamed Total Packaging Cost to "Total Packaging & Shipping Cost" */}
               <div className="flex justify-between items-center pb-2 border-b border-blue-300">
                 <span className="text-blue-700 font-medium">Total Packaging & Shipping Cost:</span>
                 <span className="text-blue-900 font-bold">€{totalPackagingCost.toFixed(2)}</span>
               </div>
-              {/* Renamed "Added Fuel Cost" to "Additional Transportation Cost" */}
               <div className="flex justify-between items-center pb-2 border-b border-blue-300">
                 <span className="text-blue-700 font-medium">Additional Transportation Cost:</span>
                 <span className="text-blue-900 font-bold">€{fuelCost.toFixed(2)}</span>
@@ -1539,7 +1573,7 @@ export function ExcelCalculator({
               )}
               {mode === "business" && (
                 <div className="flex justify-between items-center pb-2">
-                  <span className="text-blue-700 font-medium">VAT (23%):</span>
+                  <span className="text-blue-700 font-medium">VAT (23% of Landed Cost):</span>
                   <span className="text-blue-900 font-bold">€{vatAmountFromLandedCost.toFixed(2)}</span>
                 </div>
               )}
@@ -1553,7 +1587,7 @@ export function ExcelCalculator({
           <div className="mt-8 pt-6 border-t-2 border-blue-400">
             <h3 className="text-xl font-bold text-blue-900 mb-4">Profit Margins (Click to Select)</h3>
             {/* Improved mobile grid layout for profit margins */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               <div
                 className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                   selectedMargin === 30
@@ -1589,14 +1623,29 @@ export function ExcelCalculator({
               </div>
               <div
                 className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
-                  selectedMargin === 60
+                  selectedMargin !== 30 && selectedMargin !== 40 && selectedMargin !== 50
                     ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                     : "bg-white border-blue-300"
                 }`}
-                onClick={() => setSelectedMargin(60)}
+                onClick={() => setSelectedMargin(customMargin)}
               >
-                <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">60% Margin</div>
-                <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin60WithVAT.toFixed(2)}</div>
+                <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1 flex items-center justify-center gap-1">
+                  <input
+                    type="number"
+                    min="1"
+                    max="99"
+                    value={customMargin}
+                    onChange={(e) => {
+                      const val = Math.min(99, Math.max(1, Number(e.target.value) || 1))
+                      setCustomMargin(val)
+                      setSelectedMargin(val)
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-12 text-center border border-blue-300 rounded px-1 py-0.5 text-blue-700 font-medium"
+                  />
+                  <span>% Margin</span>
+                </div>
+                <div className="text-blue-900 text-lg sm:text-xl font-bold">€{customMarginWithVAT.toFixed(2)}</div>
               </div>
             </div>
 
@@ -1609,6 +1658,23 @@ export function ExcelCalculator({
                 <div className="text-blue-900 text-2xl sm:text-3xl font-bold">€{finalClientPrice.toFixed(2)}</div>
               </div>
             </div>
+
+            {isEmergency && emergencyFee > 0 && (
+              <div className="mt-4 p-3 sm:p-4 bg-red-50 rounded-lg border-2 border-red-300">
+                <div className="flex items-center gap-2 text-red-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fillRule="evenodd"
+                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="font-semibold text-sm sm:text-base">
+                    A value of €{emergencyFee.toFixed(2)} was added due to this order being marked as an emergency.
+                  </span>
+                </div>
+              </div>
+            )}
 
             {mode === "business" && (
               <div className="mt-8 pt-6 border-t-2 border-blue-400">
