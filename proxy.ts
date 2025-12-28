@@ -5,6 +5,12 @@ import type { NextRequest } from "next/server"
 const ALLOWED_IPS = ["0.0.0.0", "0.0.0.0"]
 
 export function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+  if (pathname.startsWith("/quote/")) {
+    console.log("[v0] Allowing public access to quote page")
+    return NextResponse.next()
+  }
+
   // Get the IP address from the request
   // Vercel provides the real IP in x-forwarded-for or x-real-ip headers
   const forwardedFor = request.headers.get("x-forwarded-for")

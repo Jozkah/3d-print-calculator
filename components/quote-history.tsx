@@ -289,22 +289,30 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                     Created: {new Date(quote.created_at).toLocaleString()}
                   </p>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push(`/quote/${quote.id}`)}
-                    className="h-9 w-9 p-0"
-                    title="View Quote"
-                  >
-                    <Share2 className="h-4 w-4" />
-                  </Button>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  {/* Action Buttons */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent" title="Share Quote">
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}`)}>
+                        Standard Quotation
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}/detailed`)}>
+                        Fully Detailed Quotation
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleDownload(quote.id)}
                     className="h-9 w-9 p-0"
-                    title="Download"
+                    title="Download Quote"
                   >
                     <Download className="h-4 w-4" />
                   </Button>
