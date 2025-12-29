@@ -33,6 +33,15 @@ export default function QuotePage() {
     loadQuote()
   }, [params.id])
 
+  useEffect(() => {
+    if (quote?.quote_name) {
+      document.title = `${quote.quote_name} - Quotation`
+    }
+    return () => {
+      document.title = "3D Print Calculator"
+    }
+  }, [quote?.quote_name])
+
   async function loadQuote() {
     const supabase = createClient()
     const { data, error } = await supabase.from("quotes").select("*").eq("id", params.id).single()

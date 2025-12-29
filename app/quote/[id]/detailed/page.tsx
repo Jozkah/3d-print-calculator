@@ -78,6 +78,15 @@ export default function DetailedQuotePage() {
     loadQuote()
   }, [params.id])
 
+  useEffect(() => {
+    if (quote?.quote_name) {
+      document.title = `${quote.quote_name} - Detailed Quotation`
+    }
+    return () => {
+      document.title = "3D Print Calculator"
+    }
+  }, [quote?.quote_name])
+
   async function loadQuote() {
     const supabase = createClient()
     const { data, error } = await supabase.from("quotes").select("*").eq("id", params.id).single()
@@ -105,6 +114,18 @@ export default function DetailedQuotePage() {
 
     setQuote(data)
     setLoading(false)
+  }
+
+  async function loadFilamentName(filamentId: string): Promise<string> {
+    const supabase = createClient()
+    const { data, error } = await supabase.from("filaments").select("name").eq("id", filamentId).single()
+
+    if (error) {
+      console.error("Error loading filament name:", error)
+      return "Unknown"
+    }
+
+    return data?.name || "Unknown"
   }
 
   function handlePrint() {
