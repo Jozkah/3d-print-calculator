@@ -539,7 +539,35 @@ export function ExcelCalculator({
   const margin60WithVAT = mode === "business" && vatEnabled ? margin60 * (1 + vatRate) : margin60
   const customMarginWithVAT = mode === "business" && vatEnabled ? customMarginValue * (1 + vatRate) : customMarginValue
 
-  const finalClientPrice = mode === "business" && vatEnabled ? selectedMarginValue * (1 + vatRate) : selectedMarginValue
+  const finalClientPrice =
+    marginInputMode === "targetPrice" && targetPrice > 0
+      ? targetPrice
+      : mode === "business" && vatEnabled
+        ? selectedMarginValue * (1 + vatRate)
+        : selectedMarginValue
+  // </CHANGE>
+
+  useEffect(() => {
+    if (marginInputMode === "targetPrice" && targetPrice > 0) {
+      const priceBeforeEmergency = Math.max(0, targetPrice - emergencyFee)
+      const totalLandedCostValue = vatEnabled ? totalLandedCost : totalLandedCost - vatAmountFromLandedCost
+
+      if (totalLandedCostValue > 0 && priceBeforeEmergency > totalLandedCostValue) {
+        // Calculate what margin % is needed: priceBeforeEmergency = cost / (1 - margin/100)
+        // Solving for margin: margin = (1 - cost/priceBeforeEmergency) * 100
+        const calculatedMargin = (1 - totalLandedCostValue / priceBeforeEmergency) * 100
+        const roundedMargin = Math.max(0, Math.round(calculatedMargin * 10) / 10)
+        setCustomMargin(roundedMargin)
+        setSelectedMargin(roundedMargin)
+      } else if (priceBeforeEmergency <= totalLandedCostValue) {
+        // Target price must be greater than landed cost + emergency fee
+        setCustomMargin(0)
+        setSelectedMargin(0)
+      }
+      // </CHANGE>
+    }
+  }, [marginInputMode, targetPrice, totalLandedCost, vatEnabled, vatAmountFromLandedCost, emergencyFee])
+  // </CHANGE>
 
   // Business profit split calculations
   // Determine printer owner for profit split - this is no longer used for the main split
@@ -591,21 +619,6 @@ export function ExcelCalculator({
   const [showErrorDialog, setShowErrorDialog] = useState(false)
   const [errorDialogTitle, setErrorDialogTitle] = useState("")
   const [errorDialogMessage, setErrorDialogMessage] = useState("")
-
-  // Calculate margin from target price when in targetPrice mode
-  useEffect(() => {
-    if (marginInputMode === "targetPrice" && targetPrice > 0) {
-      const totalLandedCostValue = vatEnabled ? totalLandedCost : totalLandedCost - vatAmountFromLandedCost
-
-      if (totalLandedCostValue > 0) {
-        const calculatedMargin = ((targetPrice - totalLandedCostValue) / totalLandedCostValue) * 100
-        const roundedMargin = Math.max(0, Math.min(99, Math.round(calculatedMargin * 10) / 10))
-        setCustomMargin(roundedMargin)
-        setSelectedMargin(roundedMargin)
-      }
-    }
-  }, [marginInputMode, targetPrice, totalLandedCost, vatEnabled, vatAmountFromLandedCost])
-  // </CHANGE>
 
   const handleSaveQuote = async () => {
     console.log("[v0] handleSaveQuote called")
