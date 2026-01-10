@@ -446,6 +446,7 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                       <Label className="text-slate-300">Filament Weight (g)</Label>
                       <Input
                         type="number"
+                        min="0"
                         step="0.01"
                         value={part.filamentWeight}
                         onChange={(e) => updatePart(part.id, "filamentWeight", e.target.value)}
@@ -457,6 +458,7 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                       <Label className="text-slate-300">Print Time (hrs)</Label>
                       <Input
                         type="number"
+                        min="0"
                         step="0.01"
                         value={part.printTime}
                         onChange={(e) => updatePart(part.id, "printTime", e.target.value)}
@@ -470,6 +472,7 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                     <Label className="text-slate-300">Emergency Fee ($)</Label>
                     <Input
                       type="number"
+                      min="0"
                       step="0.01"
                       value={part.emergencyFee}
                       onChange={(e) => updatePart(part.id, "emergencyFee", e.target.value)}
@@ -497,6 +500,7 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                 <Input
                   id="materials"
                   type="number"
+                  min="0"
                   step="0.01"
                   value={materialsCost}
                   onChange={(e) => setMaterialsCost(e.target.value)}
@@ -512,6 +516,7 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                 <Input
                   id="labor"
                   type="number"
+                  min="0"
                   step="0.01"
                   value={laborCost}
                   onChange={(e) => setLaborCost(e.target.value)}
@@ -527,6 +532,7 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                 <Input
                   id="packaging"
                   type="number"
+                  min="0"
                   step="0.01"
                   value={packagingCost}
                   onChange={(e) => setPackagingCost(e.target.value)}
@@ -542,6 +548,7 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                 <Input
                   id="shipping"
                   type="number"
+                  min="0"
                   step="0.01"
                   value={shippingCost}
                   onChange={(e) => setShippingCost(e.target.value)}
@@ -593,10 +600,6 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                   <div className="flex justify-between items-center pb-2 border-b border-slate-700">
                     <span className="text-slate-400">Shipping</span>
                     <span className="text-white font-semibold">${results.shipping.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-700">
-                    <span className="text-slate-400">Emergency Fees</span>
-                    <span className="text-white font-semibold">${results.totalEmergencyFees.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-center pb-2 border-b-2 border-slate-600">
                     <span className="text-slate-300 font-semibold">Landed Cost</span>

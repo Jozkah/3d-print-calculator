@@ -160,6 +160,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         <Label>Printer Cost (€)</Label>
         <Input
           type="number"
+          min="0"
           step="0.01"
           value={data.printer_cost}
           onChange={(e) => onChange({ ...data, printer_cost: e.target.value })}
@@ -171,6 +172,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         <Label>Additional Upfront Cost (€)</Label>
         <Input
           type="number"
+          min="0"
           step="0.01"
           value={data.additional_upfront_cost}
           onChange={(e) => onChange({ ...data, additional_upfront_cost: e.target.value })}
@@ -182,6 +184,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         <Label>Annual Maintenance (€)</Label>
         <Input
           type="number"
+          min="0"
           step="0.01"
           value={data.estimated_annual_maintenance}
           onChange={(e) => onChange({ ...data, estimated_annual_maintenance: e.target.value })}
@@ -193,6 +196,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         <Label>Estimated Life (years)</Label>
         <Input
           type="number"
+          min="0"
           step="0.1"
           value={data.estimated_life_years}
           onChange={(e) => onChange({ ...data, estimated_life_years: e.target.value })}
@@ -204,6 +208,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         <Label>Printer Uptime (%)</Label>
         <Input
           type="number"
+          min="0"
           step="0.01"
           value={data.estimated_printer_uptime_percent}
           onChange={(e) => onChange({ ...data, estimated_printer_uptime_percent: e.target.value })}
@@ -216,6 +221,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         <Label>Power Consumption (Watts)</Label>
         <Input
           type="number"
+          min="0"
           step="1"
           value={data.average_power_consumption_watts}
           onChange={(e) => onChange({ ...data, average_power_consumption_watts: e.target.value })}
@@ -234,7 +240,6 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
           Add Printer
         </Button>
       </div>
-      {/* </CHANGE> */}
 
       {isAdding && (
         <Card className="mb-6 border-blue-200">
@@ -254,7 +259,6 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
                 Cancel
               </Button>
             </div>
-            {/* </CHANGE> */}
           </CardContent>
         </Card>
       )}

@@ -136,7 +136,7 @@ export function ExcelCalculator({
   filaments: initialFilaments,
   laserMaterials: initialLaserMaterials = [],
   globalSettings: initialGlobalSettings,
-  mode,
+  mode = "business", // Default to business mode
   selectedMargin: propSelectedMargin, // Renamed to avoid conflict with state
   laserMode, // This prop was in the original code but not used. Keeping it for now.
   editingQuoteId, // New prop for loading existing quote
@@ -165,6 +165,11 @@ export function ExcelCalculator({
   // ADDED STATE FOR MARGIN SELECTION
   const [selectedMargin, setSelectedMargin] = useState<number>(propSelectedMargin || 50)
   const [customMargin, setCustomMargin] = useState<number>(65)
+
+  // Add state for margin input mode toggle
+  const [marginInputMode, setMarginInputMode] = useState<"percentage" | "targetPrice">("percentage")
+  const [targetPrice, setTargetPrice] = useState<number>(0)
+  // </CHANGE>
 
   const [isEditingQuote, setIsEditingQuote] = useState(false)
   const [currentQuoteId, setCurrentQuoteId] = useState<string | null>(null)
@@ -587,6 +592,21 @@ export function ExcelCalculator({
   const [errorDialogTitle, setErrorDialogTitle] = useState("")
   const [errorDialogMessage, setErrorDialogMessage] = useState("")
 
+  // Calculate margin from target price when in targetPrice mode
+  useEffect(() => {
+    if (marginInputMode === "targetPrice" && targetPrice > 0) {
+      const totalLandedCostValue = vatEnabled ? totalLandedCost : totalLandedCost - vatAmountFromLandedCost
+
+      if (totalLandedCostValue > 0) {
+        const calculatedMargin = ((targetPrice - totalLandedCostValue) / totalLandedCostValue) * 100
+        const roundedMargin = Math.max(0, Math.min(99, Math.round(calculatedMargin * 10) / 10))
+        setCustomMargin(roundedMargin)
+        setSelectedMargin(roundedMargin)
+      }
+    }
+  }, [marginInputMode, targetPrice, totalLandedCost, vatEnabled, vatAmountFromLandedCost])
+  // </CHANGE>
+
   const handleSaveQuote = async () => {
     console.log("[v0] handleSaveQuote called")
     console.log("[v0] Client name:", clientName)
@@ -627,9 +647,9 @@ export function ExcelCalculator({
       })
 
       const quoteData = {
-        quote_type: calculatorType, // Save the selected calculator type
-        quote_name: clientName, // Changed from quoteName to clientName
-        quote_type_mode: mode, // Save the mode (personal/business)
+        quote_type: mode, // Should be 'personal' or 'business'
+        quote_name: clientName,
+        quote_type_mode: calculatorType, // Should be '3d-print', 'laser-engraving', etc.
         printed_parts: printedParts,
         dried_batches: driedBatchesWithCost, // Save batches with cost included
         materials: materials,
@@ -847,6 +867,11 @@ export function ExcelCalculator({
     ])
   }
 
+  // Helper function to update fields in printedParts
+  const updatePartField = (index: number, field: keyof PrintedPart, value: any) => {
+    setPrintedParts((prevParts) => prevParts.map((part, i) => (i === index ? { ...part, [field]: value } : part)))
+  }
+
   return (
     // Wrap the entire component in TooltipProvider
     <TooltipProvider>
@@ -943,6 +968,7 @@ export function ExcelCalculator({
                 <Input
                   id="distance"
                   type="number"
+                  min="0" // Added min="0"
                   inputMode="numeric"
                   step="0.1"
                   value={distanceTraveledKm || ""}
@@ -954,28 +980,30 @@ export function ExcelCalculator({
                 />
               </div>
             </div>
-            <div className="flex items-center space-x-2 mt-2">
-              <Checkbox
-                id="emergency"
-                checked={isEmergency}
-                onCheckedChange={(checked) => setIsEmergency(checked as boolean)}
-              />
-              <Label htmlFor="emergency" className="font-semibold text-blue-900">
-                Emergency Order (+€{globalSettings.emergency_fee_fixed.toFixed(2)})
-              </Label>
-            </div>
-            {mode === "business" && (
-              <div className="flex items-center space-x-2 mt-2">
+            <div className="flex flex-col gap-4 mt-4">
+              <div className="flex items-center space-x-2">
                 <Checkbox
-                  id="vatEnabled"
-                  checked={vatEnabled}
-                  onCheckedChange={(checked) => setVatEnabled(checked as boolean)}
+                  id="emergency"
+                  checked={isEmergency}
+                  onCheckedChange={(checked) => setIsEmergency(checked as boolean)}
                 />
-                <Label htmlFor="vatEnabled" className="font-semibold text-blue-900">
-                  Include VAT (23%)
+                <Label htmlFor="emergency" className="font-semibold text-blue-900">
+                  Emergency Order (+€{globalSettings.emergency_fee_fixed.toFixed(2)})
                 </Label>
               </div>
-            )}
+              {mode === "business" && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="vatEnabled"
+                    checked={vatEnabled}
+                    onCheckedChange={(checked) => setVatEnabled(checked as boolean)}
+                  />
+                  <Label htmlFor="vatEnabled" className="font-semibold text-blue-900">
+                    Include VAT (23%)
+                  </Label>
+                </div>
+              )}
+            </div>
           </Card>
 
           {/* Printed Parts Table */}
@@ -1120,6 +1148,7 @@ export function ExcelCalculator({
                           <td className="p-2">
                             <Input
                               type="number"
+                              min="0" // Added min="0"
                               inputMode="numeric" // Added inputMode
                               step="0.1"
                               value={part.filament_grams || ""}
@@ -1136,6 +1165,7 @@ export function ExcelCalculator({
                         <td className="p-2">
                           <Input
                             type="number"
+                            min="0" // Added min="0"
                             inputMode="numeric" // Added inputMode
                             step="0.1"
                             value={part.printing_time_hr || ""}
@@ -1284,6 +1314,7 @@ export function ExcelCalculator({
                         <td className="p-2">
                           <Input
                             type="number"
+                            min="0" // Added min="0"
                             step="0.1"
                             value={batch.drying_time_hr || ""}
                             onChange={(e) => {
@@ -1362,6 +1393,7 @@ export function ExcelCalculator({
                         <td className="p-2">
                           <Input
                             type="number"
+                            min="0" // Added min="0"
                             inputMode="numeric" // Added inputMode
                             step="0.1"
                             value={material.quantity || ""}
@@ -1377,6 +1409,7 @@ export function ExcelCalculator({
                         <td className="p-2">
                           <Input
                             type="number"
+                            min="0" // Added min="0"
                             inputMode="numeric" // Added inputMode
                             step="0.01"
                             value={material.unit_cost || ""}
@@ -1457,6 +1490,7 @@ export function ExcelCalculator({
                         <td className="p-2">
                           <Input
                             type="number"
+                            min="0" // Added min="0"
                             inputMode="numeric" // Added inputMode
                             step="0.1"
                             value={laborItem.hours || ""}
@@ -1472,6 +1506,7 @@ export function ExcelCalculator({
                         <td className="p-2">
                           <Input
                             type="number"
+                            min="0" // Added min="0"
                             inputMode="numeric" // Added inputMode
                             step="0.01"
                             value={laborItem.hourly_cost || ""}
@@ -1552,6 +1587,7 @@ export function ExcelCalculator({
                         <td className="p-2">
                           <Input
                             type="number"
+                            min="0" // Added min="0"
                             inputMode="numeric" // Added inputMode
                             step="0.1"
                             value={item.quantity || ""}
@@ -1567,6 +1603,7 @@ export function ExcelCalculator({
                         <td className="p-2">
                           <Input
                             type="number"
+                            min="0" // Added min="0"
                             inputMode="numeric" // Added inputMode
                             step="0.01"
                             value={item.unit_cost || ""}
@@ -1671,7 +1708,11 @@ export function ExcelCalculator({
                       ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                       : "bg-white border-blue-300"
                   }`}
-                  onClick={() => setSelectedMargin(30)}
+                  onClick={() => {
+                    setSelectedMargin(30)
+                    setMarginInputMode("percentage")
+                    setTargetPrice(0) // Reset target price when switching modes
+                  }}
                 >
                   <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">30% Margin</div>
                   <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin30WithVAT.toFixed(2)}</div>
@@ -1682,7 +1723,11 @@ export function ExcelCalculator({
                       ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                       : "bg-white border-blue-300"
                   }`}
-                  onClick={() => setSelectedMargin(40)}
+                  onClick={() => {
+                    setSelectedMargin(40)
+                    setMarginInputMode("percentage")
+                    setTargetPrice(0) // Reset target price when switching modes
+                  }}
                 >
                   <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">40% Margin</div>
                   <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin40WithVAT.toFixed(2)}</div>
@@ -1693,41 +1738,116 @@ export function ExcelCalculator({
                       ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                       : "bg-white border-blue-300"
                   }`}
-                  onClick={() => setSelectedMargin(50)}
+                  onClick={() => {
+                    setSelectedMargin(50)
+                    setMarginInputMode("percentage")
+                    setTargetPrice(0) // Reset target price when switching modes
+                  }}
                 >
                   <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">50% Margin</div>
                   <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin50WithVAT.toFixed(2)}</div>
                 </div>
+                {/* START UPDATED CODE for custom margin input */}
                 <div
-                  className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
-                    selectedMargin !== 30 && selectedMargin !== 40 && selectedMargin !== 50
+                  className={`p-3 sm:p-4 rounded-lg border-2 hover:shadow-lg transition-shadow ${
+                    selectedMargin === customMargin || marginInputMode === "targetPrice"
                       ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                       : "bg-white border-blue-300"
                   }`}
-                  onClick={() => setSelectedMargin(customMargin)}
                 >
-                  <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1 flex items-center justify-center gap-1">
-                    <input
-                      type="number"
-                      min="0"
-                      max="99"
-                      value={customMargin}
-                      onChange={(e) => {
-                        const val = Math.min(99, Math.max(0, Number(e.target.value) || 0))
-                        setCustomMargin(val)
-                        setSelectedMargin(val)
+                  {/* Toggle between % and € mode */}
+                  <div className="flex items-center justify-center gap-1 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.log("[v0] Switching to percentage mode")
+                        setMarginInputMode("percentage")
+                        setTargetPrice(0)
                       }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-12 text-center border border-blue-300 rounded px-1 py-0.5 text-blue-700 font-medium"
-                    />
-                    <span>% Margin</span>
+                      className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                        marginInputMode === "percentage"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                      }`}
+                    >
+                      %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.log("[v0] Switching to target price mode")
+                        setMarginInputMode("targetPrice")
+                      }}
+                      className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                        marginInputMode === "targetPrice"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                      }`}
+                    >
+                      €
+                    </button>
                   </div>
-                  <div className="text-blue-900 text-lg sm:text-xl font-bold">€{customMarginWithVAT.toFixed(2)}</div>
+
+                  {/* Show either percentage input or target price input based on mode */}
+                  {marginInputMode === "percentage" ? (
+                    <>
+                      <div className="flex items-center justify-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="99"
+                          step="1"
+                          value={customMargin}
+                          onChange={(e) => {
+                            const val = Math.min(99, Math.max(0, Number(e.target.value) || 0))
+                            setCustomMargin(val)
+                            setSelectedMargin(val)
+                            setMarginInputMode("percentage") // Ensure we are in percentage mode
+                            setTargetPrice(0) // Reset target price when manual percentage input changes
+                          }}
+                          className="w-12 text-center border border-blue-300 rounded px-1 py-0.5 text-blue-700 font-medium"
+                        />
+                        <span className="text-blue-700 text-xs sm:text-sm font-medium">% Margin</span>
+                      </div>
+                      <div className="text-blue-900 text-lg sm:text-xl font-bold mt-1">
+                        €{customMarginWithVAT.toFixed(2)}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="text-blue-700 text-xs sm:text-sm font-medium">Target</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={targetPrice === 0 ? "" : targetPrice}
+                          onChange={(e) => {
+                            const target = Math.max(0, Number(e.target.value) || 0)
+                            setTargetPrice(target)
+                            setMarginInputMode("targetPrice")
+                            if (target > totalLandedCost) {
+                              const calculatedMargin = ((target - totalLandedCost) / totalLandedCost) * 100
+                              setCustomMargin(Number(calculatedMargin.toFixed(2)))
+                              setSelectedMargin(Number(calculatedMargin.toFixed(2)))
+                            }
+                          }}
+                          placeholder={`> ${totalLandedCost.toFixed(2)}`}
+                          className="w-20 text-center border border-blue-300 rounded px-1 py-0.5 text-blue-700 font-medium"
+                        />
+                        <span className="text-blue-700 text-xs sm:text-sm font-medium">€</span>
+                      </div>
+                      <div className="text-blue-900 text-xs sm:text-sm font-medium mt-1">
+                        = {customMargin.toFixed(2)}% margin
+                      </div>
+                    </>
+                  )}
                 </div>
+                {/* END UPDATED CODE */}
               </div>
 
               <div className="mt-6 p-4 sm:p-6 bg-blue-50 rounded-lg border-2 border-blue-400">
-                {/* Made final price section stack on mobile for better readability */}
+                {/* Final Price Section */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <div className="text-blue-700 font-semibold text-sm sm:text-base">
                     Final Client Price ({selectedMargin}% Margin)

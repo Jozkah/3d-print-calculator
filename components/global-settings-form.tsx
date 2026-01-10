@@ -75,6 +75,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
             <Input
               id="electricity"
               type="number"
+              min="0" // Added min="0" to prevent negative values
               step="0.01"
               value={electricityCost}
               onChange={(e) => setElectricityCost(e.target.value)}
@@ -90,6 +91,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
             <Input
               id="emergency"
               type="number"
+              min="0" // Added min="0" to prevent negative values
               step="0.01"
               value={emergencyFee}
               onChange={(e) => setEmergencyFee(e.target.value)}
@@ -105,6 +107,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
             <Input
               id="labor"
               type="number"
+              min="0" // Added min="0" to prevent negative values
               step="0.01"
               value={laborRate}
               onChange={(e) => setLaborRate(e.target.value)}
@@ -128,6 +131,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
             <Input
               id="fuel"
               type="number"
+              min="0" // Added min="0" to prevent negative values
               step="0.01"
               value={fuelCost}
               onChange={(e) => setFuelCost(e.target.value)}
@@ -142,6 +146,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
             <Input
               id="consumption"
               type="number"
+              min="0" // Added min="0" to prevent negative values
               step="0.1"
               value={fuelConsumption}
               onChange={(e) => setFuelConsumption(e.target.value)}
@@ -165,6 +170,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
             <Input
               id="efficiency"
               type="number"
+              min="0" // Added min="0" to prevent negative values
               step="0.01"
               value={efficiencyFactor}
               onChange={(e) => setEfficiencyFactor(e.target.value)}
@@ -180,6 +186,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
             <Input
               id="buffer"
               type="number"
+              min="0" // Added min="0" to prevent negative values
               step="0.01"
               value={bufferFactor}
               onChange={(e) => setBufferFactor(e.target.value)}

@@ -887,18 +887,17 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               )}
 
               <div>
-                <Label>Price per {newFilament.material_type === "material" ? "Sheet" : "kg"} (€)</Label>
+                <Label htmlFor="newPrice" className="text-blue-900">
+                  Price per kg (€)
+                </Label>
                 <Input
+                  id="newPrice"
                   type="number"
+                  min="0"
                   step="0.01"
                   value={newFilament.price_per_kg}
                   onChange={(e) => setNewFilament({ ...newFilament, price_per_kg: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === "e" || e.key === "E") {
-                      e.preventDefault()
-                    }
-                  }}
-                  placeholder="0.00"
+                  className="border-blue-200 bg-white"
                 />
               </div>
               <div className="flex gap-2">
@@ -1038,17 +1037,17 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                   )}
 
                   <div>
-                    <Label>Price per {filament.material_type === "material" ? "Sheet" : "kg"} (€)</Label>
+                    <Label htmlFor="editPrice" className="text-blue-900">
+                      Price per kg (€)
+                    </Label>
                     <Input
+                      id="editPrice"
                       type="number"
+                      min="0"
                       step="0.01"
                       value={editData.price_per_kg}
                       onChange={(e) => setEditData({ ...editData, price_per_kg: e.target.value })}
-                      onKeyDown={(e) => {
-                        if (e.key === "e" || e.key === "E") {
-                          e.preventDefault()
-                        }
-                      }}
+                      className="border-blue-200 bg-white"
                     />
                   </div>
                   <div className="flex gap-2">
@@ -1279,17 +1278,17 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                     )}
 
                     <div>
-                      <Label>Price per {filament.material_type === "material" ? "Sheet" : "kg"} (€)</Label>
+                      <Label htmlFor="editPrice" className="text-blue-900">
+                        Price per kg (€)
+                      </Label>
                       <Input
+                        id="editPrice"
                         type="number"
+                        min="0"
                         step="0.01"
                         value={editData.price_per_kg}
                         onChange={(e) => setEditData({ ...editData, price_per_kg: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key === "e" || e.key === "E") {
-                            e.preventDefault()
-                          }
-                        }}
+                        className="border-blue-200 bg-white"
                       />
                     </div>
                     <div className="flex gap-2">
@@ -1488,14 +1487,18 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         variant="default"
       >
         <div className="mt-4">
-          <Label className="text-blue-900">New Price per KG (€)</Label>
+          <Label htmlFor="bulkPrice" className="text-blue-900 font-semibold">
+            New Price per kg (€)
+          </Label>
           <Input
+            id="bulkPrice"
             type="number"
+            min="0"
             step="0.01"
             value={bulkUpdateDialog.newPrice}
             onChange={(e) => setBulkUpdateDialog({ ...bulkUpdateDialog, newPrice: e.target.value })}
-            className="border-blue-200 mt-2"
-            placeholder="0.00"
+            className="border-blue-200 bg-white"
+            placeholder="Enter new price"
             autoFocus
           />
         </div>
