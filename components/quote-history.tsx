@@ -38,6 +38,7 @@ type Quote = {
   id: string
   quote_type: string
   quote_name: string
+  client_name: string // Added client_name field
   printed_parts: any[]
   dried_batches: any[]
   materials: any[]
@@ -59,8 +60,8 @@ type Quote = {
   margin_40: number
   margin_50: number
   margin_60: number
-  selected_margin: number
-  selected_margin_percentage: number
+  selected_margin: string // Updated to string
+  selected_margin_percentage: number | null // Updated to number | null
   ownerA_receives: number
   ownerB_receives: number
   created_at: string
@@ -534,75 +535,81 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <div
                         className={`p-3 rounded-lg border-2 ${
-                          Number(quote.selected_margin_percentage) >= 29 &&
-                          Number(quote.selected_margin_percentage) < 35
+                          (
+                            Number(quote.selected_margin_percentage) >= 29 &&
+                              Number(quote.selected_margin_percentage) < 35
+                          ) || quote.selected_margin === "30"
                             ? "bg-blue-600 border-blue-700 shadow-lg"
                             : "bg-white border-gray-200"
                         }`}
                       >
                         <div
-                          className={`text-xs mb-1 ${Number(quote.selected_margin_percentage) >= 29 && Number(quote.selected_margin_percentage) < 35 ? "text-blue-100" : "text-gray-600"}`}
+                          className={`text-xs mb-1 ${(Number(quote.selected_margin_percentage) >= 29 && Number(quote.selected_margin_percentage) < 35) || quote.selected_margin === "30" ? "text-blue-100" : "text-gray-600"}`}
                         >
                           30% Margin
                         </div>
                         <div
-                          className={`text-lg font-semibold ${Number(quote.selected_margin_percentage) >= 29 && Number(quote.selected_margin_percentage) < 35 ? "text-white" : "text-green-600"}`}
+                          className={`text-lg font-semibold ${(Number(quote.selected_margin_percentage) >= 29 && Number(quote.selected_margin_percentage) < 35) || quote.selected_margin === "30" ? "text-white" : "text-green-600"}`}
                         >
                           €{safeFixed(quote.margin_30)}
                         </div>
                       </div>
                       <div
                         className={`p-3 rounded-lg border-2 ${
-                          Number(quote.selected_margin_percentage) >= 35 &&
-                          Number(quote.selected_margin_percentage) < 45
+                          (
+                            Number(quote.selected_margin_percentage) >= 35 &&
+                              Number(quote.selected_margin_percentage) < 45
+                          ) || quote.selected_margin === "40"
                             ? "bg-blue-600 border-blue-700 shadow-lg"
                             : "bg-white border-gray-200"
                         }`}
                       >
                         <div
-                          className={`text-xs mb-1 ${Number(quote.selected_margin_percentage) >= 35 && Number(quote.selected_margin_percentage) < 45 ? "text-blue-100" : "text-gray-600"}`}
+                          className={`text-xs mb-1 ${(Number(quote.selected_margin_percentage) >= 35 && Number(quote.selected_margin_percentage) < 45) || quote.selected_margin === "40" ? "text-blue-100" : "text-gray-600"}`}
                         >
                           40% Margin
                         </div>
                         <div
-                          className={`text-lg font-semibold ${Number(quote.selected_margin_percentage) >= 35 && Number(quote.selected_margin_percentage) < 45 ? "text-white" : "text-green-600"}`}
+                          className={`text-lg font-semibold ${(Number(quote.selected_margin_percentage) >= 35 && Number(quote.selected_margin_percentage) < 45) || quote.selected_margin === "40" ? "text-white" : "text-green-600"}`}
                         >
                           €{safeFixed(quote.margin_40)}
                         </div>
                       </div>
                       <div
                         className={`p-3 rounded-lg border-2 ${
-                          Number(quote.selected_margin_percentage) >= 45 &&
-                          Number(quote.selected_margin_percentage) < 55
+                          (
+                            Number(quote.selected_margin_percentage) >= 45 &&
+                              Number(quote.selected_margin_percentage) < 55
+                          ) || quote.selected_margin === "50"
                             ? "bg-blue-600 border-blue-700 shadow-lg"
                             : "bg-white border-gray-200"
                         }`}
                       >
                         <div
-                          className={`text-xs mb-1 ${Number(quote.selected_margin_percentage) >= 45 && Number(quote.selected_margin_percentage) < 55 ? "text-blue-100" : "text-gray-600"}`}
+                          className={`text-xs mb-1 ${(Number(quote.selected_margin_percentage) >= 45 && Number(quote.selected_margin_percentage) < 55) || quote.selected_margin === "50" ? "text-blue-100" : "text-gray-600"}`}
                         >
                           50% Margin
                         </div>
                         <div
-                          className={`text-lg font-semibold ${Number(quote.selected_margin_percentage) >= 45 && Number(quote.selected_margin_percentage) < 55 ? "text-white" : "text-green-600"}`}
+                          className={`text-lg font-semibold ${(Number(quote.selected_margin_percentage) >= 45 && Number(quote.selected_margin_percentage) < 55) || quote.selected_margin === "50" ? "text-white" : "text-green-600"}`}
                         >
                           €{safeFixed(quote.margin_50)}
                         </div>
                       </div>
                       <div
                         className={`p-3 rounded-lg border-2 ${
-                          Number(quote.selected_margin_percentage) >= 55
+                          (Number(quote.selected_margin_percentage) >= 55) || quote.selected_margin === "60"
                             ? "bg-blue-600 border-blue-700 shadow-lg"
                             : "bg-white border-gray-200"
                         }`}
                       >
                         <div
-                          className={`text-xs mb-1 ${Number(quote.selected_margin_percentage) >= 55 ? "text-blue-100" : "text-gray-600"}`}
+                          className={`text-xs mb-1 ${Number(quote.selected_margin_percentage) >= 55 || quote.selected_margin === "60" ? "text-blue-100" : "text-gray-600"}`}
                         >
                           60% Margin
                         </div>
                         <div
-                          className={`text-lg font-semibold ${Number(quote.selected_margin_percentage) >= 55 ? "text-white" : "text-green-600"}`}
+                          className={`text-lg font-semibold ${Number(quote.selected_margin_percentage) >= 55 || quote.selected_margin === "60" ? "text-white" : "text-green-600"}`}
                         >
                           €{safeFixed(quote.margin_60)}
                         </div>
