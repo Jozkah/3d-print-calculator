@@ -228,7 +228,7 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
 
       {quotes.map((quote) => {
         const totalParts = (quote.printed_parts || []).length
-        const totalMaterials = (quote.materials || []).length
+        const totalMaterials = (quote.materials || []).length || (quote.materials_cost > 0 ? 1 : 0)
         const totalLabor = (quote.labor_items || []).length
         const totalPackaging = (quote.packaging_items || []).length
         const totalDriedBatches = (quote.dried_batches || []).length

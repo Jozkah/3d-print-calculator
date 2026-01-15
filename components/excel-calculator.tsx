@@ -68,6 +68,8 @@ type Filament = {
   requires_heating: boolean
   heating_time_hours: number
   material_type?: string // Added for filtering
+  brand?: string // Added for tooltip
+  color?: string // Added for tooltip
 }
 
 type GlobalSettings = {
@@ -374,17 +376,32 @@ export function ExcelCalculator({
     printedParts.forEach((part) => {
       if (!part.filaments || part.filaments.length === 0 || !part.printing_time_hr) return
 
-      part.filaments.forEach((filamentEntry) => {
-        if (!filamentEntry.filament_id || filamentEntry.grams === undefined) return
+      // Check if ANY filament in this part requires heating
+      const requiresHeating = part.filaments.some((filamentEntry) => {
+        if (!filamentEntry.filament_id) return false
         const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
-        if (filament?.requires_heating) {
-          // Use filament name as key and accumulate printing time
-          if (!heatingRequirements[filament.name]) {
-            heatingRequirements[filament.name] = 0
-          }
-          heatingRequirements[filament.name] += part.printing_time_hr
-        }
+        return filament?.requires_heating
       })
+
+      // If any filament requires heating, add the part's print time ONCE
+      if (requiresHeating) {
+        // Group by all filament names that require heating in this part
+        const heatingFilamentNames = part.filaments
+          .map((filamentEntry) => {
+            const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
+            return filament?.requires_heating ? filament.name : null
+          })
+          .filter((name): name is string => name !== null)
+
+        // Use the first heating filament name as the key (since heating is shared)
+        if (heatingFilamentNames.length > 0) {
+          const key = heatingFilamentNames[0]
+          if (!heatingRequirements[key]) {
+            heatingRequirements[key] = 0
+          }
+          heatingRequirements[key] += part.printing_time_hr
+        }
+      }
     })
 
     // Update driedBatches - remove old HEATING entries and add new ones
@@ -1229,7 +1246,7 @@ export function ExcelCalculator({
                         {calculatorType === "3d-print" && (
                           <td className="p-2">
                             <Select
-                              value={part.printer_id}
+                              value={part.printer_id || undefined}
                               onValueChange={(value) => {
                                 const updated = [...printedParts]
                                 updated[index].printer_id = value
@@ -1253,7 +1270,7 @@ export function ExcelCalculator({
                         <td className="p-2">
                           <div className="space-y-2">
                             {/* List existing filaments with weight and remove button */}
-                            {part.filaments && part.filaments.filter((f) => f.filament_id).length > 0 && (
+                            {part.filaments && part.filaments.length > 0 && (
                               <div className="space-y-1">
                                 {part.filaments
                                   .filter((f) => f.filament_id) // Only show filaments with valid filament_id
@@ -1265,9 +1282,36 @@ export function ExcelCalculator({
                                         key={filamentEntry.id}
                                         className="flex items-center gap-1 text-xs bg-blue-50 rounded p-1"
                                       >
-                                        <span className="flex-1 truncate text-blue-800" title={filament?.name}>
-                                          {filament?.name || "Unknown"}
-                                        </span>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <span className="flex-1 truncate text-blue-800 cursor-help">
+                                                {filament?.name || "Unknown"}
+                                              </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" className="max-w-xs">
+                                              <div className="space-y-1 text-sm">
+                                                <div className="font-semibold">{filament?.name}</div>
+                                                {filament?.brand && (
+                                                  <div className="text-xs">Brand: {filament.brand}</div>
+                                                )}
+                                                {filament?.color && (
+                                                  <div className="text-xs">Color: {filament.color}</div>
+                                                )}
+                                                {filament?.price_per_kg != null && (
+                                                  <div className="text-xs">
+                                                    Price: €{filament.price_per_kg.toFixed(2)}/kg
+                                                  </div>
+                                                )}
+                                                {filament?.requires_heating != null && (
+                                                  <div className="text-xs">
+                                                    Heating: {filament.requires_heating ? "Required" : "Not required"}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
                                         {calculatorType === "3d-print" && (
                                           <Input
                                             type="number"
@@ -1868,9 +1912,7 @@ export function ExcelCalculator({
                   <span className="text-blue-900 font-bold">€{(electricityCost + totalDryingCost).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 font-medium">
-                    Total Materials Cost: {calculatorType === "3d-print" && `(${totalGramage.toFixed(0)}g)`}
-                  </span>
+                  <span className="text-blue-700 font-medium">Total Materials Cost:</span>
                   <span className="text-blue-900 font-bold">€{totalMaterialsCost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
