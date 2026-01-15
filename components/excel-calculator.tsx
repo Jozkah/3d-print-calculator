@@ -1936,11 +1936,13 @@ export function ExcelCalculator({
                   </div>
                 )}
                 {/* CHANGE: Update VAT display to show only when enabled */}
-                <div className="text-blue-700 text-sm mb-4">
-                  {vatEnabled
-                    ? `VAT (23% of Selling Price): €${vatAmountFromSellingPrice.toFixed(2)}`
-                    : "VAT: Disabled"}
-                </div>
+                {mode === "business" && (
+                  <div className="text-blue-700 text-sm mb-4">
+                    {vatEnabled
+                      ? `VAT (23% of Selling Price): €${vatAmountFromSellingPrice.toFixed(2)}`
+                      : "VAT: Disabled"}
+                  </div>
+                )}
                 <div className="flex justify-between items-center pb-2 pt-2 border-t-2 border-blue-400">
                   <span className="text-blue-900 font-bold text-lg">Total Landed Cost:</span>
                   <span className="text-blue-900 font-bold text-xl">€{totalLandedCost.toFixed(2)}</span>
@@ -2129,13 +2131,7 @@ export function ExcelCalculator({
                     Business Profit Split ({selectedMargin}% Margin)
                   </h3>
                   <div className="mb-4 bg-blue-50 p-3 rounded border-2 border-blue-300">
-                    {/* CHANGE: Update Owner B's label based on VAT status */}
-                    <div className="text-blue-900 font-semibold">
-                      Owner B Receives{vatEnabled ? " (includes VAT)" : ""}:
-                    </div>
-                  </div>
-                  {/* Updated Business Profit Split section with Tooltips */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Updated Business Profit Split section with Tooltips */}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-300 cursor-help">
