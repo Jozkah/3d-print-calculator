@@ -30,12 +30,17 @@ type GlobalSettings = {
   vat_rate: number
 }
 
+type FilamentEntry = {
+  id: string
+  filament: Filament | null
+  weight: string // in grams
+}
+
 type Part = {
   id: string
   partName: string
   printer: Printer | null
-  filament: Filament | null
-  filamentWeight: string
+  filaments: FilamentEntry[] // Changed from single filament to array
   printTime: string
   emergencyFee: string
 }
@@ -53,8 +58,7 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
       id: "1",
       partName: "",
       printer: null,
-      filament: null,
-      filamentWeight: "",
+      filaments: [{ id: "1", filament: null, weight: "" }],
       printTime: "",
       emergencyFee: "0",
     },
@@ -92,8 +96,7 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
         id: Date.now().toString(),
         partName: "",
         printer: printers[0] || null,
-        filament: filaments[0] || null,
-        filamentWeight: "",
+        filaments: [{ id: Date.now().toString(), filament: filaments[0] || null, weight: "" }],
         printTime: "",
         emergencyFee: "0",
       },
@@ -110,6 +113,53 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
     setParts(parts.map((p) => (p.id === id ? { ...p, [field]: value } : p)))
   }
 
+  const addFilamentToPart = (partId: string) => {
+    setParts(
+      parts.map((p) => {
+        if (p.id === partId) {
+          return {
+            ...p,
+            filaments: [...p.filaments, { id: Date.now().toString(), filament: filaments[0] || null, weight: "" }],
+          }
+        }
+        return p
+      }),
+    )
+  }
+
+  const removeFilamentFromPart = (partId: string, filamentEntryId: string) => {
+    setParts(
+      parts.map((p) => {
+        if (p.id === partId && p.filaments.length > 1) {
+          return {
+            ...p,
+            filaments: p.filaments.filter((f) => f.id !== filamentEntryId),
+          }
+        }
+        return p
+      }),
+    )
+  }
+
+  const updateFilamentInPart = (partId: string, filamentEntryId: string, field: "filament" | "weight", value: any) => {
+    setParts(
+      parts.map((p) => {
+        if (p.id === partId) {
+          return {
+            ...p,
+            filaments: p.filaments.map((f) => {
+              if (f.id === filamentEntryId) {
+                return { ...f, [field]: value }
+              }
+              return f
+            }),
+          }
+        }
+        return p
+      }),
+    )
+  }
+
   const calculate = () => {
     let totalFilamentCost = 0
     let totalMachineCost = 0
@@ -119,21 +169,28 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
     const partResults: any[] = []
 
     for (const part of parts) {
-      if (!part.printer || !part.filament || !part.filamentWeight || !part.printTime) {
+      if (!part.printer || !part.printTime || part.filaments.length === 0) {
         continue
       }
 
-      const weightInKg = Number.parseFloat(part.filamentWeight) / 1000
       const hours = Number.parseFloat(part.printTime)
       const emergency = Number.parseFloat(part.emergencyFee)
 
-      const filamentCost = weightInKg * part.filament.price_per_kg
+      // Calculate filament cost from all filaments in this part
+      let partFilamentCost = 0
+      for (const filamentEntry of part.filaments) {
+        if (filamentEntry.filament && filamentEntry.weight) {
+          const weightInKg = Number.parseFloat(filamentEntry.weight) / 1000
+          partFilamentCost += weightInKg * filamentEntry.filament.price_per_kg
+        }
+      }
+
       const machineCostPerHour = part.printer.cost / part.printer.estimated_life_hours
       const machineCost = hours * machineCostPerHour
       const electricityCost = (part.printer.power_consumption_watts / 1000) * hours * globalSettings.electricity_rate
       const dryerCost = 0 // Can be calculated based on dryer settings if needed
 
-      totalFilamentCost += filamentCost
+      totalFilamentCost += partFilamentCost
       totalMachineCost += machineCost
       totalElectricityCost += electricityCost
       totalDryerCost += dryerCost
@@ -142,7 +199,7 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
       partResults.push({
         partName: part.partName,
         printer: part.printer,
-        filamentCost,
+        filamentCost: partFilamentCost,
         machineCost,
         electricityCost,
         dryerCost,
@@ -290,15 +347,27 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
       return
     }
 
-    // Insert quote parts
+    // Insert quote parts - updated to handle multiple filaments
     const partInserts = parts
-      .filter((p) => p.printer && p.filament && p.filamentWeight && p.printTime)
+      .filter((p) => p.printer && p.printTime && p.filaments.some((f) => f.filament && f.weight))
       .map((part) => {
-        const weightInKg = Number.parseFloat(part.filamentWeight) / 1000
         const hours = Number.parseFloat(part.printTime)
         const emergency = Number.parseFloat(part.emergencyFee)
 
-        const filamentCost = weightInKg * (part.filament?.price_per_kg || 0)
+        // Calculate total filament cost and weight
+        let totalFilamentCost = 0
+        let totalWeight = 0
+        const filamentNames: string[] = []
+
+        for (const filamentEntry of part.filaments) {
+          if (filamentEntry.filament && filamentEntry.weight) {
+            const weightInKg = Number.parseFloat(filamentEntry.weight) / 1000
+            totalFilamentCost += weightInKg * filamentEntry.filament.price_per_kg
+            totalWeight += Number.parseFloat(filamentEntry.weight)
+            filamentNames.push(filamentEntry.filament.name)
+          }
+        }
+
         const machineCostPerHour = (part.printer?.cost || 0) / (part.printer?.estimated_life_hours || 1)
         const machineCost = hours * machineCostPerHour
         const electricityCost =
@@ -310,12 +379,12 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
           printer_id: part.printer?.id,
           printer_name: part.printer?.name,
           printer_owner: part.printer?.owner || "Owner B",
-          filament_id: part.filament?.id,
-          filament_name: part.filament?.name,
-          filament_weight_grams: Number.parseFloat(part.filamentWeight),
+          filament_id: part.filaments[0]?.filament?.id, // Primary filament ID for backwards compatibility
+          filament_name: filamentNames.join(", "), // Concatenated filament names
+          filament_weight_grams: totalWeight,
           print_time_hours: hours,
           emergency_fee: emergency,
-          filament_cost: filamentCost,
+          filament_cost: totalFilamentCost,
           machine_cost: machineCost,
           electricity_cost: electricityCost,
           dryer_cost: 0,
@@ -416,44 +485,77 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                     </Select>
                   </div>
 
-                  <div>
-                    <Label className="text-slate-300">Filament</Label>
-                    <Select
-                      value={part.filament?.id}
-                      onValueChange={(id) =>
-                        updatePart(
-                          part.id,
-                          "filament",
-                          filaments.find((f) => f.id === id),
-                        )
-                      }
-                    >
-                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
-                        <SelectValue placeholder="Select filament" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-slate-700">
-                        {filaments.map((filament) => (
-                          <SelectItem key={filament.id} value={filament.id} className="text-white">
-                            {filament.name} - ${filament.price_per_kg}/kg
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-slate-300">Filaments</Label>
+                      <Button
+                        onClick={() => addFilamentToPart(part.id)}
+                        size="sm"
+                        variant="outline"
+                        className="text-blue-400 border-blue-400 hover:bg-blue-950"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add Filament
+                      </Button>
+                    </div>
+
+                    {part.filaments.map((filamentEntry, fIndex) => (
+                      <div
+                        key={filamentEntry.id}
+                        className="flex items-end gap-2 p-2 bg-slate-800 rounded border border-slate-700"
+                      >
+                        <div className="flex-1">
+                          <Label className="text-slate-400 text-xs">Filament {fIndex + 1}</Label>
+                          <Select
+                            value={filamentEntry.filament?.id}
+                            onValueChange={(id) =>
+                              updateFilamentInPart(
+                                part.id,
+                                filamentEntry.id,
+                                "filament",
+                                filaments.find((f) => f.id === id),
+                              )
+                            }
+                          >
+                            <SelectTrigger className="bg-slate-900 border-slate-600 text-white">
+                              <SelectValue placeholder="Select filament" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-900 border-slate-700">
+                              {filaments.map((filament) => (
+                                <SelectItem key={filament.id} value={filament.id} className="text-white">
+                                  {filament.name} - ${filament.price_per_kg}/kg
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="w-24">
+                          <Label className="text-slate-400 text-xs">Weight (g)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={filamentEntry.weight}
+                            onChange={(e) => updateFilamentInPart(part.id, filamentEntry.id, "weight", e.target.value)}
+                            className="bg-slate-900 border-slate-600 text-white"
+                            placeholder="100"
+                          />
+                        </div>
+                        {part.filaments.length > 1 && (
+                          <Button
+                            onClick={() => removeFilamentFromPart(part.id, filamentEntry.id)}
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-400 hover:text-red-300 hover:bg-red-950 h-9"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-slate-300">Filament Weight (g)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={part.filamentWeight}
-                        onChange={(e) => updatePart(part.id, "filamentWeight", e.target.value)}
-                        className="bg-slate-800 border-slate-700 text-white"
-                        placeholder="100"
-                      />
-                    </div>
                     <div>
                       <Label className="text-slate-300">Print Time (hrs)</Label>
                       <Input
@@ -466,19 +568,18 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                         placeholder="5.5"
                       />
                     </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-slate-300">Emergency Fee ($)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={part.emergencyFee}
-                      onChange={(e) => updatePart(part.id, "emergencyFee", e.target.value)}
-                      className="bg-slate-800 border-slate-700 text-white"
-                      placeholder="0"
-                    />
+                    <div>
+                      <Label className="text-slate-300">Emergency Fee ($)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={part.emergencyFee}
+                        onChange={(e) => updatePart(part.id, "emergencyFee", e.target.value)}
+                        className="bg-slate-800 border-slate-700 text-white"
+                        placeholder="0"
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -601,124 +702,65 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                     <span className="text-slate-400">Shipping</span>
                     <span className="text-white font-semibold">${results.shipping.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between items-center pb-2 border-b-2 border-slate-600">
+                  {results.totalEmergencyFees > 0 && (
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-700">
+                      <span className="text-slate-400">Emergency Fees</span>
+                      <span className="text-white font-semibold">${results.totalEmergencyFees.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-slate-600">
+                  <div className="flex justify-between items-center mb-4">
                     <span className="text-slate-300 font-semibold">Landed Cost</span>
-                    <span className="text-white font-bold text-lg">${results.landedCost.toFixed(2)}</span>
+                    <span className="text-white text-xl font-bold">${results.landedCost.toFixed(2)}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-slate-900 rounded-lg text-center">
+                      <div className="text-slate-400 text-sm">30% Margin</div>
+                      <div className="text-green-400 font-bold">${results.margin30.toFixed(2)}</div>
+                    </div>
+                    <div className="p-3 bg-slate-900 rounded-lg text-center">
+                      <div className="text-slate-400 text-sm">40% Margin</div>
+                      <div className="text-green-400 font-bold">${results.margin40.toFixed(2)}</div>
+                    </div>
+                    <div className="p-3 bg-slate-900 rounded-lg text-center">
+                      <div className="text-slate-400 text-sm">50% Margin</div>
+                      <div className="text-green-400 font-bold">${results.margin50.toFixed(2)}</div>
+                    </div>
+                    <div className="p-3 bg-slate-900 rounded-lg text-center">
+                      <div className="text-slate-400 text-sm">60% Margin</div>
+                      <div className="text-green-400 font-bold">${results.margin60.toFixed(2)}</div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-700">
-                  <h3 className="text-lg font-semibold text-white mb-3">Profit Margins</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400">30% Margin</span>
-                      <span className="text-green-400 font-semibold">${results.margin30.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400">40% Margin</span>
-                      <span className="text-green-400 font-semibold">${results.margin40.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400">50% Margin</span>
-                      <span className="text-green-400 font-semibold">${results.margin50.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400">60% Margin</span>
-                      <span className="text-green-400 font-semibold">${results.margin60.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {quoteType === "business" && results.profitSplits && (
-                  <div className="mt-6 pt-4 border-t border-slate-700">
-                    <h3 className="text-lg font-semibold text-white mb-3">
-                      Profit Split (Owner: {results.profitSplits.owner})
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="bg-slate-900 p-4 rounded-lg">
-                        <h4 className="text-blue-400 font-semibold mb-2">Owner A</h4>
-                        <div className="space-y-1 text-sm">
-                          {results.profitSplits.ownerA.machineCost > 0 && (
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Machine Cost</span>
-                              <span className="text-white">${results.profitSplits.ownerA.machineCost.toFixed(2)}</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Labor</span>
-                            <span className="text-white">${results.profitSplits.ownerA.labor.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Electricity</span>
-                            <span className="text-white">${results.profitSplits.ownerA.electricityCost.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Profit (50%)</span>
-                            <span className="text-white">${results.profitSplits.ownerA.profitSplit.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Emergency (50%)</span>
-                            <span className="text-white">${results.profitSplits.ownerA.emergencySplit.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between font-bold pt-2 border-t border-slate-700">
-                            <span className="text-blue-300">Total</span>
-                            <span className="text-blue-300">${results.profitSplits.ownerA.total.toFixed(2)}</span>
-                          </div>
-                        </div>
+                {results.profitSplits && (
+                  <div className="pt-4 border-t border-slate-600">
+                    <h3 className="text-white font-semibold mb-3">Profit Split (50% Margin)</h3>
+                    <div className="space-y-3">
+                      <div className="p-3 bg-purple-950 rounded-lg">
+                        <div className="text-purple-300 text-sm mb-1">Owner A Receives</div>
+                        <div className="text-white font-bold">${results.profitSplits.ownerA.total.toFixed(2)}</div>
                       </div>
-
-                      <div className="bg-slate-900 p-4 rounded-lg">
-                        <h4 className="text-green-400 font-semibold mb-2">Owner B</h4>
-                        <div className="space-y-1 text-sm">
-                          {results.profitSplits.ownerB.machineCost > 0 && (
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Machine Cost</span>
-                              <span className="text-white">${results.profitSplits.ownerB.machineCost.toFixed(2)}</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Filament</span>
-                            <span className="text-white">${results.profitSplits.ownerB.filamentCost.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Materials</span>
-                            <span className="text-white">${results.profitSplits.ownerB.materials.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Packaging</span>
-                            <span className="text-white">${results.profitSplits.ownerB.packaging.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Profit (50%)</span>
-                            <span className="text-white">${results.profitSplits.ownerB.profitSplit.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">Emergency (50%)</span>
-                            <span className="text-white">${results.profitSplits.ownerB.emergencySplit.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-400">VAT</span>
-                            <span className="text-white">${results.profitSplits.ownerB.vatCost.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between font-bold pt-2 border-t border-slate-700">
-                            <span className="text-green-300">Total</span>
-                            <span className="text-green-300">${results.profitSplits.ownerB.total.toFixed(2)}</span>
-                          </div>
-                        </div>
+                      <div className="p-3 bg-blue-950 rounded-lg">
+                        <div className="text-blue-300 text-sm mb-1">Owner B Receives</div>
+                        <div className="text-white font-bold">${results.profitSplits.ownerB.total.toFixed(2)}</div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                <Button onClick={saveQuote} className="w-full mt-6 bg-green-600 hover:bg-green-700" disabled={isSaving}>
+                <Button onClick={saveQuote} disabled={isSaving} className="w-full bg-green-600 hover:bg-green-700">
                   <Save className="w-4 h-4 mr-2" />
                   {isSaving ? "Saving..." : "Save Quote"}
                 </Button>
               </>
             ) : (
-              <div className="text-center py-12">
-                <Calculator className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                <p className="text-slate-400">Enter details and click Calculate to see results</p>
+              <div className="text-center text-slate-400 py-8">
+                <Calculator className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>Enter part details and click Calculate to see results</p>
               </div>
             )}
           </CardContent>

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, ChevronsUpDown, Check } from "lucide-react"
+import { Plus, Trash2, ChevronsUpDown, Check, X } from "lucide-react" // Import X for close icon
 import { useToast } from "@/components/ui/use-toast" // Assuming toast is available
 import { DialogCustom } from "@/components/ui/dialog-custom" // Import DialogCustom
 import { cn } from "@/lib/utils" // Assuming cn utility is available
@@ -79,13 +79,21 @@ type GlobalSettings = {
   labor_hourly_rate: number
 }
 
+type FilamentEntry = {
+  id: string
+  filament_id: string
+  grams: number
+}
+
 type PrintedPart = {
   id: string
   name: string
-  filament_id: string
   printer_id: string
-  filament_grams: number
+  filaments: FilamentEntry[] // Changed from single filament_id and filament_grams
   printing_time_hr: number
+  // Legacy fields for backwards compatibility
+  filament_id?: string
+  filament_grams?: number
 }
 
 type DriedBatch = {
@@ -149,7 +157,16 @@ export function ExcelCalculator({
     "3d-print" | "laser-engraving" | "laser-cutting" | "stickers" | "cnc"
   >("3d-print")
 
-  const [printedParts, setPrintedParts] = useState<PrintedPart[]>([])
+  const [printedParts, setPrintedParts] = useState<PrintedPart[]>([
+    {
+      id: "1",
+      name: "",
+      printer_id: "",
+      filaments: [],
+      printing_time_hr: 0,
+    },
+  ])
+
   const [driedBatches, setDriedBatches] = useState<DriedBatch[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
   const [labor, setLabor] = useState<Labor[]>([])
@@ -307,7 +324,22 @@ export function ExcelCalculator({
         setSelectedMargin(quote.selected_margin || 50)
         setVatEnabled(quote.vat_enabled !== undefined ? quote.vat_enabled : true) // Load VAT enabled state
 
-        setPrintedParts(Array.isArray(quote.printed_parts) ? quote.printed_parts : [])
+        // Correctly handle legacy and new filament data
+        const restoredPrintedParts: PrintedPart[] = (Array.isArray(quote.printed_parts) ? quote.printed_parts : []).map(
+          (part: any) => {
+            // If legacy fields exist, convert them to the new structure
+            if (part.filament_id && part.filament_grams !== undefined) {
+              return {
+                ...part,
+                filaments: [{ id: Date.now().toString(), filament_id: part.filament_id, grams: part.filament_grams }],
+                filament_id: undefined, // Remove legacy fields
+                filament_grams: undefined,
+              }
+            }
+            return part as PrintedPart
+          },
+        )
+        setPrintedParts(restoredPrintedParts)
         setDriedBatches(Array.isArray(quote.dried_batches) ? quote.dried_batches : [])
         setMaterials(Array.isArray(quote.materials) ? quote.materials : [])
         setLabor(Array.isArray(quote.labor_items) ? quote.labor_items : [])
@@ -340,16 +372,19 @@ export function ExcelCalculator({
     const heatingRequirements: { [key: string]: number } = {}
 
     printedParts.forEach((part) => {
-      if (!part.filament_id || !part.printing_time_hr) return
+      if (!part.filaments || part.filaments.length === 0 || !part.printing_time_hr) return
 
-      const filament = filaments.find((f) => f.id === part.filament_id)
-      if (filament?.requires_heating) {
-        // Use filament name as key and accumulate printing time
-        if (!heatingRequirements[filament.name]) {
-          heatingRequirements[filament.name] = 0
+      part.filaments.forEach((filamentEntry) => {
+        if (!filamentEntry.filament_id || filamentEntry.grams === undefined) return
+        const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
+        if (filament?.requires_heating) {
+          // Use filament name as key and accumulate printing time
+          if (!heatingRequirements[filament.name]) {
+            heatingRequirements[filament.name] = 0
+          }
+          heatingRequirements[filament.name] += part.printing_time_hr
         }
-        heatingRequirements[filament.name] += part.printing_time_hr
-      }
+      })
     })
 
     // Update driedBatches - remove old HEATING entries and add new ones
@@ -370,19 +405,28 @@ export function ExcelCalculator({
   }, [printedParts, filaments])
 
   const totalPrintingCost = printedParts.reduce((sum, part) => {
-    if (!part.filament_grams || !part.filament_id) return sum
-    const filament = filaments.find((f) => f.id === part.filament_id)
-    if (!filament) return sum
+    if (!part.filaments || part.filaments.length === 0 || !globalSettings) return sum
 
-    if (calculatorType !== "3d-print" && globalSettings) {
-      const materialCost = filament.price_per_kg // For materials, this is price per sheet
-      const electricityCost = part.printing_time_hr * globalSettings.electricity_cost_per_kwh
-      // Assuming the '11' is a factor for non-3D print material cost calculation
-      return sum + (materialCost + electricityCost) * 11
-    }
+    let partFilamentCost = 0
+    let partElectricityCost = 0
 
-    // For 3D print, use the normal formula: price_per_kg * grams / 1000
-    return sum + (filament.price_per_kg * part.filament_grams) / 1000
+    part.filaments.forEach((filamentEntry) => {
+      const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
+      if (!filament) return
+
+      if (calculatorType !== "3d-print") {
+        // Assuming filament.price_per_kg is used for material cost in non-3D print scenarios
+        // This might need adjustment based on actual use case for non-3D print materials
+        const materialCost = filament.price_per_kg // Placeholder, might need adjustment
+        partElectricityCost += part.printing_time_hr * globalSettings.electricity_cost_per_kwh
+        // Assuming the '11' is a factor for non-3D print material cost calculation
+        partFilamentCost += (materialCost + partElectricityCost) * 11
+      } else {
+        // For 3D print, calculate cost based on grams
+        partFilamentCost += (filament.price_per_kg * filamentEntry.grams) / 1000
+      }
+    })
+    return sum + partFilamentCost
   }, 0)
 
   const totalDryingCost = driedBatches.reduce((sum, batch) => {
@@ -460,7 +504,7 @@ export function ExcelCalculator({
   const emergencyFee = isEmergency && globalSettings ? globalSettings.emergency_fee_fixed : 0
 
   const totalGramage = printedParts.reduce((sum, part) => {
-    return sum + (part.filament_grams || 0)
+    return sum + (part.filaments?.reduce((subSum, fEntry) => subSum + (fEntry.grams || 0), 0) || 0)
   }, 0)
 
   const { electricityCost, ownerAElectricityCost, ownerBElectricityCost } = (() => {
@@ -471,7 +515,7 @@ export function ExcelCalculator({
     let ownerBElectricity = 0
 
     printedParts.forEach((part) => {
-      if (!part.printing_time_hr || !part.printer_id) return
+      if (!part.printing_time_hr || !part.printer_id || !part.filaments) return
       const printer = printers.find((p) => p.id === part.printer_id)
       if (!printer) return
 
@@ -659,11 +703,37 @@ export function ExcelCalculator({
         }
       })
 
+      // Prepare printed_parts data, handling potential legacy fields and ensuring correct structure
+      const preparedPrintedParts = printedParts.map((part) => {
+        // If the new 'filaments' array is empty or missing, and legacy fields exist, populate 'filaments'
+        if ((!part.filaments || part.filaments.length === 0) && part.filament_id && part.filament_grams !== undefined) {
+          return {
+            ...part,
+            filaments: [{ id: Date.now().toString(), filament_id: part.filament_id, grams: part.filament_grams }],
+            // Optionally clear legacy fields after migration for cleaner data, but keep them if needed for schema
+            // filament_id: undefined,
+            // filament_grams: undefined,
+          }
+        }
+        // Ensure legacy fields are undefined if the new structure is primary and complete
+        // This might depend on your backend schema handling. If schema expects them, keep them or map appropriately.
+        const { filament_id, filament_grams, ...restOfPart } = part
+        return {
+          ...restOfPart,
+          // Make sure to explicitly set filament_id and filament_grams to undefined if they are not meant to be persisted
+          // or if your schema has been updated to only use 'filaments' array.
+          // For now, we'll keep them in case the backend schema hasn't been fully updated.
+          // If they are truly legacy and unused, they should be removed.
+          // filament_id: undefined,
+          // filament_grams: undefined,
+        }
+      })
+
       const quoteData = {
         quote_type: mode, // Should be 'personal' or 'business'
         quote_name: clientName,
         quote_type_mode: calculatorType, // Should be '3d-print', 'laser-engraving', etc.
-        printed_parts: printedParts,
+        printed_parts: preparedPrintedParts,
         dried_batches: driedBatchesWithCost, // Save batches with cost included
         materials: materials,
         labor_items: labor,
@@ -774,11 +844,29 @@ export function ExcelCalculator({
         return { ...batch, cost }
       })
 
+      // Prepare printed_parts data for saving
+      const preparedPrintedParts = printedParts.map((part) => {
+        if ((!part.filaments || part.filaments.length === 0) && part.filament_id && part.filament_grams !== undefined) {
+          return {
+            ...part,
+            filaments: [{ id: Date.now().toString(), filament_id: part.filament_id, grams: part.filament_grams }],
+            // filament_id: undefined, // Clear legacy fields if schema is updated
+            // filament_grams: undefined,
+          }
+        }
+        const { filament_id, filament_grams, ...restOfPart } = part
+        return {
+          ...restOfPart,
+          // filament_id: undefined,
+          // filament_grams: undefined,
+        }
+      })
+
       const quoteData = {
         quote_type: calculatorType, // Save the selected calculator type
         quote_name: clientName,
         quote_type_mode: mode,
-        printed_parts: printedParts,
+        printed_parts: preparedPrintedParts,
         dried_batches: driedBatchesWithCost,
         materials: materials,
         labor_items: labor,
@@ -866,15 +954,72 @@ export function ExcelCalculator({
 
   const batchesLabel = calculatorType !== "3d-print" ? "Processing Batches" : "Dried Batches"
 
+  // ADDED FUNCTIONS FOR FILAMENT MANAGEMENT
+  const addFilamentToPart = (partIndex: number) => {
+    const updated = [...printedParts]
+    updated[partIndex].filaments.push({
+      id: Date.now().toString(),
+      filament_id: "",
+      grams: 0,
+    })
+    setPrintedParts(updated)
+  }
+
+  const removeFilamentFromPart = (partIndex: number, filamentIndex: number) => {
+    const updated = [...printedParts]
+    if (updated[partIndex].filaments.length > 1) {
+      updated[partIndex].filaments.splice(filamentIndex, 1)
+      setPrintedParts(updated)
+    } else {
+      toast({
+        title: "Cannot Remove",
+        description: "A part must have at least one filament.",
+        variant: "warning",
+      })
+    }
+  }
+
+  const updateFilamentInPart = (
+    partIndex: number,
+    filamentIndex: number,
+    field: "filament_id" | "grams",
+    value: string | number,
+  ) => {
+    const updated = [...printedParts]
+    if (field === "filament_id") {
+      updated[partIndex].filaments[filamentIndex].filament_id = value as string
+    } else {
+      updated[partIndex].filaments[filamentIndex].grams = value as number
+    }
+    setPrintedParts(updated)
+  }
+
+  const getTotalGrams = (part: PrintedPart): number => {
+    return part.filaments.reduce((sum, f) => sum + (f.grams || 0), 0)
+  }
+
+  const getPartFilamentCost = (part: PrintedPart): number => {
+    return part.filaments.reduce((sum, f) => {
+      const filament = filaments.find((fil) => fil.id === f.filament_id)
+      if (filament) {
+        return sum + (filament.price_per_kg * f.grams) / 1000
+      }
+      return sum
+    }, 0)
+  }
+
+  const removePrintedPart = (index: number) => {
+    setPrintedParts(printedParts.filter((_, i) => i !== index))
+  }
+
   const addPrintedPart = () => {
     setPrintedParts([
       ...printedParts,
       {
         id: Date.now().toString(),
         name: "",
-        filament_id: "",
-        printer_id: "", // Initialize printer_id
-        filament_grams: 0,
+        printer_id: printers.length > 0 ? printers[0].id : "",
+        filaments: [{ id: Date.now().toString(), filament_id: "", grams: 0 }],
         printing_time_hr: 0,
       },
     ])
@@ -1040,9 +1185,6 @@ export function ExcelCalculator({
                     <th className="p-3 text-left text-blue-900 font-semibold min-w-[120px]">
                       {calculatorType === "3d-print" ? "Filament" : "Material"}
                     </th>
-                    {calculatorType === "3d-print" && (
-                      <th className="p-3 text-left text-blue-900 font-semibold min-w-[100px]">Weight (g)</th>
-                    )}
                     <th className="p-3 text-left text-blue-900 font-semibold min-w-[100px]">Print Time (hr)</th>
                     <th className="p-3 text-left text-blue-900 font-semibold min-w-[100px]">Cost (€)</th>
                     <th className="p-3 min-w-[50px]"></th>
@@ -1050,19 +1192,24 @@ export function ExcelCalculator({
                 </thead>
                 <tbody>
                   {printedParts.map((part, index) => {
-                    const filament = filaments.find((f) => f.id === part.filament_id)
-                    let cost = 0
-                    if (filament) {
-                      if (calculatorType !== "3d-print" && globalSettings) {
-                        // Assuming filament.price_per_kg is used for material cost in non-3D print scenarios
-                        const materialCost = filament.price_per_kg
-                        const electricityCost = part.printing_time_hr * globalSettings.electricity_cost_per_kwh
-                        // Assuming the '11' is a factor for non-3D print material cost calculation
-                        cost = (materialCost + electricityCost) * 11
-                      } else {
-                        // For 3D print, calculate cost based on grams
-                        cost = (filament.price_per_kg * part.filament_grams) / 1000
-                      }
+                    let partCost = 0
+                    // Calculate cost for the part based on its filaments
+                    if (part.filaments && part.filaments.length > 0 && globalSettings) {
+                      part.filaments.forEach((filamentEntry) => {
+                        const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
+                        if (filament) {
+                          if (calculatorType !== "3d-print") {
+                            // Assuming filament.price_per_kg is used for material cost in non-3D print scenarios
+                            const materialCost = filament.price_per_kg
+                            const electricityCost = part.printing_time_hr * globalSettings.electricity_cost_per_kwh
+                            // Assuming the '11' is a factor for non-3D print material cost calculation
+                            partCost += (materialCost + electricityCost) * 11
+                          } else {
+                            // For 3D print, calculate cost based on grams
+                            partCost += (filament.price_per_kg * filamentEntry.grams) / 1000
+                          }
+                        }
+                      })
                     }
 
                     return (
@@ -1102,79 +1249,127 @@ export function ExcelCalculator({
                             </Select>
                           </td>
                         )}
-                        <td className="border-r border-blue-200 bg-white p-1 sm:p-2">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                className="w-full justify-between border-blue-200 bg-white text-left font-normal"
-                              >
-                                {part.filament_id
-                                  ? availableFilaments.find((f) => f.id === part.filament_id)?.name ||
-                                    `Select ${calculatorType === "3d-print" ? "filament" : "material"}`
-                                  : `Select ${calculatorType === "3d-print" ? "filament" : "material"}`}
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[300px] p-0" align="start">
-                              <Command>
-                                <CommandInput
-                                  placeholder={`Search ${calculatorType === "3d-print" ? "filaments" : "materials"}...`}
-                                  className="h-9"
-                                />
-                                <CommandList>
-                                  <CommandEmpty>
-                                    No {calculatorType === "3d-print" ? "filament" : "material"} found.
-                                  </CommandEmpty>
-                                  <CommandGroup>
-                                    {availableFilaments.map((filament) => (
-                                      <CommandItem
-                                        key={filament.id}
-                                        value={`${filament.id}-${filament.name}`}
-                                        onSelect={() => {
-                                          const updated = [...printedParts]
-                                          updated[index].filament_id = filament.id
-                                          // If it's not a 3D print and H2S printer is available, auto-select it
-                                          if (calculatorType !== "3d-print" && h2sPrinter) {
-                                            updated[index].printer_id = h2sPrinter.id
-                                          }
-                                          setPrintedParts(updated)
-                                        }}
+                        {/* Update filament cell to show individual filament entries with weight and remove button */}
+                        <td className="p-2">
+                          <div className="space-y-2">
+                            {/* List existing filaments with weight and remove button */}
+                            {part.filaments && part.filaments.filter((f) => f.filament_id).length > 0 && (
+                              <div className="space-y-1">
+                                {part.filaments
+                                  .filter((f) => f.filament_id) // Only show filaments with valid filament_id
+                                  .map((filamentEntry, filamentIndex) => {
+                                    const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
+                                    const originalIndex = part.filaments.indexOf(filamentEntry) // Use original index for update
+                                    return (
+                                      <div
+                                        key={filamentEntry.id}
+                                        className="flex items-center gap-1 text-xs bg-blue-50 rounded p-1"
                                       >
-                                        {filament.name}
-                                        <Check
-                                          className={cn(
-                                            "ml-auto h-4 w-4",
-                                            part.filament_id === filament.id ? "opacity-100" : "opacity-0",
-                                          )}
-                                        />
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
+                                        <span className="flex-1 truncate text-blue-800" title={filament?.name}>
+                                          {filament?.name || "Unknown"}
+                                        </span>
+                                        {calculatorType === "3d-print" && (
+                                          <Input
+                                            type="number"
+                                            min="0"
+                                            inputMode="numeric"
+                                            step="0.1"
+                                            value={filamentEntry.grams || ""}
+                                            onChange={(e) => {
+                                              const updated = [...printedParts]
+                                              const value = e.target.value
+                                              updated[index].filaments[originalIndex].grams =
+                                                value === "" ? 0 : Number.parseFloat(value) || 0
+                                              setPrintedParts(updated)
+                                            }}
+                                            className="w-16 h-6 text-xs border-blue-200 bg-white px-1"
+                                            placeholder="g"
+                                          />
+                                        )}
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                          onClick={() => {
+                                            const updated = [...printedParts]
+                                            updated[index].filaments = updated[index].filaments.filter(
+                                              (_, i) => i !== originalIndex, // Filter by originalIndex
+                                            )
+                                            setPrintedParts(updated)
+                                          }}
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    )
+                                  })}
+                              </div>
+                            )}
+                            {/* Add filament dropdown */}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full h-7 text-xs justify-between border-blue-200 bg-white"
+                                >
+                                  <span className="flex items-center gap-1">
+                                    <Plus className="h-3 w-3" />
+                                    Add {calculatorType === "3d-print" ? "Filament" : "Material"}
+                                  </span>
+                                  <ChevronsUpDown className="h-3 w-3 opacity-50" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[300px] p-0" align="start">
+                                <Command>
+                                  <CommandInput
+                                    placeholder={`Search ${calculatorType === "3d-print" ? "filaments" : "materials"}...`}
+                                    className="h-9"
+                                  />
+                                  <CommandList>
+                                    <CommandEmpty>
+                                      No {calculatorType === "3d-print" ? "filament" : "material"} found.
+                                    </CommandEmpty>
+                                    <CommandGroup>
+                                      {availableFilaments.map((filament) => {
+                                        const isSelected = part.filaments?.some(
+                                          (entry) => entry.filament_id === filament.id,
+                                        )
+                                        return (
+                                          <CommandItem
+                                            key={filament.id}
+                                            value={`${filament.id}-${filament.name}`}
+                                            onSelect={() => {
+                                              const updated = [...printedParts]
+                                              if (!isSelected) {
+                                                // Add filament
+                                                updated[index].filaments.push({
+                                                  id: Date.now().toString(),
+                                                  filament_id: filament.id,
+                                                  grams: 0,
+                                                })
+                                                if (calculatorType !== "3d-print" && h2sPrinter) {
+                                                  updated[index].printer_id = h2sPrinter.id
+                                                }
+                                              }
+                                              // Note: Removal is now done via the X button, not by clicking again
+                                              setPrintedParts(updated)
+                                            }}
+                                            disabled={isSelected}
+                                            className={isSelected ? "opacity-50" : ""}
+                                          >
+                                            {filament.name}
+                                            {isSelected && <Check className="ml-auto h-4 w-4" />}
+                                          </CommandItem>
+                                        )
+                                      })}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                         </td>
-                        {calculatorType === "3d-print" && (
-                          <td className="p-2">
-                            <Input
-                              type="number"
-                              min="0" // Added min="0"
-                              inputMode="numeric" // Added inputMode
-                              step="0.1"
-                              value={part.filament_grams || ""}
-                              onChange={(e) => {
-                                const updated = [...printedParts]
-                                const value = e.target.value
-                                updated[index].filament_grams = value === "" ? 0 : Number.parseFloat(value) || 0
-                                setPrintedParts(updated)
-                              }}
-                              className="border-blue-200 bg-white"
-                            />
-                          </td>
-                        )}
                         <td className="p-2">
                           <Input
                             type="number"
@@ -1191,10 +1386,10 @@ export function ExcelCalculator({
                             className="border-blue-200 bg-white"
                           />
                         </td>
-                        <td className="p-2 text-blue-900 font-semibold">€{cost.toFixed(2)}</td>
+                        <td className="p-2 text-blue-900 font-semibold">€{partCost.toFixed(2)}</td>
                         <td className="p-2">
                           <Button
-                            onClick={() => setPrintedParts(printedParts.filter((_, i) => i !== index))}
+                            onClick={() => removePrintedPart(index)}
                             size="sm"
                             variant="ghost"
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
