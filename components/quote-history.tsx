@@ -67,6 +67,7 @@ type Quote = {
   created_at: string
   is_draft?: boolean
   status?: string // Added status field
+  final_price?: number // Added final_price field
 }
 
 const STATUS_CONFIG = {
@@ -378,8 +379,29 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                           </thead>
                           <tbody className="bg-white">
                             {quote.printed_parts.map((part: any, index: number) => {
-                              const filament = filaments.find((f) => f.id === part.filament_id)
-                              const cost = filament ? (filament.price_per_kg * (part.filament_grams || 0)) / 1000 : 0
+                              let totalGrams = 0
+                              const filamentNames: string[] = []
+                              let totalCost = 0
+
+                              if (part.filaments && Array.isArray(part.filaments) && part.filaments.length > 0) {
+                                // New multi-filament format
+                                part.filaments.forEach((filamentEntry: any) => {
+                                  totalGrams += filamentEntry.grams || 0
+                                  const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
+                                  if (filament) {
+                                    filamentNames.push(filament.name)
+                                    totalCost += (filament.price_per_kg * (filamentEntry.grams || 0)) / 1000
+                                  }
+                                })
+                              } else if (part.filament_id) {
+                                // Old single-filament format
+                                totalGrams = part.filament_grams || 0
+                                const filament = filaments.find((f) => f.id === part.filament_id)
+                                if (filament) {
+                                  filamentNames.push(filament.name)
+                                  totalCost = (filament.price_per_kg * totalGrams) / 1000
+                                }
+                              }
 
                               return (
                                 <tr key={index}>
@@ -388,15 +410,15 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                                     {getPrinterName(part.printer_id)}
                                   </td>
                                   <td className="border border-gray-200 px-3 py-2">
-                                    {getFilamentName(part.filament_id)}
+                                    {filamentNames.length > 0 ? filamentNames.join(", ") : "N/A"}
                                   </td>
-                                  <td className="border border-gray-200 px-3 py-2 text-right">
-                                    {part.filament_grams || 0}
-                                  </td>
+                                  <td className="border border-gray-200 px-3 py-2 text-right">{totalGrams}</td>
                                   <td className="border border-gray-200 px-3 py-2 text-right">
                                     {part.printing_time_hr || 0}
                                   </td>
-                                  <td className="border border-gray-200 px-3 py-2 text-right">€{safeFixed(cost)}</td>
+                                  <td className="border border-gray-200 px-3 py-2 text-right">
+                                    €{safeFixed(totalCost)}
+                                  </td>
                                 </tr>
                               )
                             })}
@@ -533,6 +555,20 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                   <div>
                     <h3 className="text-sm font-semibold text-blue-900 mb-3">Profit Margins</h3>
                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                      {Number(quote.selected_margin_percentage) > 0 &&
+                        Number(quote.selected_margin_percentage) < 29 && (
+                          <div className="col-span-2 p-3 rounded-lg border-2 bg-blue-600 border-blue-700 shadow-lg">
+                            <div className="text-xs mb-1 text-blue-100">
+                              Custom: {Number(quote.selected_margin_percentage).toFixed(1)}% Margin
+                            </div>
+                            <div className="text-lg font-semibold text-white">
+                              €
+                              {safeFixed(
+                                (quote.landed_cost || 0) / (1 - Number(quote.selected_margin_percentage) / 100),
+                              )}
+                            </div>
+                          </div>
+                        )}
                       <div
                         className={`p-3 rounded-lg border-2 ${
                           (

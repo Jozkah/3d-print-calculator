@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, ChevronsUpDown, Check, X } from "lucide-react" // Import X for close icon
+import { Plus, Trash2, ChevronsUpDown, Check, X, Copy } from "lucide-react" // Import X for close icon
 import { useToast } from "@/components/ui/use-toast" // Assuming toast is available
 import { DialogCustom } from "@/components/ui/dialog-custom" // Import DialogCustom
 import { cn } from "@/lib/utils" // Assuming cn utility is available
@@ -323,7 +323,7 @@ export function ExcelCalculator({
         setClientName(quote.quote_name || "")
         setIsEmergency(quote.is_emergency || false)
         setDistanceTraveledKm(quote.distance_traveled_km || 0)
-        setSelectedMargin(quote.selected_margin || 50)
+        setSelectedMargin(quote.selected_margin_percentage || quote.selected_margin || 50)
         setVatEnabled(quote.vat_enabled !== undefined ? quote.vat_enabled : true) // Load VAT enabled state
 
         // Correctly handle legacy and new filament data
@@ -984,16 +984,21 @@ export function ExcelCalculator({
 
   const removeFilamentFromPart = (partIndex: number, filamentIndex: number) => {
     const updated = [...printedParts]
-    if (updated[partIndex].filaments.length > 1) {
-      updated[partIndex].filaments.splice(filamentIndex, 1)
-      setPrintedParts(updated)
-    } else {
-      toast({
-        title: "Cannot Remove",
-        description: "A part must have at least one filament.",
-        variant: "warning",
-      })
+    updated[partIndex].filaments = updated[partIndex].filaments.filter((_, i) => i !== filamentIndex)
+    setPrintedParts(updated)
+  }
+
+  const duplicatePrintedPart = (index: number) => {
+    const partToDuplicate = printedParts[index]
+    const duplicatedPart: PrintedPart = {
+      ...partToDuplicate,
+      id: Date.now().toString(),
+      name: partToDuplicate.name ? `${partToDuplicate.name} (copy)` : "",
+      filaments: partToDuplicate.filaments.map((f) => ({ ...f, id: Date.now().toString() + Math.random() })),
     }
+    const updated = [...printedParts]
+    updated.splice(index + 1, 0, duplicatedPart)
+    setPrintedParts(updated)
   }
 
   const updateFilamentInPart = (
@@ -1035,8 +1040,8 @@ export function ExcelCalculator({
       {
         id: Date.now().toString(),
         name: "",
-        printer_id: printers.length > 0 ? printers[0].id : "",
-        filaments: [{ id: Date.now().toString(), filament_id: "", grams: 0 }],
+        printer_id: "",
+        filaments: [],
         printing_time_hr: 0,
       },
     ])
@@ -1185,10 +1190,12 @@ export function ExcelCalculator({
           <Card className="p-6 bg-white border-2 border-blue-300">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-blue-900">{partsLabel}</h3>
-              <Button onClick={addPrintedPart} className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Part
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={addPrintedPart} className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Part
+                </Button>
+              </div>
             </div>
             {/* Made table scroll horizontally on mobile with better mobile layout */}
             <div className="overflow-x-auto -mx-6 px-6">
@@ -1204,7 +1211,8 @@ export function ExcelCalculator({
                     </th>
                     <th className="p-3 text-left text-blue-900 font-semibold min-w-[100px]">Print Time (hr)</th>
                     <th className="p-3 text-left text-blue-900 font-semibold min-w-[100px]">Cost (€)</th>
-                    <th className="p-3 min-w-[50px]"></th>
+                    {/* Line 1214: Center the Actions header */}
+                    <th className="p-3 text-center text-blue-900 font-semibold min-w-[80px]">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1246,7 +1254,7 @@ export function ExcelCalculator({
                         {calculatorType === "3d-print" && (
                           <td className="p-2">
                             <Select
-                              value={part.printer_id || undefined}
+                              value={part.printer_id === "" ? undefined : part.printer_id}
                               onValueChange={(value) => {
                                 const updated = [...printedParts]
                                 updated[index].printer_id = value
@@ -1335,11 +1343,7 @@ export function ExcelCalculator({
                                           size="sm"
                                           className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                                           onClick={() => {
-                                            const updated = [...printedParts]
-                                            updated[index].filaments = updated[index].filaments.filter(
-                                              (_, i) => i !== originalIndex, // Filter by originalIndex
-                                            )
-                                            setPrintedParts(updated)
+                                            removeFilamentFromPart(index, originalIndex)
                                           }}
                                         >
                                           <X className="h-3 w-3" />
@@ -1431,15 +1435,29 @@ export function ExcelCalculator({
                           />
                         </td>
                         <td className="p-2 text-blue-900 font-semibold">€{partCost.toFixed(2)}</td>
+                        {/* CHANGE: Added duplicate button next to delete button */}
                         <td className="p-2">
-                          <Button
-                            onClick={() => removePrintedPart(index)}
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {/* Line 1438: Center the action buttons */}
+                          <div className="flex justify-center gap-1">
+                            <Button
+                              onClick={() => duplicatePrintedPart(index)}
+                              size="sm"
+                              variant="ghost"
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              title="Duplicate part"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              onClick={() => removePrintedPart(index)}
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              title="Delete part"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     )
