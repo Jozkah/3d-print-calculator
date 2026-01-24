@@ -16,22 +16,25 @@ export default async function BusinessPage({
   let printers = []
   let filaments = []
   let globalSettingsData = null
+  let clients = []
   let error = null
 
   try {
-    const [printersResult, filamentsResult, globalSettingsResult] = await Promise.all([
+    const [printersResult, filamentsResult, globalSettingsResult, clientsResult] = await Promise.all([
       supabase.from("printers").select("*").order("created_at", { ascending: true }),
       supabase.from("filaments").select("*").order("created_at", { ascending: true }),
       supabase.from("global_settings").select("*").limit(1).single(),
+      supabase.from("clients").select("*").order("name"),
     ])
 
     printers = printersResult.data || []
     filaments = filamentsResult.data || []
     globalSettingsData = globalSettingsResult.data
+    clients = clientsResult.data || []
 
     // Check for Supabase errors
-    if (printersResult.error || filamentsResult.error || globalSettingsResult.error) {
-      error = printersResult.error || filamentsResult.error || globalSettingsResult.error
+    if (printersResult.error || filamentsResult.error || globalSettingsResult.error || clientsResult.error) {
+      error = printersResult.error || filamentsResult.error || globalSettingsResult.error || clientsResult.error
     }
   } catch (e) {
     error = e
@@ -78,6 +81,7 @@ export default async function BusinessPage({
           printers={printers}
           filaments={filaments}
           globalSettings={globalSettingsData}
+          clients={clients}
           editingQuoteId={params.edit}
         />
       )}

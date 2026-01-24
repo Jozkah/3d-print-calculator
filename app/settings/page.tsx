@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Printer, Palette, Settings2 } from "lucide-react"
+import { ArrowLeft, Printer, Palette, Settings2, Users } from "lucide-react"
 
 export default function SettingsPage() {
   return (
@@ -44,6 +44,14 @@ export default function SettingsPage() {
                 <Palette className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600 mb-3 sm:mb-4" />
                 <h3 className="text-xl sm:text-2xl font-semibold text-blue-900 mb-2">Filaments & Materials</h3>
                 <p className="text-sm sm:text-base text-blue-600">Manage filament types, laser materials and prices</p>
+              </div>
+            </Link>
+
+            <Link href="/settings/clients">
+              <div className="bg-white border-2 border-blue-200 rounded-lg p-6 sm:p-8 hover:border-blue-400 transition-colors">
+                <Users className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600 mb-3 sm:mb-4" />
+                <h3 className="text-xl sm:text-2xl font-semibold text-blue-900 mb-2">Clients</h3>
+                <p className="text-sm sm:text-base text-blue-600">Manage customer information and contact details</p>
               </div>
             </Link>
           </div>

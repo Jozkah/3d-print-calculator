@@ -73,6 +73,15 @@ type Filament = {
   color_hex?: string | null
 }
 
+type Client = {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  address: string | null
+  notes: string | null
+}
+
 type GlobalSettings = {
   id: string
   electricity_cost_per_kwh: number
@@ -137,10 +146,12 @@ type ExcelCalculatorProps = {
   // If it's intended for the LaserCalculator component, it should be passed down.
   laserMaterials?: LaserMaterial[]
   editingQuoteId?: string
+  clients?: Client[]
 }
 
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList, CommandItem } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ClientSelector } from "@/components/client-selector"
 
 export function ExcelCalculator({
   printers: initialPrinters,
@@ -151,6 +162,7 @@ export function ExcelCalculator({
   selectedMargin: propSelectedMargin, // Renamed to avoid conflict with state
   laserMode, // This prop was in the original code but not used. Keeping it for now.
   editingQuoteId, // New prop for loading existing quote
+  clients: initialClients = [],
 }: ExcelCalculatorProps) {
   const { toast } = useToast() // Initialize toast
   const supabase = createClient() // Declare supabase client here
@@ -175,6 +187,8 @@ export function ExcelCalculator({
   const [labor, setLabor] = useState<Labor[]>([])
   const [packaging, setPackaging] = useState<Packaging[]>([])
   const [clientName, setClientName] = useState("") // Changed from quoteName to clientName for consistency with original code
+  const [clientId, setClientId] = useState<string | null>(null)
+  const [clients, setClients] = useState<Client[]>(initialClients)
   const [isEmergency, setIsEmergency] = useState(false)
   const [vatEnabled, setVatEnabled] = useState(true)
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings | null>(initialGlobalSettings)
@@ -750,6 +764,7 @@ export function ExcelCalculator({
       const quoteData = {
         quote_type: mode, // Should be 'personal' or 'business'
         quote_name: clientName,
+        client_id: clientId,
         quote_type_mode: calculatorType, // Should be '3d-print', 'laser-engraving', etc.
         printed_parts: preparedPrintedParts,
         dried_batches: driedBatchesWithCost, // Save batches with cost included
@@ -883,6 +898,7 @@ export function ExcelCalculator({
       const quoteData = {
         quote_type: calculatorType, // Save the selected calculator type
         quote_name: clientName,
+        client_id: clientId,
         quote_type_mode: mode,
         printed_parts: preparedPrintedParts,
         dried_batches: driedBatchesWithCost,
@@ -1134,12 +1150,21 @@ export function ExcelCalculator({
                 <Label htmlFor="clientName" className="text-blue-900">
                   Client Name
                 </Label>
-                <Input
-                  id="clientName"
-                  value={clientName} // Changed from quoteName to clientName
-                  onChange={(e) => setClientName(e.target.value)} // Changed from quoteName to clientName
-                  className="border-blue-200 bg-white"
-                  placeholder="e.g., Client Name - Project"
+                <ClientSelector
+                  value={clientName}
+                  onChange={(name, id) => {
+                    setClientName(name)
+                    setClientId(id || null)
+                  }}
+                  clients={clients}
+                  onClientsUpdate={async () => {
+                    const { data } = await supabase.from("clients").select("*").order("name")
+                    if (data) {
+                      setClients(data)
+                    }
+                  }}
+                  placeholder="Select or add client..."
+                  className="bg-white"
                 />
               </div>
               <div>
