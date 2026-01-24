@@ -184,8 +184,11 @@ export function ClientSelector({
             notes: "",
           })
         }}
+        onConfirm={handleCreateClient}
         title="Add New Client"
         description="Enter the client's information below."
+        confirmText="Add Client"
+        cancelText="Cancel"
       >
         <div className="space-y-4">
           <div>
@@ -245,27 +248,6 @@ export function ClientSelector({
               className="border-blue-200"
               rows={3}
             />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowCreateDialog(false)
-                setFormData({
-                  name: "",
-                  email: "",
-                  phone: "",
-                  address: "",
-                  notes: "",
-                })
-              }}
-              className="border-blue-300 text-blue-900"
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCreateClient} className="bg-blue-600 hover:bg-blue-700">
-              Add Client
-            </Button>
           </div>
         </div>
       </DialogCustom>

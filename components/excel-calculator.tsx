@@ -793,6 +793,7 @@ export function ExcelCalculator({
         margin_60: margin60,
         custom_margin_value: customMargin, // Store the custom margin percentage
         selected_margin_percentage: selectedMargin, // This stores the percentage (30, 40, 50, or 60)
+        selected_margin: selectedMargin?.toString() || "0", // Store as string for consistency with quote page
         ownerA_receives: mode === "business" ? ownerAReceives : null,
         ownerB_receives: mode === "business" ? ownerBReceives : null,
         is_draft: false, // Mark as finalized when saved
@@ -927,6 +928,7 @@ export function ExcelCalculator({
         margin_60: margin60,
         custom_margin_value: customMargin,
         selected_margin_percentage: selectedMargin,
+        selected_margin: selectedMargin?.toString() || "0", // Store as string for consistency
         ownerA_receives: mode === "business" ? ownerAReceives : null,
         ownerB_receives: mode === "business" ? ownerBReceives : null,
         is_draft: true, // Mark as draft
