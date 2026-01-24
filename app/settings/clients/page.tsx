@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { ClientsList } from "@/components/clients-list"
 import Link from "next/link"
-import { ChevronLeft } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default async function ClientsPage() {
@@ -13,21 +13,21 @@ export default async function ClientsPage() {
     .order("name")
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
-      <div className="container mx-auto p-6 max-w-7xl">
-        <div className="mb-6">
+    <div className="min-h-screen bg-white">
+      <header className="border-b-2 border-blue-200 bg-white">
+        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
           <Link href="/settings">
-            <Button variant="ghost" className="mb-4 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-              <ChevronLeft className="w-4 h-4 mr-1" />
-              Back to Settings
+            <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+              <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
-          <h1 className="text-3xl font-bold text-blue-900 mb-2">Client Management</h1>
-          <p className="text-gray-600">Manage your customer information and contact details.</p>
+          <h1 className="text-2xl font-bold text-blue-900">Client Management</h1>
         </div>
-        
+      </header>
+
+      <main className="container mx-auto px-4 py-8">
         <ClientsList clients={clients || []} />
-      </div>
+      </main>
     </div>
   )
 }

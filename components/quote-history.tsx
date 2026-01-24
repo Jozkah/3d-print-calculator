@@ -90,7 +90,7 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [printers, setPrinters] = useState<any[]>([])
   const [filaments, setFilaments] = useState<any[]>([])
-  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [statusFilters, setStatusFilters] = useState<string[]>([])
   const { toast } = useToast()
   const router = useRouter()
 
@@ -236,11 +236,25 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
     }
   }
 
-  // Filter quotes based on selected status
+  // Toggle filter selection
+  const toggleFilter = (filter: string) => {
+    if (statusFilters.includes(filter)) {
+      setStatusFilters(statusFilters.filter((f) => f !== filter))
+    } else {
+      setStatusFilters([...statusFilters, filter])
+    }
+  }
+
+  // Filter quotes based on selected statuses
   const filteredQuotes = quotes.filter((quote) => {
-    if (statusFilter === "all") return true
-    if (statusFilter === "draft") return quote.is_draft
-    return quote.status === statusFilter
+    // If no filters selected, show all
+    if (statusFilters.length === 0) return true
+    
+    // Check if any of the selected filters match
+    return statusFilters.some((filter) => {
+      if (filter === "draft") return quote.is_draft
+      return quote.status === filter
+    })
   })
 
   if (quotes.length === 0) {
@@ -277,19 +291,21 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
         <div className="flex flex-wrap items-center gap-2">
           <Filter className="h-4 w-4 text-gray-500" />
           <span className="text-sm text-gray-600 mr-2">Filter:</span>
+          {statusFilters.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setStatusFilters([])}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              Clear All
+            </Button>
+          )}
           <Button
-            variant={statusFilter === "all" ? "default" : "outline"}
+            variant={statusFilters.includes("draft") ? "default" : "outline"}
             size="sm"
-            onClick={() => setStatusFilter("all")}
-            className={statusFilter === "all" ? "bg-blue-600 hover:bg-blue-700" : ""}
-          >
-            All ({quotes.length})
-          </Button>
-          <Button
-            variant={statusFilter === "draft" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setStatusFilter("draft")}
-            className={statusFilter === "draft" ? "bg-blue-600 hover:bg-blue-700" : ""}
+            onClick={() => toggleFilter("draft")}
+            className={statusFilters.includes("draft") ? "bg-blue-600 hover:bg-blue-700" : ""}
           >
             Draft ({quotes.filter((q) => q.is_draft).length})
           </Button>
@@ -299,10 +315,10 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
             return (
               <Button
                 key={key}
-                variant={statusFilter === key ? "default" : "outline"}
+                variant={statusFilters.includes(key) ? "default" : "outline"}
                 size="sm"
-                onClick={() => setStatusFilter(key)}
-                className={statusFilter === key ? "bg-blue-600 hover:bg-blue-700" : ""}
+                onClick={() => toggleFilter(key)}
+                className={statusFilters.includes(key) ? "bg-blue-600 hover:bg-blue-700" : ""}
               >
                 <Icon className="h-3 w-3 mr-1" />
                 {config.label} ({count})

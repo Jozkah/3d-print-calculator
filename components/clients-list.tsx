@@ -162,8 +162,11 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
           setIsAdding(false)
           resetForm()
         }}
+        onConfirm={handleAdd}
         title="Add New Client"
         description="Enter the client's information below."
+        confirmText="Add Client"
+        cancelText="Cancel"
       >
         <div className="space-y-4">
           <div>
@@ -224,21 +227,6 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
               rows={3}
             />
           </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsAdding(false)
-                resetForm()
-              }}
-              className="border-blue-300 text-blue-900"
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleAdd} className="bg-blue-600 hover:bg-blue-700">
-              Add Client
-            </Button>
-          </div>
         </div>
       </DialogCustom>
 
@@ -249,8 +237,11 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
           setEditingId(null)
           resetForm()
         }}
+        onConfirm={() => editingId && handleEdit(editingId)}
         title="Edit Client"
         description="Update the client's information below."
+        confirmText="Save Changes"
+        cancelText="Cancel"
       >
         <div className="space-y-4">
           <div>
@@ -310,21 +301,6 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
               className="border-blue-200"
               rows={3}
             />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setEditingId(null)
-                resetForm()
-              }}
-              className="border-blue-300 text-blue-900"
-            >
-              Cancel
-            </Button>
-            <Button onClick={() => editingId && handleEdit(editingId)} className="bg-blue-600 hover:bg-blue-700">
-              Save Changes
-            </Button>
           </div>
         </div>
       </DialogCustom>
