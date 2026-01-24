@@ -2007,17 +2007,6 @@ export function ExcelCalculator({
 
             <div className="mt-8 pt-6 border-t-2 border-blue-400">
               <h3 className="text-xl font-bold text-blue-900 mb-4">Profit Margins (Click to Select)</h3>
-              {/* Show custom margin card if < 30% */}
-              {selectedMargin < 30 && selectedMargin > 0 && (
-                <div className="mb-4 col-span-full">
-                  <div className="p-3 sm:p-4 rounded-lg border-2 bg-blue-600 border-blue-700 text-center ring-2 ring-blue-600">
-                    <div className="text-white text-xs sm:text-sm font-medium mb-1">
-                      Custom: {selectedMargin.toFixed(1)}% Margin
-                    </div>
-                    <div className="text-white text-lg sm:text-xl font-bold">€{finalClientPrice.toFixed(2)}</div>
-                  </div>
-                </div>
-              )}
               {/* Improved mobile grid layout for profit margins */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div
@@ -2065,29 +2054,10 @@ export function ExcelCalculator({
                   <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">50% Margin</div>
                   <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin50WithVAT.toFixed(2)}</div>
                 </div>
-                <div
-                  className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
-                    selectedMargin === 60
-                      ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
-                      : "bg-white border-blue-300"
-                  }`}
-                  onClick={() => {
-                    setSelectedMargin(60)
-                    setMarginInputMode("percentage")
-                    setTargetPrice(0) // Reset target price when switching modes
-                  }}
-                >
-                  <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">60% Margin</div>
-                  <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin60WithVAT.toFixed(2)}</div>
-                </div>
-                {/* Custom margin input card */}
+                {/* START UPDATED CODE for custom margin input */}
                 <div
                   className={`p-3 sm:p-4 rounded-lg border-2 hover:shadow-lg transition-shadow ${
-                    (selectedMargin !== 30 &&
-                      selectedMargin !== 40 &&
-                      selectedMargin !== 50 &&
-                      selectedMargin !== 60) ||
-                    marginInputMode === "targetPrice"
+                    selectedMargin === customMargin || marginInputMode === "targetPrice"
                       ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
                       : "bg-white border-blue-300"
                   }`}
@@ -2182,18 +2152,6 @@ export function ExcelCalculator({
                 </div>
                 {/* END UPDATED CODE */}
               </div>
-              
-              {/* Show custom margin card if > 60% */}
-              {selectedMargin > 60 && (
-                <div className="mt-4">
-                  <div className="p-3 sm:p-4 rounded-lg border-2 bg-blue-600 border-blue-700 text-center ring-2 ring-blue-600">
-                    <div className="text-white text-xs sm:text-sm font-medium mb-1">
-                      Custom: {selectedMargin.toFixed(1)}% Margin
-                    </div>
-                    <div className="text-white text-lg sm:text-xl font-bold">€{finalClientPrice.toFixed(2)}</div>
-                  </div>
-                </div>
-              )}
 
               <div className="mt-6 p-4 sm:p-6 bg-blue-50 rounded-lg border-2 border-blue-400">
                 {/* Final Price Section */}

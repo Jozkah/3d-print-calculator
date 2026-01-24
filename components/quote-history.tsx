@@ -634,22 +634,38 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                       </div>
                       <div
                         className={`p-3 rounded-lg border-2 ${
-                          (Number(quote.selected_margin_percentage) >= 55) || quote.selected_margin === "60"
+                          (
+                            Number(quote.selected_margin_percentage) >= 55 &&
+                              Number(quote.selected_margin_percentage) <= 65
+                          ) || quote.selected_margin === "60"
                             ? "bg-blue-600 border-blue-700 shadow-lg"
                             : "bg-white border-gray-200"
                         }`}
                       >
                         <div
-                          className={`text-xs mb-1 ${Number(quote.selected_margin_percentage) >= 55 || quote.selected_margin === "60" ? "text-blue-100" : "text-gray-600"}`}
+                          className={`text-xs mb-1 ${(Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 65) || quote.selected_margin === "60" ? "text-blue-100" : "text-gray-600"}`}
                         >
                           60% Margin
                         </div>
                         <div
-                          className={`text-lg font-semibold ${Number(quote.selected_margin_percentage) >= 55 || quote.selected_margin === "60" ? "text-white" : "text-green-600"}`}
+                          className={`text-lg font-semibold ${(Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 65) || quote.selected_margin === "60" ? "text-white" : "text-green-600"}`}
                         >
                           €{safeFixed(quote.margin_60)}
                         </div>
                       </div>
+                      {Number(quote.selected_margin_percentage) > 65 && (
+                        <div className="col-span-2 p-3 rounded-lg border-2 bg-blue-600 border-blue-700 shadow-lg">
+                          <div className="text-xs mb-1 text-blue-100">
+                            Custom: {Number(quote.selected_margin_percentage).toFixed(1)}% Margin
+                          </div>
+                          <div className="text-lg font-semibold text-white">
+                            €
+                            {safeFixed(
+                              (quote.landed_cost || 0) / (1 - Number(quote.selected_margin_percentage) / 100),
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
