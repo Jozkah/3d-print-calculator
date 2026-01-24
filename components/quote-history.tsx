@@ -30,6 +30,8 @@ import {
   XCircle,
   Ban,
   RefreshCw,
+  Copy,
+  Filter,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -88,6 +90,7 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [printers, setPrinters] = useState<any[]>([])
   const [filaments, setFilaments] = useState<any[]>([])
+  const [statusFilter, setStatusFilter] = useState<string>("all")
   const { toast } = useToast()
   const router = useRouter()
 
@@ -97,6 +100,41 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
   const handleDownload = (id: string) => {
     // Placeholder for download logic
     console.log(`Download quote with id: ${id}`)
+  }
+
+  const handleDuplicate = async (quote: Quote) => {
+    const supabase = createClient()
+    
+    // Create a copy of the quote without the id and with updated name
+    const duplicatedQuote = {
+      ...quote,
+      quote_name: `${quote.quote_name} (Copy)`,
+      created_at: new Date().toISOString(),
+      is_draft: true, // Set as draft by default
+      status: "pending",
+    }
+    
+    // Remove id and other auto-generated fields
+    const { id, ...quoteData } = duplicatedQuote as any
+    
+    const { data, error } = await supabase.from("quotes").insert([quoteData]).select()
+    
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to duplicate quote",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (data && data.length > 0) {
+      setQuotes([data[0], ...quotes])
+      toast({
+        title: "Success",
+        description: "Quote duplicated successfully",
+      })
+    }
   }
 
   const handleEdit = (quote: Quote) => {
@@ -198,6 +236,13 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
     }
   }
 
+  // Filter quotes based on selected status
+  const filteredQuotes = quotes.filter((quote) => {
+    if (statusFilter === "all") return true
+    if (statusFilter === "draft") return quote.is_draft
+    return quote.status === statusFilter
+  })
+
   if (quotes.length === 0) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -215,19 +260,59 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold">
-          Total quotes: {quotes.length}
-          {quotes.filter((q) => q.is_draft).length > 0 && (
-            <span className="ml-2 text-sm text-muted-foreground">
-              ({quotes.filter((q) => q.is_draft).length} draft{quotes.filter((q) => q.is_draft).length !== 1 ? "s" : ""}
-              )
-            </span>
-          )}
-        </h2>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h2 className="text-2xl font-bold">
+            Total quotes: {quotes.length}
+            {quotes.filter((q) => q.is_draft).length > 0 && (
+              <span className="ml-2 text-sm text-muted-foreground">
+                ({quotes.filter((q) => q.is_draft).length} draft{quotes.filter((q) => q.is_draft).length !== 1 ? "s" : ""}
+                )
+              </span>
+            )}
+          </h2>
+        </div>
+
+        {/* Filter Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Filter className="h-4 w-4 text-gray-500" />
+          <span className="text-sm text-gray-600 mr-2">Filter:</span>
+          <Button
+            variant={statusFilter === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("all")}
+            className={statusFilter === "all" ? "bg-blue-600 hover:bg-blue-700" : ""}
+          >
+            All ({quotes.length})
+          </Button>
+          <Button
+            variant={statusFilter === "draft" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("draft")}
+            className={statusFilter === "draft" ? "bg-blue-600 hover:bg-blue-700" : ""}
+          >
+            Draft ({quotes.filter((q) => q.is_draft).length})
+          </Button>
+          {Object.entries(STATUS_CONFIG).map(([key, config]) => {
+            const Icon = config.icon
+            const count = quotes.filter((q) => q.status === key).length
+            return (
+              <Button
+                key={key}
+                variant={statusFilter === key ? "default" : "outline"}
+                size="sm"
+                onClick={() => setStatusFilter(key)}
+                className={statusFilter === key ? "bg-blue-600 hover:bg-blue-700" : ""}
+              >
+                <Icon className="h-3 w-3 mr-1" />
+                {config.label} ({count})
+              </Button>
+            )
+          })}
+        </div>
       </div>
 
-      {quotes.map((quote) => {
+      {filteredQuotes.map((quote) => {
         const totalParts = (quote.printed_parts || []).length
         const totalMaterials = (quote.materials || []).length || (quote.materials_cost > 0 ? 1 : 0)
         const totalLabor = (quote.labor_items || []).length
@@ -327,6 +412,15 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                     title="Edit Quote"
                   >
                     <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDuplicate(quote)}
+                    className="h-9 w-9 p-0"
+                    title="Duplicate Quote"
+                  >
+                    <Copy className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="outline"
