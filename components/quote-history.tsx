@@ -636,19 +636,19 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                         className={`p-3 rounded-lg border-2 ${
                           (
                             Number(quote.selected_margin_percentage) >= 55 &&
-                              Number(quote.selected_margin_percentage) <= 65
+                              Number(quote.selected_margin_percentage) <= 60
                           ) || quote.selected_margin === "60"
                             ? "bg-blue-600 border-blue-700 shadow-lg"
                             : "bg-white border-gray-200"
                         }`}
                       >
                         <div
-                          className={`text-xs mb-1 ${(Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 65) || quote.selected_margin === "60" ? "text-blue-100" : "text-gray-600"}`}
+                          className={`text-xs mb-1 ${(Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 60) || quote.selected_margin === "60" ? "text-blue-100" : "text-gray-600"}`}
                         >
                           60% Margin
                         </div>
                         <div
-                          className={`text-lg font-semibold ${(Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 65) || quote.selected_margin === "60" ? "text-white" : "text-green-600"}`}
+                          className={`text-lg font-semibold ${(Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 60) || quote.selected_margin === "60" ? "text-white" : "text-green-600"}`}
                         >
                           €{safeFixed(quote.margin_60)}
                         </div>
