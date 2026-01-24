@@ -24,6 +24,7 @@ type Filament = {
   brand?: string
   type?: string
   color?: string
+  color_hex?: string | null
   material_type: string
   thickness?: string
   size?: string
@@ -48,6 +49,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     brand: "",
     type: "",
     color: "",
+    color_hex: "",
     material_type: "filament",
     thickness: "",
     size: "",
@@ -59,6 +61,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     brand: "",
     type: "",
     color: "",
+    color_hex: "",
     material_type: "filament",
     thickness: "",
     size: "",
@@ -204,6 +207,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       brand: newFilament.brand || "Generic",
       type: newFilament.type || "Other",
       color: newFilament.color || "Other",
+      color_hex: newFilament.color_hex || null,
       material_type: newFilament.material_type,
       thickness: newFilament.thickness || null,
       size: newFilament.size || null,
@@ -223,6 +227,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         brand: "",
         type: "",
         color: "",
+        color_hex: "",
         material_type: "filament",
         thickness: "",
         size: "",
@@ -268,9 +273,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         brand: editData.brand || "Generic",
         type: editData.type || "Other",
         color: editData.color || "Other",
+        color_hex: editData.color_hex || null,
         material_type: editData.material_type,
         thickness: editData.thickness || null,
-        // Added size to update operation
         size: editData.size || null,
       })
       .eq("id", id)
@@ -294,9 +299,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       brand: filament.brand || "",
       type: filament.type || "",
       color: filament.color || "",
+      color_hex: filament.color_hex || "",
       material_type: filament.material_type,
       thickness: filament.thickness || "",
-      // Initialize editData with size
       size: filament.size || "",
     })
   }
@@ -596,9 +601,10 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               brand: "",
               type: "",
               color: "",
+              color_hex: "",
               material_type: "filament",
-              thickness: "", // Reset thickness
-              size: "", // Reset size
+              thickness: "",
+              size: "",
             })
           }}
           className="bg-blue-600 hover:bg-blue-700 text-sm sm:text-base"
@@ -873,6 +879,26 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       />
                     </div>
                   </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <Label>Color Hex Code (optional)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={newFilament.color_hex}
+                          onChange={(e) => setNewFilament({ ...newFilament, color_hex: e.target.value })}
+                          placeholder="#FF5733"
+                          className="border-blue-200 bg-white"
+                        />
+                        {newFilament.color_hex && (
+                          <div
+                            className="w-8 h-8 rounded border border-gray-300 flex-shrink-0"
+                            style={{ backgroundColor: newFilament.color_hex }}
+                            title={newFilament.color_hex}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="requires-heating"
@@ -916,6 +942,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       brand: "",
                       type: "",
                       color: "",
+                      color_hex: "",
                       material_type: "filament",
                       thickness: "",
                       size: "",
@@ -1023,6 +1050,26 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                           />
                         </div>
                       </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                          <Label>Color Hex Code (optional)</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={editData.color_hex}
+                              onChange={(e) => setEditData({ ...editData, color_hex: e.target.value })}
+                              placeholder="#FF5733"
+                              className="border-blue-200 bg-white"
+                            />
+                            {editData.color_hex && (
+                              <div
+                                className="w-8 h-8 rounded border border-gray-300 flex-shrink-0"
+                                style={{ backgroundColor: editData.color_hex }}
+                                title={editData.color_hex}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id={`edit-heating-${filament.id}`}
@@ -1103,7 +1150,16 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       {filament.material_type === "filament" && filament.color && (
                         <>
                           <span className="text-blue-500">•</span>
-                          <span>{filament.color}</span>
+                          <span className="flex items-center gap-1">
+                            {filament.color}
+                            {filament.color_hex && (
+                              <div
+                                className="w-4 h-4 rounded border border-gray-300 inline-block"
+                                style={{ backgroundColor: filament.color_hex }}
+                                title={filament.color_hex}
+                              />
+                            )}
+                          </span>
                         </>
                       )}
                       {filament.material_type === "material" && filament.thickness && (
@@ -1139,6 +1195,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                           brand: filament.brand || "",
                           type: filament.type || "",
                           color: filament.color || "",
+                          color_hex: filament.color_hex || "",
                           material_type: filament.material_type,
                           thickness: filament.thickness || "",
                           size: filament.size || "",

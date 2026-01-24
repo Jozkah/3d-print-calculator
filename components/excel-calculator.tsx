@@ -67,9 +67,10 @@ type Filament = {
   price_per_kg: number
   requires_heating: boolean
   heating_time_hours: number
-  material_type?: string // Added for filtering
-  brand?: string // Added for tooltip
-  color?: string // Added for tooltip
+  material_type?: string
+  brand?: string
+  color?: string
+  color_hex?: string | null
 }
 
 type GlobalSettings = {
@@ -1298,23 +1299,32 @@ export function ExcelCalculator({
                                               </span>
                                             </TooltipTrigger>
                                             <TooltipContent side="top" className="max-w-xs">
-                                              <div className="space-y-1 text-sm">
-                                                <div className="font-semibold">{filament?.name}</div>
-                                                {filament?.brand && (
-                                                  <div className="text-xs">Brand: {filament.brand}</div>
-                                                )}
-                                                {filament?.color && (
-                                                  <div className="text-xs">Color: {filament.color}</div>
-                                                )}
-                                                {filament?.price_per_kg != null && (
-                                                  <div className="text-xs">
-                                                    Price: €{filament.price_per_kg.toFixed(2)}/kg
-                                                  </div>
-                                                )}
-                                                {filament?.requires_heating != null && (
-                                                  <div className="text-xs">
-                                                    Heating: {filament.requires_heating ? "Required" : "Not required"}
-                                                  </div>
+                                              <div className="flex gap-3">
+                                                <div className="space-y-1 text-sm">
+                                                  <div className="font-semibold">{filament?.name}</div>
+                                                  {filament?.brand && (
+                                                    <div className="text-xs">Brand: {filament.brand}</div>
+                                                  )}
+                                                  {filament?.color && (
+                                                    <div className="text-xs">Color: {filament.color}</div>
+                                                  )}
+                                                  {filament?.price_per_kg != null && (
+                                                    <div className="text-xs">
+                                                      Price: €{filament.price_per_kg.toFixed(2)}/kg
+                                                    </div>
+                                                  )}
+                                                  {filament?.requires_heating != null && (
+                                                    <div className="text-xs">
+                                                      Heating: {filament.requires_heating ? "Required" : "Not required"}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                {filament?.color_hex && (
+                                                  <div
+                                                    className="w-12 h-12 rounded border border-gray-400 flex-shrink-0"
+                                                    style={{ backgroundColor: filament.color_hex }}
+                                                    title={filament.color_hex}
+                                                  />
                                                 )}
                                               </div>
                                             </TooltipContent>
