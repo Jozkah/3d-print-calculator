@@ -30,6 +30,8 @@ import {
   XCircle,
   Ban,
   RefreshCw,
+  Copy,
+  Filter,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -88,6 +90,7 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [printers, setPrinters] = useState<any[]>([])
   const [filaments, setFilaments] = useState<any[]>([])
+  const [statusFilters, setStatusFilters] = useState<string[]>([])
   const { toast } = useToast()
   const router = useRouter()
 
@@ -97,6 +100,41 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
   const handleDownload = (id: string) => {
     // Placeholder for download logic
     console.log(`Download quote with id: ${id}`)
+  }
+
+  const handleDuplicate = async (quote: Quote) => {
+    const supabase = createClient()
+    
+    // Create a copy of the quote without the id and with updated name
+    const duplicatedQuote = {
+      ...quote,
+      quote_name: `${quote.quote_name} (Copy)`,
+      created_at: new Date().toISOString(),
+      is_draft: true, // Set as draft by default
+      status: "pending",
+    }
+    
+    // Remove id and other auto-generated fields
+    const { id, ...quoteData } = duplicatedQuote as any
+    
+    const { data, error } = await supabase.from("quotes").insert([quoteData]).select()
+    
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to duplicate quote",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    if (data && data.length > 0) {
+      setQuotes([data[0], ...quotes])
+      toast({
+        title: "Success",
+        description: "Quote duplicated successfully",
+      })
+    }
   }
 
   const handleEdit = (quote: Quote) => {
@@ -198,6 +236,27 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
     }
   }
 
+  // Toggle filter selection
+  const toggleFilter = (filter: string) => {
+    if (statusFilters.includes(filter)) {
+      setStatusFilters(statusFilters.filter((f) => f !== filter))
+    } else {
+      setStatusFilters([...statusFilters, filter])
+    }
+  }
+
+  // Filter quotes based on selected statuses
+  const filteredQuotes = quotes.filter((quote) => {
+    // If no filters selected, show all
+    if (statusFilters.length === 0) return true
+    
+    // Check if any of the selected filters match
+    return statusFilters.some((filter) => {
+      if (filter === "draft") return quote.is_draft
+      return quote.status === filter
+    })
+  })
+
   if (quotes.length === 0) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -215,19 +274,61 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold">
-          Total quotes: {quotes.length}
-          {quotes.filter((q) => q.is_draft).length > 0 && (
-            <span className="ml-2 text-sm text-muted-foreground">
-              ({quotes.filter((q) => q.is_draft).length} draft{quotes.filter((q) => q.is_draft).length !== 1 ? "s" : ""}
-              )
-            </span>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h2 className="text-2xl font-bold">
+            Total quotes: {quotes.length}
+            {quotes.filter((q) => q.is_draft).length > 0 && (
+              <span className="ml-2 text-sm text-muted-foreground">
+                ({quotes.filter((q) => q.is_draft).length} draft{quotes.filter((q) => q.is_draft).length !== 1 ? "s" : ""}
+                )
+              </span>
+            )}
+          </h2>
+        </div>
+
+        {/* Filter Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Filter className="h-4 w-4 text-gray-500" />
+          <span className="text-sm text-gray-600 mr-2">Filter:</span>
+          {statusFilters.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setStatusFilters([])}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              Clear All
+            </Button>
           )}
-        </h2>
+          <Button
+            variant={statusFilters.includes("draft") ? "default" : "outline"}
+            size="sm"
+            onClick={() => toggleFilter("draft")}
+            className={statusFilters.includes("draft") ? "bg-blue-600 hover:bg-blue-700" : ""}
+          >
+            Draft ({quotes.filter((q) => q.is_draft).length})
+          </Button>
+          {Object.entries(STATUS_CONFIG).map(([key, config]) => {
+            const Icon = config.icon
+            const count = quotes.filter((q) => q.status === key).length
+            return (
+              <Button
+                key={key}
+                variant={statusFilters.includes(key) ? "default" : "outline"}
+                size="sm"
+                onClick={() => toggleFilter(key)}
+                className={statusFilters.includes(key) ? "bg-blue-600 hover:bg-blue-700" : ""}
+              >
+                <Icon className="h-3 w-3 mr-1" />
+                {config.label} ({count})
+              </Button>
+            )
+          })}
+        </div>
       </div>
 
-      {quotes.map((quote) => {
+      {filteredQuotes.map((quote) => {
         const totalParts = (quote.printed_parts || []).length
         const totalMaterials = (quote.materials || []).length || (quote.materials_cost > 0 ? 1 : 0)
         const totalLabor = (quote.labor_items || []).length
@@ -327,6 +428,15 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                     title="Edit Quote"
                   >
                     <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDuplicate(quote)}
+                    className="h-9 w-9 p-0"
+                    title="Duplicate Quote"
+                  >
+                    <Copy className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="outline"
@@ -634,22 +744,38 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                       </div>
                       <div
                         className={`p-3 rounded-lg border-2 ${
-                          (Number(quote.selected_margin_percentage) >= 55) || quote.selected_margin === "60"
+                          (
+                            Number(quote.selected_margin_percentage) >= 55 &&
+                              Number(quote.selected_margin_percentage) <= 60
+                          ) || quote.selected_margin === "60"
                             ? "bg-blue-600 border-blue-700 shadow-lg"
                             : "bg-white border-gray-200"
                         }`}
                       >
                         <div
-                          className={`text-xs mb-1 ${Number(quote.selected_margin_percentage) >= 55 || quote.selected_margin === "60" ? "text-blue-100" : "text-gray-600"}`}
+                          className={`text-xs mb-1 ${(Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 60) || quote.selected_margin === "60" ? "text-blue-100" : "text-gray-600"}`}
                         >
                           60% Margin
                         </div>
                         <div
-                          className={`text-lg font-semibold ${Number(quote.selected_margin_percentage) >= 55 || quote.selected_margin === "60" ? "text-white" : "text-green-600"}`}
+                          className={`text-lg font-semibold ${(Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 60) || quote.selected_margin === "60" ? "text-white" : "text-green-600"}`}
                         >
                           €{safeFixed(quote.margin_60)}
                         </div>
                       </div>
+                      {Number(quote.selected_margin_percentage) > 60 && (
+                        <div className="col-span-2 p-3 rounded-lg border-2 bg-blue-600 border-blue-700 shadow-lg">
+                          <div className="text-xs mb-1 text-blue-100">
+                            Custom: {Number(quote.selected_margin_percentage).toFixed(1)}% Margin
+                          </div>
+                          <div className="text-lg font-semibold text-white">
+                            €
+                            {safeFixed(
+                              (quote.landed_cost || 0) / (1 - Number(quote.selected_margin_percentage) / 100),
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
