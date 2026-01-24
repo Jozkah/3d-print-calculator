@@ -653,7 +653,7 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                           €{safeFixed(quote.margin_60)}
                         </div>
                       </div>
-                      {Number(quote.selected_margin_percentage) > 65 && (
+                      {Number(quote.selected_margin_percentage) > 60 && (
                         <div className="col-span-2 p-3 rounded-lg border-2 bg-blue-600 border-blue-700 shadow-lg">
                           <div className="text-xs mb-1 text-blue-100">
                             Custom: {Number(quote.selected_margin_percentage).toFixed(1)}% Margin
