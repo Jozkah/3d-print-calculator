@@ -23,6 +23,10 @@ type Filament = {
   id: string
   name: string
   price_per_kg: number
+  brand?: string
+  color?: string
+  color_hex?: string | null
+  requires_heating?: boolean
 }
 
 type GlobalSettings = {
