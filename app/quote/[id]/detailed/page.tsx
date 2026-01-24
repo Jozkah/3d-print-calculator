@@ -98,18 +98,68 @@ export default function DetailedQuotePage() {
     }
 
     if (data.printed_parts && data.printed_parts.length > 0) {
-      const filamentIds = [...new Set(data.printed_parts.map((p: PrintedPart) => p.filament_id))]
-      const { data: filaments } = await supabase.from("filaments").select("id, name").in("id", filamentIds)
+      // Handle both old and new data structures
+      const allFilamentIds: string[] = []
+      data.printed_parts.forEach((p: any) => {
+        // Old structure: filament_id directly on part
+        if (p.filament_id) {
+          allFilamentIds.push(p.filament_id)
+        }
+        // New structure: filaments array
+        if (p.filaments && Array.isArray(p.filaments)) {
+          p.filaments.forEach((f: any) => {
+            if (f.filament_id) {
+              allFilamentIds.push(f.filament_id)
+            }
+          })
+        }
+      })
 
+      const filamentIds = [...new Set(allFilamentIds)]
+      const { data: filaments } = await supabase.from("filaments").select("id, name").in("id", filamentIds)
       const filamentMap = new Map(filaments?.map((f) => [f.id, f.name]) || [])
 
-      const totalGrams = data.printed_parts.reduce((sum: number, p: PrintedPart) => sum + (p.filament_grams || 0), 0)
+      // Calculate total grams considering both structures
+      const totalGrams = data.printed_parts.reduce((sum: number, p: any) => {
+        // Old structure
+        if (p.filament_grams) {
+          return sum + p.filament_grams
+        }
+        // New structure
+        if (p.filaments && Array.isArray(p.filaments)) {
+          const partGrams = p.filaments.reduce((partSum: number, f: any) => partSum + (f.grams || 0), 0)
+          return sum + partGrams
+        }
+        return sum
+      }, 0)
 
-      data.printed_parts = data.printed_parts.map((part: PrintedPart) => ({
-        ...part,
-        material: filamentMap.get(part.filament_id) || "Unknown",
-        part_cost: totalGrams > 0 ? data.total_printing_cost * (part.filament_grams / totalGrams) : 0,
-      }))
+      data.printed_parts = data.printed_parts.map((part: any) => {
+        let materialName = "Unknown"
+        let partGrams = 0
+
+        // Handle old structure
+        if (part.filament_id) {
+          materialName = filamentMap.get(part.filament_id) || "Unknown"
+          partGrams = part.filament_grams || 0
+        }
+        // Handle new structure (multiple filaments per part)
+        else if (part.filaments && Array.isArray(part.filaments) && part.filaments.length > 0) {
+          // Get all filament names for this part
+          const filamentNames = part.filaments
+            .map((f: any) => filamentMap.get(f.filament_id))
+            .filter(Boolean)
+            .join(", ")
+          materialName = filamentNames || "Unknown"
+          partGrams = part.filaments.reduce((sum: number, f: any) => sum + (f.grams || 0), 0)
+        }
+
+        return {
+          ...part,
+          material: materialName,
+          filament_grams: partGrams,
+          part_cost: totalGrams > 0 ? (data.total_printing_cost * partGrams) / totalGrams : 0,
+        }
+      })
     }
 
     setQuote(data)
