@@ -794,6 +794,7 @@ export function ExcelCalculator({
         custom_margin_value: customMargin, // Store the custom margin percentage
         selected_margin_percentage: selectedMargin, // This stores the percentage (30, 40, 50, or 60)
         selected_margin: selectedMargin?.toString() || "0", // Store as string for consistency with quote page
+        final_price: marginInputMode === "targetPrice" && targetPrice > 0 ? targetPrice : null, // Store the actual target price if in targetPrice mode
         ownerA_receives: mode === "business" ? ownerAReceives : null,
         ownerB_receives: mode === "business" ? ownerBReceives : null,
         is_draft: false, // Mark as finalized when saved
@@ -929,6 +930,7 @@ export function ExcelCalculator({
         custom_margin_value: customMargin,
         selected_margin_percentage: selectedMargin,
         selected_margin: selectedMargin?.toString() || "0", // Store as string for consistency
+        final_price: marginInputMode === "targetPrice" && targetPrice > 0 ? targetPrice : null, // Store the actual target price if in targetPrice mode
         ownerA_receives: mode === "business" ? ownerAReceives : null,
         ownerB_receives: mode === "business" ? ownerBReceives : null,
         is_draft: true, // Mark as draft
@@ -2106,7 +2108,9 @@ export function ExcelCalculator({
                           step="1"
                           value={customMargin}
                           onChange={(e) => {
-                            const val = Math.min(99, Math.max(0, Number(e.target.value) || 0))
+                            const inputValue = e.target.value
+                            // Allow empty string or parse as number
+                            const val = inputValue === "" ? 0 : Math.min(99, Math.max(0, Number(inputValue)))
                             setCustomMargin(val)
                             setSelectedMargin(val)
                             setMarginInputMode("percentage") // Ensure we are in percentage mode

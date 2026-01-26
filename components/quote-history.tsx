@@ -665,17 +665,21 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                   <div>
                     <h3 className="text-sm font-semibold text-blue-900 mb-3">Profit Margins</h3>
                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                      {Number(quote.selected_margin_percentage) > 0 &&
+                      {Number(quote.selected_margin_percentage) >= 0 &&
                         Number(quote.selected_margin_percentage) < 29 && (
                           <div className="col-span-2 p-3 rounded-lg border-2 bg-blue-600 border-blue-700 shadow-lg">
                             <div className="text-xs mb-1 text-blue-100">
-                              Custom: {Number(quote.selected_margin_percentage).toFixed(1)}% Margin
+                              {quote.final_price 
+                                ? "Custom Margin" 
+                                : `Custom: ${Number(quote.selected_margin_percentage).toFixed(1)}% Margin`}
                             </div>
                             <div className="text-lg font-semibold text-white">
                               €
-                              {safeFixed(
-                                (quote.landed_cost || 0) / (1 - Number(quote.selected_margin_percentage) / 100),
-                              )}
+                              {quote.final_price 
+                                ? safeFixed(quote.final_price)
+                                : safeFixed(
+                                    (quote.landed_cost || 0) / (1 - Number(quote.selected_margin_percentage) / 100),
+                                  )}
                             </div>
                           </div>
                         )}
@@ -692,12 +696,16 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                         <div
                           className={`text-xs mb-1 ${(Number(quote.selected_margin_percentage) >= 29 && Number(quote.selected_margin_percentage) < 35) || quote.selected_margin === "30" ? "text-blue-100" : "text-gray-600"}`}
                         >
-                          30% Margin
+                          {quote.final_price && (Number(quote.selected_margin_percentage) >= 29 && Number(quote.selected_margin_percentage) < 35)
+                            ? "Custom Margin"
+                            : "30% Margin"}
                         </div>
                         <div
                           className={`text-lg font-semibold ${(Number(quote.selected_margin_percentage) >= 29 && Number(quote.selected_margin_percentage) < 35) || quote.selected_margin === "30" ? "text-white" : "text-green-600"}`}
                         >
-                          €{safeFixed(quote.margin_30)}
+                          €{quote.final_price && (Number(quote.selected_margin_percentage) >= 29 && Number(quote.selected_margin_percentage) < 35)
+                            ? safeFixed(quote.final_price)
+                            : safeFixed(quote.margin_30)}
                         </div>
                       </div>
                       <div
@@ -713,12 +721,16 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                         <div
                           className={`text-xs mb-1 ${(Number(quote.selected_margin_percentage) >= 35 && Number(quote.selected_margin_percentage) < 45) || quote.selected_margin === "40" ? "text-blue-100" : "text-gray-600"}`}
                         >
-                          40% Margin
+                          {quote.final_price && (Number(quote.selected_margin_percentage) >= 35 && Number(quote.selected_margin_percentage) < 45)
+                            ? "Custom Margin"
+                            : "40% Margin"}
                         </div>
                         <div
                           className={`text-lg font-semibold ${(Number(quote.selected_margin_percentage) >= 35 && Number(quote.selected_margin_percentage) < 45) || quote.selected_margin === "40" ? "text-white" : "text-green-600"}`}
                         >
-                          €{safeFixed(quote.margin_40)}
+                          €{quote.final_price && (Number(quote.selected_margin_percentage) >= 35 && Number(quote.selected_margin_percentage) < 45)
+                            ? safeFixed(quote.final_price)
+                            : safeFixed(quote.margin_40)}
                         </div>
                       </div>
                       <div
@@ -734,12 +746,16 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                         <div
                           className={`text-xs mb-1 ${(Number(quote.selected_margin_percentage) >= 45 && Number(quote.selected_margin_percentage) < 55) || quote.selected_margin === "50" ? "text-blue-100" : "text-gray-600"}`}
                         >
-                          50% Margin
+                          {quote.final_price && (Number(quote.selected_margin_percentage) >= 45 && Number(quote.selected_margin_percentage) < 55)
+                            ? "Custom Margin"
+                            : "50% Margin"}
                         </div>
                         <div
                           className={`text-lg font-semibold ${(Number(quote.selected_margin_percentage) >= 45 && Number(quote.selected_margin_percentage) < 55) || quote.selected_margin === "50" ? "text-white" : "text-green-600"}`}
                         >
-                          €{safeFixed(quote.margin_50)}
+                          €{quote.final_price && (Number(quote.selected_margin_percentage) >= 45 && Number(quote.selected_margin_percentage) < 55)
+                            ? safeFixed(quote.final_price)
+                            : safeFixed(quote.margin_50)}
                         </div>
                       </div>
                       <div
@@ -755,24 +771,32 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
                         <div
                           className={`text-xs mb-1 ${(Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 60) || quote.selected_margin === "60" ? "text-blue-100" : "text-gray-600"}`}
                         >
-                          60% Margin
+                          {quote.final_price && (Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 60)
+                            ? "Custom Margin"
+                            : "60% Margin"}
                         </div>
                         <div
                           className={`text-lg font-semibold ${(Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 60) || quote.selected_margin === "60" ? "text-white" : "text-green-600"}`}
                         >
-                          €{safeFixed(quote.margin_60)}
+                          €{quote.final_price && (Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 60)
+                            ? safeFixed(quote.final_price)
+                            : safeFixed(quote.margin_60)}
                         </div>
                       </div>
                       {Number(quote.selected_margin_percentage) > 60 && (
                         <div className="col-span-2 p-3 rounded-lg border-2 bg-blue-600 border-blue-700 shadow-lg">
                           <div className="text-xs mb-1 text-blue-100">
-                            Custom: {Number(quote.selected_margin_percentage).toFixed(1)}% Margin
+                            {quote.final_price 
+                              ? "Custom Margin" 
+                              : `Custom: ${Number(quote.selected_margin_percentage).toFixed(1)}% Margin`}
                           </div>
                           <div className="text-lg font-semibold text-white">
                             €
-                            {safeFixed(
-                              (quote.landed_cost || 0) / (1 - Number(quote.selected_margin_percentage) / 100),
-                            )}
+                            {quote.final_price 
+                              ? safeFixed(quote.final_price)
+                              : safeFixed(
+                                  (quote.landed_cost || 0) / (1 - Number(quote.selected_margin_percentage) / 100),
+                                )}
                           </div>
                         </div>
                       )}
