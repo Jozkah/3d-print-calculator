@@ -17,7 +17,7 @@ export default async function PrintersPage() {
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
-          <h1 className="text-xl sm:text-2xl font-bold text-blue-900 truncate">Manage Printers & Dryers</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-blue-900 truncate">Manage Printers & Machines</h1>
         </div>
       </header>
       <main className="container mx-auto px-4 py-6 sm:py-8">
