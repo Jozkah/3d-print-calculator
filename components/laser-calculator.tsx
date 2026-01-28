@@ -142,7 +142,7 @@ export function LaserCalculator({ type, materials, globalSettings, mode }: Laser
                 disabled={type === "cnc"}
                 className={type === "cnc" ? "bg-gray-100" : ""}
               />
-              {type === "cnc" && <p className="text-sm text-gray-500 mt-1">Fixed at 200W for Makera Carvera AIR</p>}
+              {type === "cnc" && <p className="text-sm text-gray-500 mt-1">Fixed at 200W for Markera CARVERA AIR</p>}
             </div>
 
             {/* Labor Hours */}

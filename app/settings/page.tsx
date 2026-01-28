@@ -32,9 +32,9 @@ export default function SettingsPage() {
             <Link href="/settings/printers">
               <div className="bg-white border-2 border-blue-200 rounded-lg p-6 sm:p-8 hover:border-blue-400 transition-colors">
                 <Printer className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600 mb-3 sm:mb-4" />
-                <h3 className="text-xl sm:text-2xl font-semibold text-blue-900 mb-2">Printers & Dryers</h3>
+                <h3 className="text-xl sm:text-2xl font-semibold text-blue-900 mb-2">Printers & Machines</h3>
                 <p className="text-sm sm:text-base text-blue-600">
-                  Manage your 3D printers, dryers and advanced settings
+                  Manage your 3D printers, CNC machines and advanced settings
                 </p>
               </div>
             </Link>

@@ -436,6 +436,38 @@ export function ExcelCalculator({
     })
   }, [printedParts, filaments])
 
+  // Auto-add "Consumption" entry for CNC Milling
+  useEffect(() => {
+    if (calculatorType === "cnc") {
+      // Calculate total CNC processing time
+      const totalCncTime = printedParts.reduce((sum, part) => {
+        return sum + (part.printing_time_hr || 0)
+      }, 0)
+
+      // Update driedBatches to add/update Consumption entry
+      setDriedBatches((current) => {
+        // Remove old Consumption entries
+        const nonConsumptionBatches = current.filter((batch) => batch.material !== "Consumption")
+
+        // Add Consumption entry if there's CNC time
+        if (totalCncTime > 0) {
+          const consumptionBatch: DriedBatch = {
+            id: `consumption_cnc_${Date.now()}`,
+            material: "Consumption",
+            drying_time_hr: totalCncTime,
+            cost: 0, // Will be calculated based on 1000W/h
+          }
+          return [...nonConsumptionBatches, consumptionBatch]
+        }
+
+        return nonConsumptionBatches
+      })
+    } else {
+      // Remove Consumption entry when not in CNC mode
+      setDriedBatches((current) => current.filter((batch) => batch.material !== "Consumption"))
+    }
+  }, [calculatorType, printedParts])
+
   const totalPrintingCost = printedParts.reduce((sum, part) => {
     if (!part.filaments || part.filaments.length === 0 || !globalSettings) return sum
 
@@ -477,6 +509,11 @@ export function ExcelCalculator({
     const costBufferFactor = 1.3
     const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
 
+    if (batch.material === "Consumption") {
+      // For Consumption (CNC), use 1000W/h
+      const consumptionElectricalCost = (1000 / 1000) * globalSettings.electricity_cost_per_kwh
+      return sum + batch.drying_time_hr * consumptionElectricalCost
+    }
     if (batch.material === "HEATING") {
       // For HEATING, multiply the total dryer cost per hour by 2
       return sum + batch.drying_time_hr * totalDryerCostPerHour * 2
@@ -990,7 +1027,14 @@ export function ExcelCalculator({
             ? "CNC Milled Parts"
             : "Printed Parts (Filament Input)"
 
-  const batchesLabel = calculatorType !== "3d-print" ? "Processing Batches" : "Dried Batches"
+  // Update batches label based on calculator type
+  // For CNC in business mode, use "Additional Machinery", otherwise "Dried Batches"
+  const batchesLabel =
+    calculatorType === "cnc" && mode === "business"
+      ? "Additional Machinery"
+      : calculatorType === "3d-print"
+        ? "Dried Batches"
+        : "Processing Batches"
 
   // ADDED FUNCTIONS FOR FILAMENT MANAGEMENT
   const addFilamentToPart = (partIndex: number) => {
@@ -1295,11 +1339,22 @@ export function ExcelCalculator({
                                 <SelectValue placeholder="Select printer" />
                               </SelectTrigger>
                               <SelectContent>
-                                {printers.map((printer) => (
-                                  <SelectItem key={printer.id} value={printer.id}>
-                                    {printer.name}
-                                  </SelectItem>
-                                ))}
+                                {printers
+                                  .filter((printer) => {
+                                    // Exclude "Markera CARVERA AIR" for personal and business 3d-print mode
+                                    if (
+                                      calculatorType === "3d-print" &&
+                                      printer.name.toLowerCase().includes("carvera")
+                                    ) {
+                                      return false
+                                    }
+                                    return true
+                                  })
+                                  .map((printer) => (
+                                    <SelectItem key={printer.id} value={printer.id}>
+                                      {printer.name}
+                                    </SelectItem>
+                                  ))}
                               </SelectContent>
                             </Select>
                           </td>
@@ -1510,8 +1565,11 @@ export function ExcelCalculator({
           </Card>
 
           {/* Dried Batches / Processing Batches Table */}
-          {/* This section is now shown for all calculator types, with dynamic label */}
-          <Card className="p-6 bg-white border-2 border-blue-300">
+          {/* Hide for laser-engraving, laser-cutting, and stickers */}
+          {calculatorType !== "laser-engraving" &&
+            calculatorType !== "laser-cutting" &&
+            calculatorType !== "stickers" && (
+              <Card className="p-6 bg-white border-2 border-blue-300">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-blue-900">{batchesLabel}</h2>
               <Button
@@ -1553,25 +1611,39 @@ export function ExcelCalculator({
                     const costBufferFactor = 1.3
                     const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
 
-                    const cost =
-                      batch.material === "HEATING"
-                        ? batch.drying_time_hr * totalDryerCostPerHour * 2
-                        : batch.drying_time_hr * totalDryerCostPerHour
+                    // Calculate cost based on material type
+                    let cost = 0
+                    if (batch.material === "Consumption") {
+                      // For Consumption (CNC), use 1000W/h
+                      const consumptionElectricalCost = globalSettings
+                        ? (1000 / 1000) * globalSettings.electricity_cost_per_kwh
+                        : 0
+                      cost = batch.drying_time_hr * consumptionElectricalCost
+                    } else if (batch.material === "HEATING") {
+                      cost = batch.drying_time_hr * totalDryerCostPerHour * 2
+                    } else {
+                      cost = batch.drying_time_hr * totalDryerCostPerHour
+                    }
 
                     return (
                       <tr key={batch.id} className="border-b border-blue-200">
                         <td className="p-2">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                className="w-full justify-between border-blue-200 bg-white"
-                              >
-                                {batch.material || "Select material"}
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
-                            </PopoverTrigger>
+                          {batch.material === "Consumption" ? (
+                            <div className="px-3 py-2 text-blue-900 bg-gray-100 rounded border border-blue-200">
+                              {batch.material} (Auto)
+                            </div>
+                          ) : (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  className="w-full justify-between border-blue-200 bg-white"
+                                >
+                                  {batch.material || "Select material"}
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </PopoverTrigger>
                             <PopoverContent className="w-[300px] p-0">
                               <Command>
                                 <CommandInput placeholder="Search materials..." className="h-9" />
@@ -1619,6 +1691,7 @@ export function ExcelCalculator({
                               </Command>
                             </PopoverContent>
                           </Popover>
+                          )}
                         </td>
                         <td className="p-2">
                           <Input
@@ -1632,18 +1705,24 @@ export function ExcelCalculator({
                               setDriedBatches(updated)
                             }}
                             className="border-blue-200 bg-white"
+                            disabled={batch.material === "Consumption"}
+                            readOnly={batch.material === "Consumption"}
                           />
                         </td>
                         <td className="p-2 text-blue-900 font-semibold">€{cost.toFixed(2)}</td>
                         <td className="p-2">
-                          <Button
-                            onClick={() => setDriedBatches(driedBatches.filter((_, i) => i !== index))}
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {batch.material === "Consumption" ? (
+                            <div className="w-9"></div>
+                          ) : (
+                            <Button
+                              onClick={() => setDriedBatches(driedBatches.filter((_, i) => i !== index))}
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     )
@@ -1655,6 +1734,7 @@ export function ExcelCalculator({
               <span className="text-blue-900 font-bold">Total Drying Cost: €{totalDryingCost.toFixed(2)}</span>
             </div>
           </Card>
+            )}
 
           {/* Materials Table */}
           <Card className="p-6 bg-white border-2 border-blue-300">
