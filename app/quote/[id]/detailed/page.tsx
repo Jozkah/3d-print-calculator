@@ -220,7 +220,7 @@ export default function DetailedQuotePage() {
       </div>
 
       <div className="max-w-6xl mx-auto p-8 print:p-12">
-        <div className="border-b-2 border-gray-900 pb-6 mb-8">
+        <div className="border-b-2 border-gray-900 pb-4 mb-4">
           <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">Detailed Quotation for 3D Printed Parts</h1>
           <div className="text-center space-y-1">
             <p className="text-sm text-gray-600">
@@ -234,42 +234,42 @@ export default function DetailedQuotePage() {
         </div>
 
         {quote.printed_parts && quote.printed_parts.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-3 pb-2 border-b border-gray-300">
               1. Printed Parts & Materials
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse mb-4">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b">Part Name</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b">Material</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Weight (g)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Print Time (h)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-900 border-b">Part Name</th>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-900 border-b">Material</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Weight (g)</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Print Time (h)</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {quote.printed_parts.map((part, index) => (
                     <tr key={part.id || index} className={index % 2 === 0 ? "bg-blue-50" : "bg-white"}>
-                      <td className="py-3 px-4 text-gray-900">{part.name || `Part ${index + 1}`}</td>
-                      <td className="py-3 px-4 text-gray-700">{part.material}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{Math.round(part.filament_grams || 0)}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">
+                      <td className="py-2 px-4 text-gray-900">{part.name || `Part ${index + 1}`}</td>
+                      <td className="py-2 px-4 text-gray-700">{part.material}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{Math.round(part.filament_grams || 0)}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">
                         {part.printing_time_hr?.toFixed(2) || "0.00"}
                       </td>
-                      <td className="py-3 px-4 text-right text-gray-700">{part.part_cost?.toFixed(2) || "0.00"}</td>
-                      <td className="py-3 px-4 text-right font-medium text-gray-900">
+                      <td className="py-2 px-4 text-right text-gray-700">{part.part_cost?.toFixed(2) || "0.00"}</td>
+                      <td className="py-2 px-4 text-right font-medium text-gray-900">
                         {((part.part_cost || 0) * marginMultiplier).toFixed(2)}
                       </td>
                     </tr>
                   ))}
                   <tr className="bg-blue-200 font-semibold">
-                    <td colSpan={5} className="py-3 px-4 text-right text-gray-900">
+                    <td colSpan={5} className="py-2 px-4 text-right text-gray-900">
                       Subtotal:
                     </td>
-                    <td className="py-3 px-4 text-right text-gray-900">
+                    <td className="py-2 px-4 text-right text-gray-900">
                       {(quote.total_printing_cost * marginMultiplier).toFixed(2)} €
                     </td>
                   </tr>
@@ -279,24 +279,24 @@ export default function DetailedQuotePage() {
           </div>
         )}
 
-        <div className="mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">
+        <div className="mb-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-3 pb-2 border-b border-gray-300">
             2. Machine & Operating Costs
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse mb-4">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b">Description</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
+                  <th className="text-left py-2 px-4 font-semibold text-gray-900 border-b">Description</th>
+                  <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
+                  <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="bg-blue-50">
-                  <td className="py-3 px-4 text-gray-900">Machine depreciation and maintenance cost</td>
-                  <td className="py-3 px-4 text-right text-gray-700">{quote.machine_cost?.toFixed(2) || "0.00"}</td>
-                  <td className="py-3 px-4 text-right font-medium text-gray-900">
+                  <td className="py-2 px-4 text-gray-900">Machine depreciation and maintenance cost</td>
+                  <td className="py-2 px-4 text-right text-gray-700">{quote.machine_cost?.toFixed(2) || "0.00"}</td>
+                  <td className="py-2 px-4 text-right font-medium text-gray-900">
                     {((quote.machine_cost || 0) * marginMultiplier).toFixed(2)}
                   </td>
                 </tr>
@@ -306,38 +306,38 @@ export default function DetailedQuotePage() {
         </div>
 
         {quote.dried_batches && quote.dried_batches.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-3 pb-2 border-b border-gray-300">
               3. Filament Drying & Preparation
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse mb-4">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b">Filament</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Drying Time (h)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-900 border-b">Filament</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Drying Time (h)</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {quote.dried_batches.map((batch, index) => (
                     <tr key={batch.id || index} className={index % 2 === 0 ? "bg-blue-50" : "bg-white"}>
-                      <td className="py-3 px-4 text-gray-900">{batch.material}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">
+                      <td className="py-2 px-4 text-gray-900">{batch.material}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">
                         {batch.drying_time_hr?.toFixed(2) || "0.00"}
                       </td>
-                      <td className="py-3 px-4 text-right text-gray-700">{batch.cost?.toFixed(2) || "0.00"}</td>
-                      <td className="py-3 px-4 text-right font-medium text-gray-900">
+                      <td className="py-2 px-4 text-right text-gray-700">{batch.cost?.toFixed(2) || "0.00"}</td>
+                      <td className="py-2 px-4 text-right font-medium text-gray-900">
                         {((batch.cost || 0) * marginMultiplier).toFixed(2)}
                       </td>
                     </tr>
                   ))}
                   <tr className="bg-blue-200 font-semibold">
-                    <td colSpan={3} className="py-3 px-4 text-right text-gray-900">
+                    <td colSpan={3} className="py-2 px-4 text-right text-gray-900">
                       Subtotal:
                     </td>
-                    <td className="py-3 px-4 text-right text-gray-900">
+                    <td className="py-2 px-4 text-right text-gray-900">
                       {(quote.drying_cost * marginMultiplier).toFixed(2)} €
                     </td>
                   </tr>
@@ -348,40 +348,40 @@ export default function DetailedQuotePage() {
         )}
 
         {quote.materials && quote.materials.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-3 pb-2 border-b border-gray-300">
               4. Additional Materials & Hardware
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse mb-4">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b">Item</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Quantity</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Unit Cost (€)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-900 border-b">Item</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Quantity</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Unit Cost (€)</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {quote.materials.map((material, index) => (
                     <tr key={index} className={index % 2 === 0 ? "bg-blue-50" : "bg-white"}>
-                      <td className="py-3 px-4 text-gray-900">{material.name}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{material.quantity}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{material.unit_cost?.toFixed(2) || "0.00"}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">
+                      <td className="py-2 px-4 text-gray-900">{material.name}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{material.quantity}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{material.unit_cost?.toFixed(2) || "0.00"}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">
                         {material.total_cost?.toFixed(2) || "0.00"}
                       </td>
-                      <td className="py-3 px-4 text-right font-medium text-gray-900">
+                      <td className="py-2 px-4 text-right font-medium text-gray-900">
                         {((material.total_cost || 0) * marginMultiplier).toFixed(2)}
                       </td>
                     </tr>
                   ))}
                   <tr className="bg-blue-200 font-semibold">
-                    <td colSpan={4} className="py-3 px-4 text-right text-gray-900">
+                    <td colSpan={4} className="py-2 px-4 text-right text-gray-900">
                       Subtotal:
                     </td>
-                    <td className="py-3 px-4 text-right text-gray-900">
+                    <td className="py-2 px-4 text-right text-gray-900">
                       {(quote.materials_cost * marginMultiplier).toFixed(2)} €
                     </td>
                   </tr>
@@ -392,38 +392,38 @@ export default function DetailedQuotePage() {
         )}
 
         {quote.labor_items && quote.labor_items.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-3 pb-2 border-b border-gray-300">
               5. Labor & Post-Processing
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse mb-4">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b">Action</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Hours</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Rate (€/h)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-900 border-b">Action</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Hours</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Rate (€/h)</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {quote.labor_items.map((labor, index) => (
                     <tr key={index} className={index % 2 === 0 ? "bg-blue-50" : "bg-white"}>
-                      <td className="py-3 px-4 text-gray-900">{labor.action}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{labor.hours?.toFixed(2) || "0.00"}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{labor.hourly_cost?.toFixed(2) || "0.00"}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{labor.total_cost?.toFixed(2) || "0.00"}</td>
-                      <td className="py-3 px-4 text-right font-medium text-gray-900">
+                      <td className="py-2 px-4 text-gray-900">{labor.action}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{labor.hours?.toFixed(2) || "0.00"}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{labor.hourly_cost?.toFixed(2) || "0.00"}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{labor.total_cost?.toFixed(2) || "0.00"}</td>
+                      <td className="py-2 px-4 text-right font-medium text-gray-900">
                         {((labor.total_cost || 0) * marginMultiplier).toFixed(2)}
                       </td>
                     </tr>
                   ))}
                   <tr className="bg-blue-200 font-semibold">
-                    <td colSpan={4} className="py-3 px-4 text-right text-gray-900">
+                    <td colSpan={4} className="py-2 px-4 text-right text-gray-900">
                       Subtotal:
                     </td>
-                    <td className="py-3 px-4 text-right text-gray-900">
+                    <td className="py-2 px-4 text-right text-gray-900">
                       {(quote.labor_cost * marginMultiplier).toFixed(2)} €
                     </td>
                   </tr>
@@ -434,49 +434,49 @@ export default function DetailedQuotePage() {
         )}
 
         {quote.packaging_items && quote.packaging_items.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-3 pb-2 border-b border-gray-300">
               6. Packaging & Shipping Materials
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse mb-4">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b">Item</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Quantity</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Unit Cost (€)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-900 border-b">Item</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Quantity</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Unit Cost (€)</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {quote.packaging_items.map((pkg, index) => (
                     <tr key={index} className={index % 2 === 0 ? "bg-blue-50" : "bg-white"}>
-                      <td className="py-3 px-4 text-gray-900">{pkg.name}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{pkg.quantity}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{pkg.unit_cost?.toFixed(2) || "0.00"}</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{pkg.total_cost?.toFixed(2) || "0.00"}</td>
-                      <td className="py-3 px-4 text-right font-medium text-gray-900">
+                      <td className="py-2 px-4 text-gray-900">{pkg.name}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{pkg.quantity}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{pkg.unit_cost?.toFixed(2) || "0.00"}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{pkg.total_cost?.toFixed(2) || "0.00"}</td>
+                      <td className="py-2 px-4 text-right font-medium text-gray-900">
                         {((pkg.total_cost || 0) * marginMultiplier).toFixed(2)}
                       </td>
                     </tr>
                   ))}
                   {quote.distance_traveled_km > 0 && (
                     <tr className="bg-white">
-                      <td className="py-3 px-4 text-gray-900">Transportation fuel cost</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{quote.distance_traveled_km.toFixed(2)} km</td>
-                      <td className="py-3 px-4 text-right text-gray-700">-</td>
-                      <td className="py-3 px-4 text-right text-gray-700">{quote.fuel_cost?.toFixed(2) || "0.00"}</td>
-                      <td className="py-3 px-4 text-right font-medium text-gray-900">
+                      <td className="py-2 px-4 text-gray-900">Transportation fuel cost</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{quote.distance_traveled_km.toFixed(2)} km</td>
+                      <td className="py-2 px-4 text-right text-gray-700">-</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{quote.fuel_cost?.toFixed(2) || "0.00"}</td>
+                      <td className="py-2 px-4 text-right font-medium text-gray-900">
                         {((quote.fuel_cost || 0) * marginMultiplier).toFixed(2)}
                       </td>
                     </tr>
                   )}
                   <tr className="bg-blue-200 font-semibold">
-                    <td colSpan={4} className="py-3 px-4 text-right text-gray-900">
+                    <td colSpan={4} className="py-2 px-4 text-right text-gray-900">
                       Subtotal:
                     </td>
-                    <td className="py-3 px-4 text-right text-gray-900">
+                    <td className="py-2 px-4 text-right text-gray-900">
                       {((quote.packaging_cost + quote.fuel_cost) * marginMultiplier).toFixed(2)} €
                     </td>
                   </tr>
@@ -486,7 +486,7 @@ export default function DetailedQuotePage() {
           </div>
         )}
 
-        <div className="mb-8 border-t-2 border-gray-900 pt-6">
+        <div className="mb-6 border-t-2 border-gray-900 pt-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Quote Summary</h2>
           <div className="bg-blue-50 p-6 rounded-lg">
             <div className="space-y-3">
