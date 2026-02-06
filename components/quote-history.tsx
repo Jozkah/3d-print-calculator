@@ -114,10 +114,6 @@ function QuoteHistory({
   const { toast } = useToast()
   const router = useRouter()
 
-  console.log("[v0] QuoteHistory - initialClients:", initialClients)
-  console.log("[v0] QuoteHistory - clients state:", clients)
-  console.log("[v0] QuoteHistory - quotes:", quotes.length, "quotes")
-
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [quoteToDelete, setQuoteToDelete] = useState<string | null>(null)
 
@@ -436,11 +432,11 @@ function QuoteHistory({
               </Select>
             </div>
             {/* Client Dropdown */}
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Client:</span>
-              {console.log("[v0] Rendering Client dropdown - clients.length:", clients.length)}
-              <Select
+            {clients.length > 0 && (
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Client:</span>
+                <Select
                   value={clientFilters.length === 1 ? clientFilters[0] : "all"}
                   onValueChange={(value) => {
                     if (value === "all") {
