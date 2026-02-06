@@ -102,19 +102,11 @@ function QuoteHistory({
   printers?: any[],
   filaments?: any[]
 }) {
-  console.log("[v0] QuoteHistory - Received props:")
-  console.log("[v0]   initialClients:", initialClients?.length, "clients", initialClients)
-  console.log("[v0]   initialPrinters:", initialPrinters?.length, "printers")
-  console.log("[v0]   initialFilaments:", initialFilaments?.length, "filaments")
-  
   const [quotes, setQuotes] = useState(initialQuotes)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [printers, setPrinters] = useState<any[]>(initialPrinters)
   const [filaments, setFilaments] = useState<any[]>(initialFilaments)
   const [clients, setClients] = useState<any[]>(initialClients)
-  
-  console.log("[v0] QuoteHistory - State after init:")
-  console.log("[v0]   clients state:", clients?.length, "clients", clients)
   const [statusFilters, setStatusFilters] = useState<string[]>([])
   const [clientFilters, setClientFilters] = useState<string[]>([])
   const [printerFilters, setPrinterFilters] = useState<string[]>([])
@@ -318,11 +310,9 @@ function QuoteHistory({
       if (!statusMatch) return false
     }
 
-    // Client filter - match by client_name to catch both personal and business quotes
+    // Client filter - match by client_id
     if (clientFilters.length > 0) {
-      const selectedClient = clients.find(c => clientFilters.includes(c.id))
-      console.log("[v0] Client filter - selectedClient:", selectedClient, "quote.client_name:", quote.client_name, "match:", quote.client_name === selectedClient?.name)
-      if (!selectedClient || quote.client_name !== selectedClient.name) return false
+      if (!quote.client_id || !clientFilters.includes(quote.client_id)) return false
     }
 
     // Printer filter
@@ -461,8 +451,7 @@ function QuoteHistory({
                     <SelectItem value="all">All Clients</SelectItem>
                     {clients
                       .map((client) => {
-                        const count = quotes.filter((q) => q.client_name === client.name).length
-                        console.log("[v0] Client dropdown - client:", client.name, "count:", count, "matching quotes:", quotes.filter((q) => q.client_name === client.name).map(q => `${q.quote_name} (${q.quote_type})`))
+                        const count = quotes.filter((q) => q.client_id === client.id).length
                         return { client, count }
                       })
                       .filter(({ count }) => count > 0)

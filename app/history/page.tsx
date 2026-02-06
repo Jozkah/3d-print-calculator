@@ -12,11 +12,6 @@ export default async function HistoryPage() {
   const { data: printers } = await supabase.from("printers").select("*")
   const { data: filaments } = await supabase.from("filaments").select("*")
 
-  console.log("[v0] HistoryPage - clients fetched:", clients?.length, "clients")
-  console.log("[v0] HistoryPage - clients data:", clients)
-  console.log("[v0] HistoryPage - printers:", printers?.length, "printers")
-  console.log("[v0] HistoryPage - filaments:", filaments?.length, "filaments")
-
   return (
     <div className="min-h-screen bg-white">
       <header className="border-b-2 border-blue-300 bg-blue-50">
