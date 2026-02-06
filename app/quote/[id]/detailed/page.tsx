@@ -300,6 +300,22 @@ export default function DetailedQuotePage() {
                     {((quote.machine_cost || 0) * marginMultiplier).toFixed(2)}
                   </td>
                 </tr>
+                <tr className="bg-white">
+                  <td className="py-2 px-4 text-gray-900">Electricity cost</td>
+                  <td className="py-2 px-4 text-right text-gray-700">{quote.electricity_cost?.toFixed(2) || "0.00"}</td>
+                  <td className="py-2 px-4 text-right font-medium text-gray-900">
+                    {((quote.electricity_cost || 0) * marginMultiplier).toFixed(2)}
+                  </td>
+                </tr>
+                <tr className="bg-gray-100 font-semibold">
+                  <td className="py-2 px-4 text-gray-900">Subtotal:</td>
+                  <td className="py-2 px-4 text-right text-gray-700">
+                    {((quote.machine_cost || 0) + (quote.electricity_cost || 0)).toFixed(2)}
+                  </td>
+                  <td className="py-2 px-4 text-right text-gray-900">
+                    {(((quote.machine_cost || 0) + (quote.electricity_cost || 0)) * marginMultiplier).toFixed(2)} €
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
