@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Trash2,
   ChevronDown,
@@ -32,6 +33,9 @@ import {
   RefreshCw,
   Copy,
   Filter,
+  User,
+  Printer,
+  Package,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -306,9 +310,10 @@ function QuoteHistory({
       if (!statusMatch) return false
     }
 
-    // Client filter
+    // Client filter - match by client_name to catch both personal and business quotes
     if (clientFilters.length > 0) {
-      if (!quote.client_id || !clientFilters.includes(quote.client_id)) return false
+      const selectedClient = clients.find(c => clientFilters.includes(c.id))
+      if (!selectedClient || quote.client_name !== selectedClient.name) return false
     }
 
     // Printer filter
@@ -369,9 +374,9 @@ function QuoteHistory({
           </h2>
         </div>
 
-        {/* Filter Buttons */}
+        {/* Filter Section */}
         <div className="space-y-3">
-          {/* Status Filters */}
+          {/* Status Filters - Keep as is */}
           <div className="flex flex-wrap items-center gap-2">
             <Filter className="h-4 w-4 text-gray-500" />
             <span className="text-sm font-medium text-gray-700 mr-2">Status:</span>
@@ -416,80 +421,125 @@ function QuoteHistory({
             })}
           </div>
 
-          {/* Client Filters */}
-          {clients.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-gray-700 mr-2">Client:</span>
-              {clients.map((client) => {
-                const count = quotes.filter((q) => q.client_id === client.id).length
-                if (count === 0) return null
-                return (
-                  <Button
-                    key={client.id}
-                    variant={clientFilters.includes(client.id) ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleClientFilter(client.id)}
-                    className={clientFilters.includes(client.id) ? "bg-green-600 hover:bg-green-700" : ""}
-                  >
-                    {client.name} ({count})
-                  </Button>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Printer Filters */}
-          {printers.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-gray-700 mr-2">Machine:</span>
-              {printers.map((printer) => {
-                const count = quotes.filter((q) => 
-                  q.printed_parts?.some((part: any) => part.printer_id === printer.id)
-                ).length
-                if (count === 0) return null
-                return (
-                  <Button
-                    key={printer.id}
-                    variant={printerFilters.includes(printer.id) ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => togglePrinterFilter(printer.id)}
-                    className={printerFilters.includes(printer.id) ? "bg-purple-600 hover:bg-purple-700" : ""}
-                  >
-                    {printer.name} ({count})
-                  </Button>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Filament Filters */}
-          {filaments.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-gray-700 mr-2">Material:</span>
-              {filaments.map((filament) => {
-                const count = quotes.filter((q) => 
-                  q.printed_parts?.some((part: any) => {
-                    if (part.filaments && Array.isArray(part.filaments)) {
-                      return part.filaments.some((f: any) => f.filament_id === filament.id)
+          {/* Dropdown Filters Row */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Client Dropdown */}
+            {clients.length > 0 && (
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Client:</span>
+                <Select
+                  value={clientFilters.length === 1 ? clientFilters[0] : "all"}
+                  onValueChange={(value) => {
+                    if (value === "all") {
+                      setClientFilters([])
+                    } else {
+                      setClientFilters([value])
                     }
-                    return part.filament_id === filament.id
-                  })
-                ).length
-                if (count === 0) return null
-                return (
-                  <Button
-                    key={filament.id}
-                    variant={filamentFilters.includes(filament.id) ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleFilamentFilter(filament.id)}
-                    className={filamentFilters.includes(filament.id) ? "bg-orange-600 hover:bg-orange-700" : ""}
-                  >
-                    {filament.name} ({count})
-                  </Button>
-                )
-              })}
-            </div>
-          )}
+                  }}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All Clients" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clients</SelectItem>
+                    {clients
+                      .map((client) => {
+                        const count = quotes.filter((q) => q.client_name === client.name).length
+                        return { client, count }
+                      })
+                      .filter(({ count }) => count > 0)
+                      .map(({ client, count }) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name} ({count})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Machine Dropdown */}
+            {printers.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Printer className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Machine:</span>
+                <Select
+                  value={printerFilters.length === 1 ? printerFilters[0] : "all"}
+                  onValueChange={(value) => {
+                    if (value === "all") {
+                      setPrinterFilters([])
+                    } else {
+                      setPrinterFilters([value])
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All Machines" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Machines</SelectItem>
+                    {printers
+                      .map((printer) => {
+                        const count = quotes.filter((q) => 
+                          q.printed_parts?.some((part: any) => part.printer_id === printer.id)
+                        ).length
+                        return { printer, count }
+                      })
+                      .filter(({ count }) => count > 0)
+                      .map(({ printer, count }) => (
+                        <SelectItem key={printer.id} value={printer.id}>
+                          {printer.name} ({count})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Material Dropdown */}
+            {filaments.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Material:</span>
+                <Select
+                  value={filamentFilters.length === 1 ? filamentFilters[0] : "all"}
+                  onValueChange={(value) => {
+                    if (value === "all") {
+                      setFilamentFilters([])
+                    } else {
+                      setFilamentFilters([value])
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All Materials" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Materials</SelectItem>
+                    {filaments
+                      .map((filament) => {
+                        const count = quotes.filter((q) => 
+                          q.printed_parts?.some((part: any) => {
+                            if (part.filaments && Array.isArray(part.filaments)) {
+                              return part.filaments.some((f: any) => f.filament_id === filament.id)
+                            }
+                            return part.filament_id === filament.id
+                          })
+                        ).length
+                        return { filament, count }
+                      })
+                      .filter(({ count }) => count > 0)
+                      .map(({ filament, count }) => (
+                        <SelectItem key={filament.id} value={filament.id}>
+                          {filament.name} ({count})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
