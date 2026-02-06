@@ -127,7 +127,7 @@ export default function QuotePage() {
       {/* Quotation Document */}
       <div className="max-w-4xl mx-auto p-8 print:p-12">
         {/* Header */}
-        <div className="border-b-2 border-gray-900 pb-4 mb-4">
+        <div className="border-b-2 border-gray-900 pb-6 mb-8">
           <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">Quotation for 3D Printed Parts</h1>
           <div className="text-center space-y-1">
             <p className="text-sm text-gray-600">
@@ -141,102 +141,79 @@ export default function QuotePage() {
         </div>
 
         {/* Cost Breakdown Table */}
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-3 pb-2 border-b border-gray-300">Cost Breakdown</h2>
+        <div className="mb-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">Cost Breakdown</h2>
           <table className="w-full border-collapse mb-4">
             <thead>
               <tr className="bg-gray-100">
-                <th className="text-left py-2 px-4 font-semibold text-gray-900 border-b">Category</th>
-                <th className="text-left py-2 px-4 font-semibold text-gray-900 border-b">Description</th>
-                <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Total (€)</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b">Category</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b">Description</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Total (€)</th>
               </tr>
             </thead>
             <tbody>
               <tr className="bg-blue-50">
-                <td className="py-2 px-4 font-medium text-gray-900">3D Printing & Materials</td>
-                <td className="py-2 px-4 text-gray-700">Printing time, machine cost and material usage</td>
-                <td className="py-2 px-4 text-right font-medium text-gray-900">
+                <td className="py-4 px-4 font-medium text-gray-900">3D Printing & Materials</td>
+                <td className="py-4 px-4 text-gray-700">Printing time, machine cost and material usage</td>
+                <td className="py-4 px-4 text-right font-medium text-gray-900">
                   {printingAndMaterialsWithMargin.toFixed(2)} €
                 </td>
               </tr>
 
               <tr className="bg-white">
-                <td className="py-2 px-4 font-medium text-gray-900">Labor</td>
-                <td className="py-2 px-4 text-gray-700">Assembly, post-processing, or design work</td>
-                <td className="py-2 px-4 text-right font-medium text-gray-900">{laborWithMargin.toFixed(2)} €</td>
+                <td className="py-4 px-4 font-medium text-gray-900">Labor</td>
+                <td className="py-4 px-4 text-gray-700">Assembly, post-processing, or design work</td>
+                <td className="py-4 px-4 text-right font-medium text-gray-900">{laborWithMargin.toFixed(2)} €</td>
               </tr>
 
               <tr className="bg-blue-50">
-                <td className="py-2 px-4 font-medium text-gray-900">Packaging, Shipping & Transport</td>
-                <td className="py-2 px-4 text-gray-700">Packaging materials, courier, and transportation</td>
-                <td className="py-2 px-4 text-right font-medium text-gray-900">{packagingWithMargin.toFixed(2)} €</td>
+                <td className="py-4 px-4 font-medium text-gray-900">Packaging, Shipping & Transport</td>
+                <td className="py-4 px-4 text-gray-700">Packaging materials, courier, and transportation</td>
+                <td className="py-4 px-4 text-right font-medium text-gray-900">{packagingWithMargin.toFixed(2)} €</td>
               </tr>
 
               {quote.is_emergency && emergencyFeeCost > 0 && (
                 <tr className="bg-white">
-                  <td className="py-2 px-4 font-medium text-gray-900">Emergency Fee</td>
-                  <td className="py-2 px-4 text-gray-700">Urgent order surcharge</td>
-                  <td className="py-2 px-4 text-right font-medium text-gray-900">{emergencyFeeCost.toFixed(2)} €</td>
+                  <td className="py-4 px-4 font-medium text-gray-900">Emergency Fee</td>
+                  <td className="py-4 px-4 text-gray-700">Urgent order surcharge</td>
+                  <td className="py-4 px-4 text-right font-medium text-gray-900">{emergencyFeeCost.toFixed(2)} €</td>
                 </tr>
               )}
 
               {/* VAT - Only for business quotes */}
               {isBusinessQuote && (
                 <tr className="bg-blue-50">
-                  <td className="py-2 px-4 font-medium text-gray-900" colSpan={2}>
-                    <div className="text-right">VAT (23%)</div>
-                  </td>
-                  <td className="py-2 px-4 text-right font-medium text-gray-900">{vatAmount.toFixed(2)} €</td>
+                  <td className="py-4 px-4 font-medium text-gray-900">VAT (23%)</td>
+                  <td className="py-4 px-4 text-gray-700"></td>
+                  <td className="py-4 px-4 text-right font-medium text-gray-900">{vatAmount.toFixed(2)} €</td>
                 </tr>
               )}
 
               {/* Total */}
               <tr className="bg-blue-200 border-t-2 border-gray-300 font-semibold">
-                <td className="py-2 px-4 text-gray-900" colSpan={2}>
-                  <div className="text-right text-lg">Total:</div>
-                </td>
-                <td className="py-2 px-4 text-right text-gray-900 text-lg">{finalPrice.toFixed(2)} €</td>
+                <td className="py-4 px-4 text-gray-900">Total:</td>
+                <td className="py-4 px-4 text-gray-700"></td>
+                <td className="py-4 px-4 text-right text-gray-900 text-lg">{finalPrice.toFixed(2)} €</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         {/* Quote Summary */}
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-3 pb-2 border-b border-gray-300">Quote Summary</h2>
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="space-y-2">
-              <div className="flex justify-between text-gray-700">
-                <span>Subtotal (with {quote.selected_margin}% margin):</span>
-                <span className="font-semibold">{priceWithMargin.toFixed(2)} €</span>
-              </div>
-
-              {quote.is_emergency && emergencyFeeCost > 0 && (
-                <div className="flex justify-between text-red-700">
-                  <span>Emergency Fee:</span>
-                  <span className="font-semibold">{emergencyFeeCost.toFixed(2)} €</span>
-                </div>
-              )}
-
-              {isBusinessQuote && (
-                <div className="flex justify-between text-gray-700">
-                  <span>VAT (23%):</span>
-                  <span className="font-semibold">{vatAmount.toFixed(2)} €</span>
-                </div>
-              )}
-
-              <div className="flex justify-between text-gray-900 text-2xl font-bold border-t-2 border-gray-300 pt-3">
-                <span>Total:</span>
-                <span>{finalPrice.toFixed(2)} €</span>
-              </div>
+        <div className="mb-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">Quote Summary</h2>
+          <div className="bg-blue-50 p-6 rounded-lg">
+            <div className="flex justify-between text-gray-900 text-2xl font-bold">
+              <span>Total:</span>
+              <span>{finalPrice.toFixed(2)} €</span>
             </div>
           </div>
         </div>
 
         {/* Order Contents & Details Section */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
           <h3 className="font-semibold text-gray-900 mb-2">Notes:</h3>
-          <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
+          <ul className="text-sm text-gray-700 space-y-2 list-disc list-inside">
             <li>
               This quotation includes all costs associated with the 3D printing service, including materials, machine
               time, labor, packaging, and delivery.
@@ -257,7 +234,7 @@ export default function QuotePage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-6 pt-4 border-t border-gray-300 text-center text-xs text-gray-600">
+        <div className="mt-12 pt-6 border-t border-gray-300 text-center text-xs text-gray-600">
           <p className="font-semibold">Thank you for your business</p>
           <p className="mt-2">
             For questions about this quotation, please contact us with reference: {quote.quote_name}
