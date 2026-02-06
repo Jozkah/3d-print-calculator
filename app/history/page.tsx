@@ -7,7 +7,10 @@ import { ArrowLeft } from "lucide-react"
 export default async function HistoryPage() {
   const supabase = await createClient()
 
-  const { data: quotes } = await supabase.from("quotes").select("*").order("created_at", { ascending: false })
+  const { data: quotes } = await supabase.from("quotes").select("*, clients(name)").order("created_at", { ascending: false })
+  const { data: clients } = await supabase.from("clients").select("*")
+  const { data: printers } = await supabase.from("printers").select("*")
+  const { data: filaments } = await supabase.from("filaments").select("*")
 
   return (
     <div className="min-h-screen bg-white">
@@ -23,7 +26,7 @@ export default async function HistoryPage() {
       </header>
 
       <main className="container mx-auto px-4 py-6 sm:py-8">
-        <QuoteHistory quotes={quotes || []} />
+        <QuoteHistory quotes={quotes || []} clients={clients || []} printers={printers || []} filaments={filaments || []} />
       </main>
     </div>
   )
