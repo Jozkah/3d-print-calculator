@@ -183,18 +183,16 @@ export default function QuotePage() {
               {/* VAT - Only for business quotes */}
               {isBusinessQuote && (
                 <tr className="bg-blue-50">
-                  <td className="py-2 px-4 font-medium text-gray-900" colSpan={2}>
-                    <div className="text-right">VAT (23%)</div>
-                  </td>
+                  <td className="py-2 px-4 font-medium text-gray-900">VAT (23%)</td>
+                  <td className="py-2 px-4 text-gray-700"></td>
                   <td className="py-2 px-4 text-right font-medium text-gray-900">{vatAmount.toFixed(2)} €</td>
                 </tr>
               )}
 
               {/* Total */}
               <tr className="bg-blue-200 border-t-2 border-gray-300 font-semibold">
-                <td className="py-2 px-4 text-gray-900" colSpan={2}>
-                  <div className="text-right text-lg">Total:</div>
-                </td>
+                <td className="py-2 px-4 text-gray-900 text-lg">Total:</td>
+                <td className="py-2 px-4 text-gray-700"></td>
                 <td className="py-2 px-4 text-right text-gray-900 text-lg">{finalPrice.toFixed(2)} €</td>
               </tr>
             </tbody>
@@ -205,30 +203,9 @@ export default function QuotePage() {
         <div className="mb-6">
           <h2 className="text-xl font-bold text-gray-900 mb-3 pb-2 border-b border-gray-300">Quote Summary</h2>
           <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="space-y-2">
-              <div className="flex justify-between text-gray-700">
-                <span>Subtotal (with {quote.selected_margin}% margin):</span>
-                <span className="font-semibold">{priceWithMargin.toFixed(2)} €</span>
-              </div>
-
-              {quote.is_emergency && emergencyFeeCost > 0 && (
-                <div className="flex justify-between text-red-700">
-                  <span>Emergency Fee:</span>
-                  <span className="font-semibold">{emergencyFeeCost.toFixed(2)} €</span>
-                </div>
-              )}
-
-              {isBusinessQuote && (
-                <div className="flex justify-between text-gray-700">
-                  <span>VAT (23%):</span>
-                  <span className="font-semibold">{vatAmount.toFixed(2)} €</span>
-                </div>
-              )}
-
-              <div className="flex justify-between text-gray-900 text-2xl font-bold border-t-2 border-gray-300 pt-3">
-                <span>Total:</span>
-                <span>{finalPrice.toFixed(2)} €</span>
-              </div>
+            <div className="flex justify-between text-gray-900 text-2xl font-bold">
+              <span>Total:</span>
+              <span>{finalPrice.toFixed(2)} €</span>
             </div>
           </div>
         </div>
