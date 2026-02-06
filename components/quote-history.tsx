@@ -375,27 +375,8 @@ function QuoteHistory({
 
         {/* Filter Section */}
         <div className="space-y-3">
-          {/* Clear All Filters Button */}
-          {(statusFilters.length > 0 || clientFilters.length > 0 || printerFilters.length > 0 || filamentFilters.length > 0) && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setStatusFilters([])
-                  setClientFilters([])
-                  setPrinterFilters([])
-                  setFilamentFilters([])
-                }}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                Clear All Filters
-              </Button>
-            </div>
-          )}
-
           {/* Dropdown Filters Row */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 justify-between">
             {/* Status Dropdown */}
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-gray-500" />
@@ -543,6 +524,25 @@ function QuoteHistory({
                       ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+            
+            {/* Clear All Filters Button */}
+            {(statusFilters.length > 0 || clientFilters.length > 0 || printerFilters.length > 0 || filamentFilters.length > 0) && (
+              <div className="ml-auto">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setStatusFilters([])
+                    setClientFilters([])
+                    setPrinterFilters([])
+                    setFilamentFilters([])
+                  }}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  Clear All Filters
+                </Button>
               </div>
             )}
           </div>
