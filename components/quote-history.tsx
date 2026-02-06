@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Trash2,
   ChevronDown,
@@ -32,6 +33,9 @@ import {
   RefreshCw,
   Copy,
   Filter,
+  User,
+  Printer,
+  Package,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -41,6 +45,8 @@ type Quote = {
   quote_type: string
   quote_name: string
   client_name: string // Added client_name field
+  client_id?: string // Added client_id field
+  printer_id?: string // Added printer_id field
   printed_parts: any[]
   dried_batches: any[]
   materials: any[]
@@ -85,12 +91,26 @@ const safeFixed = (value: any, decimals = 2) => {
   return (value ?? 0).toFixed(decimals)
 }
 
-function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
+function QuoteHistory({ 
+  quotes: initialQuotes, 
+  clients: initialClients = [],
+  printers: initialPrinters = [],
+  filaments: initialFilaments = []
+}: { 
+  quotes: Quote[],
+  clients?: any[],
+  printers?: any[],
+  filaments?: any[]
+}) {
   const [quotes, setQuotes] = useState(initialQuotes)
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [printers, setPrinters] = useState<any[]>([])
-  const [filaments, setFilaments] = useState<any[]>([])
+  const [printers, setPrinters] = useState<any[]>(initialPrinters)
+  const [filaments, setFilaments] = useState<any[]>(initialFilaments)
+  const [clients, setClients] = useState<any[]>(initialClients)
   const [statusFilters, setStatusFilters] = useState<string[]>([])
+  const [clientFilters, setClientFilters] = useState<string[]>([])
+  const [printerFilters, setPrinterFilters] = useState<string[]>([])
+  const [filamentFilters, setFilamentFilters] = useState<string[]>([])
   const { toast } = useToast()
   const router = useRouter()
 
@@ -146,13 +166,23 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
   useEffect(() => {
     const loadData = async () => {
       const supabase = createClient()
-      const { data: printersData } = await supabase.from("printers").select("*")
-      const { data: filamentsData } = await supabase.from("filaments").select("*")
-      if (printersData) setPrinters(printersData)
-      if (filamentsData) setFilaments(filamentsData)
+      
+      // Only fetch if not provided via props
+      if (initialPrinters.length === 0) {
+        const { data: printersData } = await supabase.from("printers").select("*")
+        if (printersData) setPrinters(printersData)
+      }
+      if (initialFilaments.length === 0) {
+        const { data: filamentsData } = await supabase.from("filaments").select("*")
+        if (filamentsData) setFilaments(filamentsData)
+      }
+      if (initialClients.length === 0) {
+        const { data: clientsData } = await supabase.from("clients").select("*")
+        if (clientsData) setClients(clientsData)
+      }
     }
     loadData()
-  }, [])
+  }, [initialPrinters.length, initialFilaments.length, initialClients.length])
 
   const handleDelete = async (id: string) => {
     setQuoteToDelete(id)
@@ -245,16 +275,72 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
     }
   }
 
-  // Filter quotes based on selected statuses
+  const toggleClientFilter = (clientId: string) => {
+    if (clientFilters.includes(clientId)) {
+      setClientFilters(clientFilters.filter((f) => f !== clientId))
+    } else {
+      setClientFilters([...clientFilters, clientId])
+    }
+  }
+
+  const togglePrinterFilter = (printerId: string) => {
+    if (printerFilters.includes(printerId)) {
+      setPrinterFilters(printerFilters.filter((f) => f !== printerId))
+    } else {
+      setPrinterFilters([...printerFilters, printerId])
+    }
+  }
+
+  const toggleFilamentFilter = (filamentId: string) => {
+    if (filamentFilters.includes(filamentId)) {
+      setFilamentFilters(filamentFilters.filter((f) => f !== filamentId))
+    } else {
+      setFilamentFilters([...filamentFilters, filamentId])
+    }
+  }
+
+  // Filter quotes based on selected statuses, clients, printers, and filaments
   const filteredQuotes = quotes.filter((quote) => {
-    // If no filters selected, show all
-    if (statusFilters.length === 0) return true
-    
-    // Check if any of the selected filters match
-    return statusFilters.some((filter) => {
-      if (filter === "draft") return quote.is_draft
-      return quote.status === filter
-    })
+    // Status filter
+    if (statusFilters.length > 0) {
+      const statusMatch = statusFilters.some((filter) => {
+        if (filter === "draft") return quote.is_draft
+        return quote.status === filter
+      })
+      if (!statusMatch) return false
+    }
+
+    // Client filter - match by client_id
+    if (clientFilters.length > 0) {
+      if (!quote.client_id || !clientFilters.includes(quote.client_id)) return false
+    }
+
+    // Printer filter
+    if (printerFilters.length > 0) {
+      // Check if any part uses one of the filtered printers
+      const hasPrinter = quote.printed_parts?.some((part: any) => 
+        part.printer_id && printerFilters.includes(part.printer_id)
+      )
+      if (!hasPrinter) return false
+    }
+
+    // Filament filter
+    if (filamentFilters.length > 0) {
+      // Check if any part uses one of the filtered filaments
+      const hasFilament = quote.printed_parts?.some((part: any) => {
+        if (part.filaments && Array.isArray(part.filaments)) {
+          // Multi-filament format
+          return part.filaments.some((f: any) => f.filament_id && filamentFilters.includes(f.filament_id))
+        } else if (part.filament_id) {
+          // Single filament format
+          return filamentFilters.includes(part.filament_id)
+        }
+        return false
+      })
+      if (!hasFilament) return false
+    }
+
+    return true
   })
 
   if (quotes.length === 0) {
@@ -287,44 +373,179 @@ function QuoteHistory({ quotes: initialQuotes }: { quotes: Quote[] }) {
           </h2>
         </div>
 
-        {/* Filter Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Filter className="h-4 w-4 text-gray-500" />
-          <span className="text-sm text-gray-600 mr-2">Filter:</span>
-          {statusFilters.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setStatusFilters([])}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-            >
-              Clear All
-            </Button>
-          )}
-          <Button
-            variant={statusFilters.includes("draft") ? "default" : "outline"}
-            size="sm"
-            onClick={() => toggleFilter("draft")}
-            className={statusFilters.includes("draft") ? "bg-blue-600 hover:bg-blue-700" : ""}
-          >
-            Draft ({quotes.filter((q) => q.is_draft).length})
-          </Button>
-          {Object.entries(STATUS_CONFIG).map(([key, config]) => {
-            const Icon = config.icon
-            const count = quotes.filter((q) => q.status === key).length
-            return (
-              <Button
-                key={key}
-                variant={statusFilters.includes(key) ? "default" : "outline"}
-                size="sm"
-                onClick={() => toggleFilter(key)}
-                className={statusFilters.includes(key) ? "bg-blue-600 hover:bg-blue-700" : ""}
+        {/* Filter Section */}
+        <div className="space-y-3">
+          {/* Dropdown Filters Row */}
+          <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 flex-1">
+              {/* Status Dropdown */}
+              <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Status:</span>
+              <Select
+                value={statusFilters.length === 1 ? statusFilters[0] : "all"}
+                onValueChange={(value) => {
+                  if (value === "all") {
+                    setStatusFilters([])
+                  } else {
+                    setStatusFilters([value])
+                  }
+                }}
               >
-                <Icon className="h-3 w-3 mr-1" />
-                {config.label} ({count})
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Any Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any Status</SelectItem>
+                  <SelectItem value="draft">
+                    Draft ({quotes.filter((q) => q.is_draft).length})
+                  </SelectItem>
+                  {Object.entries(STATUS_CONFIG).map(([key, config]) => {
+                    const count = quotes.filter((q) => q.status === key).length
+                    return (
+                      <SelectItem key={key} value={key}>
+                        {config.label} ({count})
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Client Dropdown */}
+            {clients.length > 0 && (
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Client:</span>
+                <Select
+                  value={clientFilters.length === 1 ? clientFilters[0] : "all"}
+                  onValueChange={(value) => {
+                    if (value === "all") {
+                      setClientFilters([])
+                    } else {
+                      setClientFilters([value])
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All Clients" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clients</SelectItem>
+                    {clients
+                      .map((client) => {
+                        const count = quotes.filter((q) => q.client_id === client.id).length
+                        return { client, count }
+                      })
+                      .filter(({ count }) => count > 0)
+                      .map(({ client, count }) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name} ({count})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Machine Dropdown */}
+            {printers.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Printer className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Machine:</span>
+                <Select
+                  value={printerFilters.length === 1 ? printerFilters[0] : "all"}
+                  onValueChange={(value) => {
+                    if (value === "all") {
+                      setPrinterFilters([])
+                    } else {
+                      setPrinterFilters([value])
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All Machines" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Machines</SelectItem>
+                    {printers
+                      .map((printer) => {
+                        const count = quotes.filter((q) => 
+                          q.printed_parts?.some((part: any) => part.printer_id === printer.id)
+                        ).length
+                        return { printer, count }
+                      })
+                      .filter(({ count }) => count > 0)
+                      .map(({ printer, count }) => (
+                        <SelectItem key={printer.id} value={printer.id}>
+                          {printer.name} ({count})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Material Dropdown */}
+            {filaments.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Material:</span>
+                <Select
+                  value={filamentFilters.length === 1 ? filamentFilters[0] : "all"}
+                  onValueChange={(value) => {
+                    if (value === "all") {
+                      setFilamentFilters([])
+                    } else {
+                      setFilamentFilters([value])
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All Materials" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Materials</SelectItem>
+                    {filaments
+                      .map((filament) => {
+                        const count = quotes.filter((q) => 
+                          q.printed_parts?.some((part: any) => {
+                            if (part.filaments && Array.isArray(part.filaments)) {
+                              return part.filaments.some((f: any) => f.filament_id === filament.id)
+                            }
+                            return part.filament_id === filament.id
+                          })
+                        ).length
+                        return { filament, count }
+                      })
+                      .filter(({ count }) => count > 0)
+                      .map(({ filament, count }) => (
+                        <SelectItem key={filament.id} value={filament.id}>
+                          {filament.name} ({count})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            </div>
+            
+            {/* Clear All Filters Button */}
+            {(statusFilters.length > 0 || clientFilters.length > 0 || printerFilters.length > 0 || filamentFilters.length > 0) && (
+              <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setStatusFilters([])
+                    setClientFilters([])
+                    setPrinterFilters([])
+                    setFilamentFilters([])
+                  }}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                Clear All Filters
               </Button>
-            )
-          })}
+            )}
+          </div>
         </div>
       </div>
 
