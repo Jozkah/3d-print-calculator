@@ -220,7 +220,7 @@ export default function DetailedQuotePage() {
       </div>
 
       <div className="max-w-6xl mx-auto p-8 print:p-12">
-        <div className="border-b-2 border-gray-900 pb-6 mb-8">
+        <div className="border-b-2 border-gray-900 pb-4 mb-4">
           <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">Detailed Quotation for 3D Printed Parts</h1>
           <div className="text-center space-y-1">
             <p className="text-sm text-gray-600">
@@ -486,76 +486,35 @@ export default function DetailedQuotePage() {
           </div>
         )}
 
-        <div className="mb-8 border-t-2 border-gray-900 pt-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-300">Cost Summary</h2>
-          <table className="w-full border-collapse mb-4">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b">Category</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">Base Cost (€)</th>
-                <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b">With Margin (€)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="bg-blue-50">
-                <td className="py-3 px-4 font-medium text-gray-900">Printing & Materials</td>
-                <td className="py-3 px-4 text-right text-gray-700">{quote.total_printing_cost.toFixed(2)}</td>
-                <td className="py-3 px-4 text-right font-medium text-gray-900">{(quote.total_printing_cost * marginMultiplier).toFixed(2)}</td>
-              </tr>
-              <tr className="bg-white">
-                <td className="py-3 px-4 font-medium text-gray-900">Machine & Operating Costs</td>
-                <td className="py-3 px-4 text-right text-gray-700">{(quote.machine_cost || 0).toFixed(2)}</td>
-                <td className="py-3 px-4 text-right font-medium text-gray-900">{((quote.machine_cost || 0) * marginMultiplier).toFixed(2)}</td>
-              </tr>
-              {(quote.drying_cost || 0) > 0 && (
-                <tr className="bg-blue-50">
-                  <td className="py-3 px-4 font-medium text-gray-900">Filament Drying & Preparation</td>
-                  <td className="py-3 px-4 text-right text-gray-700">{quote.drying_cost.toFixed(2)}</td>
-                  <td className="py-3 px-4 text-right font-medium text-gray-900">{(quote.drying_cost * marginMultiplier).toFixed(2)}</td>
-                </tr>
-              )}
-              {(quote.materials_cost || 0) > 0 && (
-                <tr className="bg-white">
-                  <td className="py-3 px-4 font-medium text-gray-900">Additional Materials & Hardware</td>
-                  <td className="py-3 px-4 text-right text-gray-700">{quote.materials_cost.toFixed(2)}</td>
-                  <td className="py-3 px-4 text-right font-medium text-gray-900">{(quote.materials_cost * marginMultiplier).toFixed(2)}</td>
-                </tr>
-              )}
-              {(quote.labor_cost || 0) > 0 && (
-                <tr className="bg-blue-50">
-                  <td className="py-3 px-4 font-medium text-gray-900">Labor & Post-Processing</td>
-                  <td className="py-3 px-4 text-right text-gray-700">{quote.labor_cost.toFixed(2)}</td>
-                  <td className="py-3 px-4 text-right font-medium text-gray-900">{(quote.labor_cost * marginMultiplier).toFixed(2)}</td>
-                </tr>
-              )}
-              {((quote.packaging_cost || 0) + (quote.fuel_cost || 0)) > 0 && (
-                <tr className="bg-white">
-                  <td className="py-3 px-4 font-medium text-gray-900">Packaging & Transportation</td>
-                  <td className="py-3 px-4 text-right text-gray-700">{((quote.packaging_cost || 0) + (quote.fuel_cost || 0)).toFixed(2)}</td>
-                  <td className="py-3 px-4 text-right font-medium text-gray-900">{(((quote.packaging_cost || 0) + (quote.fuel_cost || 0)) * marginMultiplier).toFixed(2)}</td>
-                </tr>
-              )}
+        <div className="mb-6 border-t-2 border-gray-900 pt-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Quote Summary</h2>
+          <div className="bg-blue-50 p-6 rounded-lg">
+            <div className="space-y-3">
+              <div className="flex justify-between text-gray-700">
+                <span>Subtotal (with {quote.selected_margin}% margin):</span>
+                <span className="font-semibold">{priceWithMargin.toFixed(2)} €</span>
+              </div>
+
               {quote.is_emergency && emergencyFeeCost > 0 && (
-                <tr className="bg-blue-50">
-                  <td className="py-3 px-4 font-medium text-gray-900">Emergency Fee</td>
-                  <td className="py-3 px-4 text-right text-gray-700">-</td>
-                  <td className="py-3 px-4 text-right font-medium text-gray-900">{emergencyFeeCost.toFixed(2)}</td>
-                </tr>
+                <div className="flex justify-between text-red-700">
+                  <span>Emergency Fee:</span>
+                  <span className="font-semibold">{emergencyFeeCost.toFixed(2)} €</span>
+                </div>
               )}
+
               {isBusinessQuote && (
-                <tr className="bg-white">
-                  <td className="py-3 px-4 font-medium text-gray-900">VAT (23%)</td>
-                  <td className="py-3 px-4 text-right text-gray-700">-</td>
-                  <td className="py-3 px-4 text-right font-medium text-gray-900">{vatAmount.toFixed(2)}</td>
-                </tr>
+                <div className="flex justify-between text-gray-700">
+                  <span>VAT (23%):</span>
+                  <span className="font-semibold">{vatAmount.toFixed(2)} €</span>
+                </div>
               )}
-              <tr className="bg-blue-200 border-t-2 border-gray-300 font-semibold">
-                <td className="py-3 px-4 text-gray-900 text-lg">Total:</td>
-                <td className="py-3 px-4 text-gray-700"></td>
-                <td className="py-3 px-4 text-right text-gray-900 text-lg">{finalPrice.toFixed(2)} €</td>
-              </tr>
-            </tbody>
-          </table>
+
+              <div className="flex justify-between text-gray-900 text-2xl font-bold border-t-2 border-gray-300 pt-3">
+                <span>Total:</span>
+                <span>{finalPrice.toFixed(2)} €</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
@@ -594,21 +553,34 @@ export default function DetailedQuotePage() {
             -webkit-print-color-adjust: exact;
           }
           
-          /* Try to remove browser headers and footers */
           @page {
             margin: 0.5cm;
             size: A4;
           }
           
-          /* Alternative approach for hiding headers/footers */
-          html {
-            margin: 0;
-            padding: 0;
+          /* Prevent page breaks */
+          * {
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
           
-          body {
-            margin: 0;
-            padding: 0;
+          /* Keep sections together */
+          div, table, tr, td, th {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          
+          /* Remove default browser headers and footers */
+          @page {
+            margin-top: 0.5cm;
+            margin-bottom: 0.5cm;
+          }
+        }
+        
+        /* Hide default browser print headers/footers (limited browser support) */
+        @media print {
+          html, body {
+            height: 100%;
           }
         }
       `}</style>
