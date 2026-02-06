@@ -134,10 +134,9 @@ export default function QuotePage() {
               Quote: <span className="font-semibold">{quote.quote_name}</span>
             </p>
             <p className="text-sm text-gray-600">Date: {new Date(quote.created_at).toLocaleDateString()}</p>
-            <p className="text-sm text-gray-600">
-              Type: <span className="font-semibold capitalize">{quote.quote_type}</span>
-              {quote.is_emergency && <span className="ml-2 text-red-600 font-semibold">(EMERGENCY ORDER)</span>}
-            </p>
+            {quote.is_emergency && (
+              <p className="text-sm text-red-600 font-semibold">(EMERGENCY ORDER)</p>
+            )}
           </div>
         </div>
 
@@ -275,8 +274,33 @@ export default function QuotePage() {
           }
           
           @page {
-            margin: 1cm;
+            margin: 0.5cm;
             size: A4;
+          }
+          
+          /* Prevent page breaks */
+          * {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          
+          /* Keep sections together */
+          div, table, tr, td, th {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          
+          /* Remove default browser headers and footers */
+          @page {
+            margin-top: 0.5cm;
+            margin-bottom: 0.5cm;
+          }
+        }
+        
+        /* Hide default browser print headers/footers (limited browser support) */
+        @media print {
+          html, body {
+            height: 100%;
           }
         }
       `}</style>
