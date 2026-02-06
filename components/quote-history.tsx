@@ -376,11 +376,9 @@ function QuoteHistory({
 
         {/* Filter Section */}
         <div className="space-y-3">
-          {/* Status Filters - Keep as is */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Filter className="h-4 w-4 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700 mr-2">Status:</span>
-            {(statusFilters.length > 0 || clientFilters.length > 0 || printerFilters.length > 0 || filamentFilters.length > 0) && (
+          {/* Clear All Filters Button */}
+          {(statusFilters.length > 0 || clientFilters.length > 0 || printerFilters.length > 0 || filamentFilters.length > 0) && (
+            <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="sm"
@@ -394,35 +392,44 @@ function QuoteHistory({
               >
                 Clear All Filters
               </Button>
-            )}
-            <Button
-              variant={statusFilters.includes("draft") ? "default" : "outline"}
-              size="sm"
-              onClick={() => toggleFilter("draft")}
-              className={statusFilters.includes("draft") ? "bg-blue-600 hover:bg-blue-700" : ""}
-            >
-              Draft ({quotes.filter((q) => q.is_draft).length})
-            </Button>
-            {Object.entries(STATUS_CONFIG).map(([key, config]) => {
-              const Icon = config.icon
-              const count = quotes.filter((q) => q.status === key).length
-              return (
-                <Button
-                  key={key}
-                  variant={statusFilters.includes(key) ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => toggleFilter(key)}
-                  className={statusFilters.includes(key) ? "bg-blue-600 hover:bg-blue-700" : ""}
-                >
-                  <Icon className="h-3 w-3 mr-1" />
-                  {config.label} ({count})
-                </Button>
-              )
-            })}
-          </div>
+            </div>
+          )}
 
           {/* Dropdown Filters Row */}
           <div className="flex flex-wrap items-center gap-3">
+            {/* Status Dropdown */}
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Status:</span>
+              <Select
+                value={statusFilters.length === 1 ? statusFilters[0] : "all"}
+                onValueChange={(value) => {
+                  if (value === "all") {
+                    setStatusFilters([])
+                  } else {
+                    setStatusFilters([value])
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="draft">
+                    Draft ({quotes.filter((q) => q.is_draft).length})
+                  </SelectItem>
+                  {Object.entries(STATUS_CONFIG).map(([key, config]) => {
+                    const count = quotes.filter((q) => q.status === key).length
+                    return (
+                      <SelectItem key={key} value={key}>
+                        {config.label} ({count})
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
             {/* Client Dropdown */}
             {clients.length > 0 && (
               <div className="flex items-center gap-2">
