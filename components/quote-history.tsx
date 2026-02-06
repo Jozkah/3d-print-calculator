@@ -313,6 +313,7 @@ function QuoteHistory({
     // Client filter - match by client_name to catch both personal and business quotes
     if (clientFilters.length > 0) {
       const selectedClient = clients.find(c => clientFilters.includes(c.id))
+      console.log("[v0] Client filter - selectedClient:", selectedClient, "quote.client_name:", quote.client_name, "match:", quote.client_name === selectedClient?.name)
       if (!selectedClient || quote.client_name !== selectedClient.name) return false
     }
 
@@ -412,10 +413,10 @@ function QuoteHistory({
                 }}
               >
                 <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="All Statuses" />
+                  <SelectValue placeholder="Any Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="all">Any Status</SelectItem>
                   <SelectItem value="draft">
                     Draft ({quotes.filter((q) => q.is_draft).length})
                   </SelectItem>
@@ -453,6 +454,7 @@ function QuoteHistory({
                     {clients
                       .map((client) => {
                         const count = quotes.filter((q) => q.client_name === client.name).length
+                        console.log("[v0] Client dropdown - client:", client.name, "count:", count, "matching quotes:", quotes.filter((q) => q.client_name === client.name).map(q => `${q.quote_name} (${q.quote_type})`))
                         return { client, count }
                       })
                       .filter(({ count }) => count > 0)
