@@ -2030,9 +2030,8 @@ export function ExcelCalculator({
           </Card>
 
           {/* Cost Summary */}
-          <TooltipProvider>
-            <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-400">
-              <h2 className="text-2xl font-bold text-blue-900 mb-6">Quote Summary</h2>
+          <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-400">
+            <h2 className="text-2xl font-bold text-blue-900 mb-6">Quote Summary</h2>
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
@@ -2383,8 +2382,7 @@ export function ExcelCalculator({
                 {isSavingDraft ? "Saving..." : isEditingQuote ? "Update Draft" : "Save as Draft"}
               </Button>
             </div>
-            </Card>
-          </TooltipProvider>
+          </Card>
 
           {/* Placeholder for Laser Calculator */}
           {/* This section remains as a placeholder as the LaserCalculator component itself is not provided */}
