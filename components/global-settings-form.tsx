@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Save } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -18,6 +19,7 @@ type GlobalSettings = {
   material_efficiency_factor: number
   cost_buffer_factor: number
   emergency_fee_fixed: number
+  double_heating_cost: boolean
 }
 
 export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | null }) {
@@ -28,6 +30,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
   const [efficiencyFactor, setEfficiencyFactor] = useState(settings?.material_efficiency_factor?.toString() || "1.1")
   const [bufferFactor, setBufferFactor] = useState(settings?.cost_buffer_factor?.toString() || "1.3")
   const [emergencyFee, setEmergencyFee] = useState(settings?.emergency_fee_fixed?.toString() || "10.00")
+  const [doubleHeatingCost, setDoubleHeatingCost] = useState(settings?.double_heating_cost ?? true)
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
 
@@ -45,6 +48,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
         material_efficiency_factor: Number.parseFloat(efficiencyFactor),
         cost_buffer_factor: Number.parseFloat(bufferFactor),
         emergency_fee_fixed: Number.parseFloat(emergencyFee),
+        double_heating_cost: doubleHeatingCost,
         updated_at: new Date().toISOString(),
       })
       .eq("id", settings?.id)
@@ -193,6 +197,23 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
               className="border-blue-200"
             />
             <p className="text-xs text-blue-600 mt-1">Buffer for unforeseen expenses (default: 1.3)</p>
+          </div>
+
+          <div className="flex items-start space-x-3 pt-2">
+            <Checkbox 
+              id="doubleHeating" 
+              checked={doubleHeatingCost}
+              onCheckedChange={(checked) => setDoubleHeatingCost(checked === true)}
+              className="mt-1"
+            />
+            <div className="flex-1">
+              <Label htmlFor="doubleHeating" className="text-blue-900 cursor-pointer">
+                Double Heating Cost for Filaments Requiring Heating
+              </Label>
+              <p className="text-xs text-blue-600 mt-1">
+                When enabled, heating cost = Drying Hours × (Total Dryer Cost Per Hour × 2). When disabled, heating cost = Drying Hours × Total Dryer Cost Per Hour
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

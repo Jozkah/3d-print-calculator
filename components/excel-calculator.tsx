@@ -89,6 +89,7 @@ type GlobalSettings = {
   car_fuel_consumption_per_100km: number
   emergency_fee_fixed: number
   labor_hourly_rate: number
+  double_heating_cost?: boolean
 }
 
 type FilamentEntry = {
@@ -515,8 +516,9 @@ export function ExcelCalculator({
       return sum + batch.drying_time_hr * consumptionElectricalCost
     }
     if (batch.material === "HEATING") {
-      // For HEATING, multiply the total dryer cost per hour by 2
-      return sum + batch.drying_time_hr * totalDryerCostPerHour * 2
+      // For HEATING, multiply the total dryer cost per hour by 2 if enabled
+      const heatingMultiplier = globalSettings.double_heating_cost !== false ? 2 : 1
+      return sum + batch.drying_time_hr * totalDryerCostPerHour * heatingMultiplier
     }
     // Normal drying uses the standard dryer cost per hour
     return sum + batch.drying_time_hr * totalDryerCostPerHour
