@@ -1426,8 +1426,8 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                             brand: filament.brand || "",
                             type: filament.type || "",
                             color: filament.color || "",
-                            material_type: filament.material_type,
                             color_hex: filament.color_hex || "",
+                            material_type: filament.material_type,
                             thickness: filament.thickness || "",
                             size: filament.size || "",
                           })
@@ -1542,7 +1542,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         onClose={() => setBulkUpdateDialog({ isOpen: false, newPrice: "" })}
         onConfirm={handleBulkUpdatePrice}
         title="Update Prices"
-        message={`Set new price for ${selectedFilaments.size} selected filament${selectedFilaments.size !== 1 ? "s" : ""}:`}
+        description={`Set new price for ${selectedFilaments.size} selected filament${selectedFilaments.size !== 1 ? "s" : ""}:`}
         variant="default"
       >
         <div className="mt-4">
