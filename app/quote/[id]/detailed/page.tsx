@@ -57,6 +57,7 @@ interface Quote {
   packaging_cost: number
   fuel_cost: number
   emergency_fee: number
+  electricity_cost: number
   landed_cost: number
   selected_margin: string
   is_emergency: boolean
