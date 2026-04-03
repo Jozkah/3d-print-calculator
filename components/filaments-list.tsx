@@ -623,6 +623,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               brand: "",
               type: "",
               color: "",
+              color_hex: "",
               material_type: "material", // Set to material
               thickness: "", // Initialize thickness
               size: "", // Initialize size
