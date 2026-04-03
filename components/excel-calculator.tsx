@@ -1301,25 +1301,25 @@ export function ExcelCalculator({
                                   ? (lifetimeCost / (uptimeHrs * selPrinter.estimated_life_years)) * 1.3
                                   : 0
                                 return (
-                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400 px-1">
-                                    <span>€{costPerHr.toFixed(4)}/hr</span>
-                                    <span className="text-blue-400">•</span>
-                                    <span>{selPrinter.average_power_consumption_watts}W</span>
-                                    <span className="text-blue-400">•</span>
-                                    <span>{(selPrinter.estimated_printer_uptime_percent * 100).toFixed(0)}% uptime</span>
-                                    {selPrinter.has_enclosure && (
-                                      <>
-                                        <span className="text-blue-400">•</span>
-                                        <span className="text-green-600 dark:text-green-400">Enclosed</span>
-                                      </>
-                                    )}
-                                    {selPrinter.owner && (
-                                      <>
-                                        <span className="text-blue-400">•</span>
-                                        <span>{selPrinter.owner}</span>
-                                      </>
-                                    )}
-                                  </div>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="text-xs text-blue-800 dark:text-blue-200 cursor-help truncate bg-blue-50 dark:bg-blue-950 rounded px-2 py-1">
+                                          {selPrinter.name}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-xs">
+                                        <div className="space-y-1 text-sm">
+                                          <div className="font-semibold">{selPrinter.name}</div>
+                                          {selPrinter.owner && <div className="text-xs">Owner: {selPrinter.owner}</div>}
+                                          <div className="text-xs">Cost/hr: €{costPerHr.toFixed(4)}</div>
+                                          <div className="text-xs">Power: {selPrinter.average_power_consumption_watts}W</div>
+                                          <div className="text-xs">Uptime: {(selPrinter.estimated_printer_uptime_percent * 100).toFixed(0)}%</div>
+                                          <div className="text-xs">Enclosure: {selPrinter.has_enclosure ? "Yes" : "No"}</div>
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 )
                               })()}
                             </div>
