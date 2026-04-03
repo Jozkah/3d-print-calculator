@@ -17,7 +17,7 @@ export function proxy(request: NextRequest) {
   const realIp = request.headers.get("x-real-ip")
 
   // Extract the client IP (first IP in x-forwarded-for chain)
-  const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : realIp || request.ip || "unknown"
+  const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : realIp || "unknown"
 
   console.log("[v0] Incoming request from IP:", clientIp)
 
