@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, ChevronsUpDown, Check, X, Copy, Info } from "lucide-react"
+import { Plus, Trash2, ChevronsUpDown, Check, X, Copy } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast" // Assuming toast is available
 import { DialogCustom } from "@/components/ui/dialog-custom" // Import DialogCustom
 import { cn } from "@/lib/utils" // Assuming cn utility is available
@@ -1260,7 +1260,7 @@ export function ExcelCalculator({
                         </td>
                         {calculatorType === "3d-print" && (
                           <td className="p-2">
-                            <div className="flex items-center gap-1">
+                            <div className="flex flex-col gap-1">
                               <Select
                                 value={part.printer_id === "" ? undefined : part.printer_id}
                                 onValueChange={(value) => {
@@ -1301,23 +1301,25 @@ export function ExcelCalculator({
                                   ? (lifetimeCost / (uptimeHrs * selPrinter.estimated_life_years)) * 1.3
                                   : 0
                                 return (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Info className="h-4 w-4 text-blue-500 cursor-help flex-shrink-0" />
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top" className="max-w-xs">
-                                        <div className="space-y-1 text-sm">
-                                          <div className="font-semibold">{selPrinter.name}</div>
-                                          {selPrinter.owner && <div className="text-xs">Owner: {selPrinter.owner}</div>}
-                                          <div className="text-xs">Cost/hr: €{costPerHr.toFixed(4)}</div>
-                                          <div className="text-xs">Power: {selPrinter.average_power_consumption_watts}W</div>
-                                          <div className="text-xs">Uptime: {(selPrinter.estimated_printer_uptime_percent * 100).toFixed(0)}%</div>
-                                          <div className="text-xs">Enclosure: {selPrinter.has_enclosure ? "Yes" : "No"}</div>
-                                        </div>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
+                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400 px-1">
+                                    <span>€{costPerHr.toFixed(4)}/hr</span>
+                                    <span className="text-blue-400">•</span>
+                                    <span>{selPrinter.average_power_consumption_watts}W</span>
+                                    <span className="text-blue-400">•</span>
+                                    <span>{(selPrinter.estimated_printer_uptime_percent * 100).toFixed(0)}% uptime</span>
+                                    {selPrinter.has_enclosure && (
+                                      <>
+                                        <span className="text-blue-400">•</span>
+                                        <span className="text-green-600 dark:text-green-400">Enclosed</span>
+                                      </>
+                                    )}
+                                    {selPrinter.owner && (
+                                      <>
+                                        <span className="text-blue-400">•</span>
+                                        <span>{selPrinter.owner}</span>
+                                      </>
+                                    )}
+                                  </div>
                                 )
                               })()}
                             </div>
