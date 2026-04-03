@@ -1260,68 +1260,70 @@ export function ExcelCalculator({
                         </td>
                         {calculatorType === "3d-print" && (
                           <td className="p-2">
-                            <div className="flex flex-col gap-1">
-                              <Select
-                                value={part.printer_id === "" ? undefined : part.printer_id}
-                                onValueChange={(value) => {
-                                  const updated = [...printedParts]
-                                  updated[index].printer_id = value
-                                  setPrintedParts(updated)
-                                }}
-                              >
-                                <SelectTrigger className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900">
-                                  <SelectValue placeholder="Select printer" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {printers
-                                    .filter((printer) => {
-                                      if (
-                                        calculatorType === "3d-print" &&
-                                        printer.name.toLowerCase().includes("carvera")
-                                      ) {
-                                        return false
-                                      }
-                                      return true
-                                    })
-                                    .sort((a, b) => a.name.localeCompare(b.name))
-                                    .map((printer) => (
-                                      <SelectItem key={printer.id} value={printer.id}>
-                                        {printer.name}
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
-                              {part.printer_id && (() => {
-                                const selPrinter = printers.find((p) => p.id === part.printer_id)
-                                if (!selPrinter) return null
+                            {(() => {
+                              const selPrinter = part.printer_id ? printers.find((p) => p.id === part.printer_id) : null
+                              let costPerHr = 0
+                              if (selPrinter) {
                                 const totalInvestment = selPrinter.printer_cost + selPrinter.additional_upfront_cost
                                 const lifetimeCost = totalInvestment + selPrinter.estimated_annual_maintenance * selPrinter.estimated_life_years
                                 const uptimeHrs = 8760 * selPrinter.estimated_printer_uptime_percent
-                                const costPerHr = uptimeHrs > 0 && selPrinter.estimated_life_years > 0
+                                costPerHr = uptimeHrs > 0 && selPrinter.estimated_life_years > 0
                                   ? (lifetimeCost / (uptimeHrs * selPrinter.estimated_life_years)) * 1.3
                                   : 0
-                                return (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className="text-xs text-blue-800 dark:text-blue-200 cursor-help truncate bg-blue-50 dark:bg-blue-950 rounded px-2 py-1">
-                                          {selPrinter.name}
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top" className="max-w-xs">
-                                        <div className="space-y-1 text-sm">
-                                          <div className="font-semibold">{selPrinter.name}</div>
-                                          {selPrinter.owner && <div className="text-xs">Owner: {selPrinter.owner}</div>}
-                                          <div className="text-xs">Cost/hr: €{costPerHr.toFixed(4)}</div>
-                                          <div className="text-xs">Power: {selPrinter.average_power_consumption_watts}W</div>
-                                          <div className="text-xs">Uptime: {(selPrinter.estimated_printer_uptime_percent * 100).toFixed(0)}%</div>
-                                          <div className="text-xs">Enclosure: {selPrinter.has_enclosure ? "Yes" : "No"}</div>
-                                        </div>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                )
-                              })()}
+                              }
+                              const selectEl = (
+                                <Select
+                                  value={part.printer_id === "" ? undefined : part.printer_id}
+                                  onValueChange={(value) => {
+                                    const updated = [...printedParts]
+                                    updated[index].printer_id = value
+                                    setPrintedParts(updated)
+                                  }}
+                                >
+                                  <SelectTrigger className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900">
+                                    <SelectValue placeholder="Select printer" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {printers
+                                      .filter((printer) => {
+                                        if (
+                                          calculatorType === "3d-print" &&
+                                          printer.name.toLowerCase().includes("carvera")
+                                        ) {
+                                          return false
+                                        }
+                                        return true
+                                      })
+                                      .sort((a, b) => a.name.localeCompare(b.name))
+                                      .map((printer) => (
+                                        <SelectItem key={printer.id} value={printer.id}>
+                                          {printer.name}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              )
+                              if (!selPrinter) return selectEl
+                              return (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div>{selectEl}</div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs">
+                                      <div className="space-y-1 text-sm">
+                                        <div className="font-semibold">{selPrinter.name}</div>
+                                        {selPrinter.owner && <div className="text-xs">Owner: {selPrinter.owner}</div>}
+                                        <div className="text-xs">Cost/hr: €{costPerHr.toFixed(4)}</div>
+                                        <div className="text-xs">Power: {selPrinter.average_power_consumption_watts}W</div>
+                                        <div className="text-xs">Uptime: {(selPrinter.estimated_printer_uptime_percent * 100).toFixed(0)}%</div>
+                                        <div className="text-xs">Enclosure: {selPrinter.has_enclosure ? "Yes" : "No"}</div>
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )
+                            })()}
                             </div>
                           </td>
                         )}
