@@ -1324,7 +1324,6 @@ export function ExcelCalculator({
                                 </TooltipProvider>
                               )
                             })()}
-                            </div>
                           </td>
                         )}
                         {/* Update filament cell to show individual filament entries with weight and remove button */}
