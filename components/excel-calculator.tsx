@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, ChevronsUpDown, Check, X, Copy } from "lucide-react" // Import X for close icon
+import { Plus, Trash2, ChevronsUpDown, Check, X, Copy, Info } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast" // Assuming toast is available
 import { DialogCustom } from "@/components/ui/dialog-custom" // Import DialogCustom
 import { cn } from "@/lib/utils" // Assuming cn utility is available
@@ -58,7 +58,8 @@ type Printer = {
   additional_upfront_cost: number
   estimated_annual_maintenance: number
   estimated_printer_uptime_percent: number
-  material_type?: string // Added for filtering
+  has_enclosure?: boolean
+  material_type?: string
 }
 
 type Filament = {
@@ -170,7 +171,7 @@ export function ExcelCalculator({
 
   // ADDED STATE FOR CALCULATION TYPE SELECTION
   const [calculatorType, setCalculatorType] = useState<
-    "3d-print" | "laser-engraving" | "laser-cutting" | "stickers" | "cnc"
+    "3d-print" | "laser-engraving" | "laser-cutting" | "stickers"
   >("3d-print")
 
   const [printedParts, setPrintedParts] = useState<PrintedPart[]>([
@@ -301,11 +302,9 @@ export function ExcelCalculator({
   useEffect(() => {
     const loadQuoteForEditing = async () => {
       if (!editingQuoteId) {
-        console.log("[v0] No editingQuoteId provided, skipping load")
         return
       }
 
-      console.log("[v0] Loading quote for editing:", editingQuoteId)
 
       try {
         const { data: quote, error } = await supabase.from("quotes").select("*").eq("id", editingQuoteId).single()
@@ -330,9 +329,6 @@ export function ExcelCalculator({
           return
         }
 
-        console.log("[v0] Quote loaded successfully:", quote)
-        console.log("[v0] Restoring printed parts:", quote.printed_parts)
-        console.log("[v0] Restoring dried batches:", quote.dried_batches)
 
         // Load all quote data into state
         setCalculatorType(quote.calculator_type || "3d-print") // Load calculator type
@@ -366,7 +362,6 @@ export function ExcelCalculator({
         setIsEditingQuote(true)
         setCurrentQuoteId(editingQuoteId)
 
-        console.log("[v0] State updated successfully")
 
         toast({
           title: "Quote Loaded",
@@ -437,38 +432,6 @@ export function ExcelCalculator({
     })
   }, [printedParts, filaments])
 
-  // Auto-add "Consumption" entry for CNC Milling
-  useEffect(() => {
-    if (calculatorType === "cnc") {
-      // Calculate total CNC processing time
-      const totalCncTime = printedParts.reduce((sum, part) => {
-        return sum + (part.printing_time_hr || 0)
-      }, 0)
-
-      // Update driedBatches to add/update Consumption entry
-      setDriedBatches((current) => {
-        // Remove old Consumption entries
-        const nonConsumptionBatches = current.filter((batch) => batch.material !== "Consumption")
-
-        // Add Consumption entry if there's CNC time
-        if (totalCncTime > 0) {
-          const consumptionBatch: DriedBatch = {
-            id: `consumption_cnc_${Date.now()}`,
-            material: "Consumption",
-            drying_time_hr: totalCncTime,
-            cost: 0, // Will be calculated based on 1000W/h
-          }
-          return [...nonConsumptionBatches, consumptionBatch]
-        }
-
-        return nonConsumptionBatches
-      })
-    } else {
-      // Remove Consumption entry when not in CNC mode
-      setDriedBatches((current) => current.filter((batch) => batch.material !== "Consumption"))
-    }
-  }, [calculatorType, printedParts])
-
   const totalPrintingCost = printedParts.reduce((sum, part) => {
     if (!part.filaments || part.filaments.length === 0 || !globalSettings) return sum
 
@@ -510,11 +473,6 @@ export function ExcelCalculator({
     const costBufferFactor = 1.3
     const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
 
-    if (batch.material === "Consumption") {
-      // For Consumption (CNC), use 1000W/h
-      const consumptionElectricalCost = (1000 / 1000) * globalSettings.electricity_cost_per_kwh
-      return sum + batch.drying_time_hr * consumptionElectricalCost
-    }
     if (batch.material === "HEATING") {
       // For HEATING, multiply the total dryer cost per hour by 2 if enabled
       const heatingMultiplier = globalSettings.double_heating_cost !== false ? 2 : 1
@@ -736,12 +694,8 @@ export function ExcelCalculator({
   const [errorDialogMessage, setErrorDialogMessage] = useState("")
 
   const handleSaveQuote = async () => {
-    console.log("[v0] handleSaveQuote called")
-    console.log("[v0] Client name:", clientName)
-    console.log("[v0] Selected margin:", selectedMargin)
 
     if (!clientName.trim()) {
-      console.log("[v0] Client name is empty, showing error")
       setErrorDialogTitle("Client Name Required")
       setErrorDialogMessage("Please enter a client name before saving the quote.")
       setShowErrorDialog(true)
@@ -749,7 +703,6 @@ export function ExcelCalculator({
     }
 
     try {
-      console.log("[v0] Starting quote save process...")
 
       const driedBatchesWithCost = driedBatches.map((batch) => {
         const dryerCost = 90
@@ -840,29 +793,21 @@ export function ExcelCalculator({
         vat_enabled: vatEnabled, // Save VAT enabled state
       }
 
-      console.log("[v0] Quote data prepared:", quoteData)
-
       if (isEditingQuote && currentQuoteId) {
-        console.log("[v0] Updating existing quote:", currentQuoteId)
         const { error } = await supabase.from("quotes").update(quoteData).eq("id", currentQuoteId)
 
         if (error) {
-          console.log("[v0] Database error:", error)
           throw error
         }
 
-        console.log("[v0] Quote updated successfully")
         setSaveDialogMessage(`Quote "${clientName}" has been updated successfully!`)
       } else {
-        console.log("[v0] Inserting new quote...")
         const { error } = await supabase.from("quotes").insert([quoteData])
 
         if (error) {
-          console.log("[v0] Database error:", error)
           throw error
         }
 
-        console.log("[v0] Quote saved successfully")
         setSaveDialogMessage(`Quote "${clientName}" has been saved successfully!`)
       }
 
@@ -882,10 +827,8 @@ export function ExcelCalculator({
   }
 
   const handleSaveAsDraft = async () => {
-    console.log("[v0] handleSaveAsDraft called")
 
     if (!clientName.trim()) {
-      console.log("[v0] Client name is empty, showing error")
       toast({
         title: "Client Name Required",
         description: "Please enter a client name before saving the draft.",
@@ -895,7 +838,6 @@ export function ExcelCalculator({
     }
 
     if (isSavingDraft) {
-      console.log("[v0] Already saving, ignoring duplicate click")
       return
     }
 
@@ -937,10 +879,10 @@ export function ExcelCalculator({
       })
 
       const quoteData = {
-        quote_type: calculatorType, // Save the selected calculator type
+        quote_type: mode, // 'personal' or 'business'
         quote_name: clientName,
         client_id: clientId,
-        quote_type_mode: mode,
+        quote_type_mode: calculatorType, // '3d-print', 'laser-engraving', etc.
         printed_parts: preparedPrintedParts,
         dried_batches: driedBatchesWithCost,
         materials: materials,
@@ -977,7 +919,6 @@ export function ExcelCalculator({
       }
 
       if (isEditingQuote && currentQuoteId) {
-        console.log("[v0] Updating existing draft:", currentQuoteId)
         const { error } = await supabase.from("quotes").update(quoteData).eq("id", currentQuoteId)
 
         if (error) throw error
@@ -987,7 +928,6 @@ export function ExcelCalculator({
           description: `Draft "${clientName}" has been updated!`,
         })
       } else {
-        console.log("[v0] Creating new draft")
         const { error } = await supabase.from("quotes").insert([quoteData])
 
         if (error) throw error
@@ -1025,18 +965,13 @@ export function ExcelCalculator({
         ? "Laser Cut Items"
         : calculatorType === "stickers"
           ? "Printed Stickers"
-          : calculatorType === "cnc" // Added CNC label
-            ? "CNC Milled Parts"
-            : "Printed Parts (Filament Input)"
+          : "Printed Parts (Filament Input)"
 
   // Update batches label based on calculator type
-  // For CNC in business mode, use "Additional Machinery", otherwise "Dried Batches"
   const batchesLabel =
-    calculatorType === "cnc" && mode === "business"
-      ? "Additional Machinery"
-      : calculatorType === "3d-print"
-        ? "Dried Batches"
-        : "Processing Batches"
+    calculatorType === "3d-print"
+      ? "Dried Batches"
+      : "Processing Batches"
 
   // ADDED FUNCTIONS FOR FILAMENT MANAGEMENT
   const addFilamentToPart = (partIndex: number) => {
@@ -1147,7 +1082,6 @@ export function ExcelCalculator({
           showCancel={false}
         />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-          {/* ADDED: CNC Milling button to calculator type selector */}
           {mode === "business" && (
             <div className="mb-6 -mx-4 px-4 overflow-x-auto">
               <div className="flex gap-2 min-w-max pb-2">
@@ -1179,21 +1113,13 @@ export function ExcelCalculator({
                 >
                   Stickers
                 </Button>
-                {/* Added CNC Milling button */}
-                <Button
-                  variant={calculatorType === "cnc" ? "default" : "outline"}
-                  onClick={() => setCalculatorType("cnc")}
-                  className="whitespace-nowrap min-w-[120px]"
-                >
-                  CNC Milling
-                </Button>
               </div>
             </div>
           )}
 
           {/* Quote Details */}
-          <Card className="p-6 bg-white border-2 border-blue-300">
-            <h2 className="text-xl font-bold text-blue-900 mb-2">Quote Details</h2>
+          <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
+            <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-2">Quote Details</h2>
             {/* Changed to stack on mobile for better readability */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -1232,7 +1158,7 @@ export function ExcelCalculator({
                     const value = e.target.value
                     setDistanceTraveledKm(value === "" ? 0 : Number.parseFloat(value) || 0)
                   }}
-                  className="border-blue-200 bg-white"
+                  className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                 />
               </div>
             </div>
@@ -1263,7 +1189,7 @@ export function ExcelCalculator({
           </Card>
 
           {/* Printed Parts Table */}
-          <Card className="p-6 bg-white border-2 border-blue-300">
+          <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-blue-900">{partsLabel}</h3>
               <div className="flex gap-2">
@@ -1277,18 +1203,18 @@ export function ExcelCalculator({
             <div className="overflow-x-auto -mx-6 px-6">
               <table className="w-full border-collapse min-w-[600px]">
                 <thead>
-                  <tr className="bg-blue-100 border-b-2 border-blue-300">
-                    <th className="p-3 text-left text-blue-900 font-semibold min-w-[120px]">Part Name</th>
+                  <tr className="bg-blue-100 dark:bg-blue-950 border-b-2 border-blue-300 dark:border-blue-700">
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold min-w-[120px]">Part Name</th>
                     {calculatorType === "3d-print" && (
-                      <th className="p-3 text-left text-blue-900 font-semibold min-w-[120px]">Printer</th>
+                      <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold min-w-[120px]">Printer</th>
                     )}
-                    <th className="p-3 text-left text-blue-900 font-semibold min-w-[120px]">
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold min-w-[120px]">
                       {calculatorType === "3d-print" ? "Filament" : "Material"}
                     </th>
-                    <th className="p-3 text-left text-blue-900 font-semibold min-w-[100px]">Print Time (hr)</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold min-w-[100px]">Cost (€)</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold min-w-[100px]">Print Time (hr)</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold min-w-[100px]">Cost (€)</th>
                     {/* Line 1214: Center the Actions header */}
-                    <th className="p-3 text-center text-blue-900 font-semibold min-w-[80px]">Actions</th>
+                    <th className="p-3 text-center text-blue-900 dark:text-blue-100 font-semibold min-w-[80px]">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1313,8 +1239,14 @@ export function ExcelCalculator({
                       })
                     }
 
+                    // Filter filaments based on printer enclosure
+                    const selectedPartPrinter = printers.find((p) => p.id === part.printer_id)
+                    const partAvailableFilaments = selectedPartPrinter?.has_enclosure
+                      ? availableFilaments.filter((f) => !f.requires_heating)
+                      : availableFilaments
+
                     return (
-                      <tr key={part.id} className="border-b border-blue-200">
+                      <tr key={part.id} className="border-b border-blue-200 dark:border-blue-800">
                         <td className="p-2">
                           <Input
                             value={part.name}
@@ -1323,42 +1255,73 @@ export function ExcelCalculator({
                               updated[index].name = e.target.value
                               setPrintedParts(updated)
                             }}
-                            className="border-blue-200 bg-white"
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                             placeholder="Part name"
                           />
                         </td>
                         {calculatorType === "3d-print" && (
                           <td className="p-2">
-                            <Select
-                              value={part.printer_id === "" ? undefined : part.printer_id}
-                              onValueChange={(value) => {
-                                const updated = [...printedParts]
-                                updated[index].printer_id = value
-                                setPrintedParts(updated)
-                              }}
-                            >
-                              <SelectTrigger className="border-blue-200 bg-white">
-                                <SelectValue placeholder="Select printer" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {printers
-                                  .filter((printer) => {
-                                    // Exclude "Markera CARVERA AIR" for personal and business 3d-print mode
-                                    if (
-                                      calculatorType === "3d-print" &&
-                                      printer.name.toLowerCase().includes("carvera")
-                                    ) {
-                                      return false
-                                    }
-                                    return true
-                                  })
-                                  .map((printer) => (
-                                    <SelectItem key={printer.id} value={printer.id}>
-                                      {printer.name}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex items-center gap-1">
+                              <Select
+                                value={part.printer_id === "" ? undefined : part.printer_id}
+                                onValueChange={(value) => {
+                                  const updated = [...printedParts]
+                                  updated[index].printer_id = value
+                                  setPrintedParts(updated)
+                                }}
+                              >
+                                <SelectTrigger className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900">
+                                  <SelectValue placeholder="Select printer" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {printers
+                                    .filter((printer) => {
+                                      if (
+                                        calculatorType === "3d-print" &&
+                                        printer.name.toLowerCase().includes("carvera")
+                                      ) {
+                                        return false
+                                      }
+                                      return true
+                                    })
+                                    .sort((a, b) => a.name.localeCompare(b.name))
+                                    .map((printer) => (
+                                      <SelectItem key={printer.id} value={printer.id}>
+                                        {printer.name}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                              {part.printer_id && (() => {
+                                const selPrinter = printers.find((p) => p.id === part.printer_id)
+                                if (!selPrinter) return null
+                                const totalInvestment = selPrinter.printer_cost + selPrinter.additional_upfront_cost
+                                const lifetimeCost = totalInvestment + selPrinter.estimated_annual_maintenance * selPrinter.estimated_life_years
+                                const uptimeHrs = 8760 * selPrinter.estimated_printer_uptime_percent
+                                const costPerHr = uptimeHrs > 0 && selPrinter.estimated_life_years > 0
+                                  ? (lifetimeCost / (uptimeHrs * selPrinter.estimated_life_years)) * 1.3
+                                  : 0
+                                return (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Info className="h-4 w-4 text-blue-500 cursor-help flex-shrink-0" />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-xs">
+                                        <div className="space-y-1 text-sm">
+                                          <div className="font-semibold">{selPrinter.name}</div>
+                                          {selPrinter.owner && <div className="text-xs">Owner: {selPrinter.owner}</div>}
+                                          <div className="text-xs">Cost/hr: €{costPerHr.toFixed(4)}</div>
+                                          <div className="text-xs">Power: {selPrinter.average_power_consumption_watts}W</div>
+                                          <div className="text-xs">Uptime: {(selPrinter.estimated_printer_uptime_percent * 100).toFixed(0)}%</div>
+                                          <div className="text-xs">Enclosure: {selPrinter.has_enclosure ? "Yes" : "No"}</div>
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )
+                              })()}
+                            </div>
                           </td>
                         )}
                         {/* Update filament cell to show individual filament entries with weight and remove button */}
@@ -1375,12 +1338,12 @@ export function ExcelCalculator({
                                     return (
                                       <div
                                         key={filamentEntry.id}
-                                        className="flex items-center gap-1 text-xs bg-blue-50 rounded p-1"
+                                        className="flex items-center gap-1 text-xs bg-blue-50 dark:bg-blue-950 rounded p-1"
                                       >
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
-                                              <span className="flex-1 truncate text-blue-800 cursor-help">
+                                              <span className="flex-1 truncate text-blue-800 dark:text-blue-200 cursor-help">
                                                 {filament?.name || "Unknown"}
                                               </span>
                                             </TooltipTrigger>
@@ -1455,7 +1418,7 @@ export function ExcelCalculator({
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="w-full h-7 text-xs justify-between border-blue-200 bg-white"
+                                  className="w-full h-7 text-xs justify-between border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                                 >
                                   <span className="flex items-center gap-1">
                                     <Plus className="h-3 w-3" />
@@ -1475,7 +1438,7 @@ export function ExcelCalculator({
                                       No {calculatorType === "3d-print" ? "filament" : "material"} found.
                                     </CommandEmpty>
                                     <CommandGroup>
-                                      {availableFilaments.map((filament) => {
+                                      {partAvailableFilaments.map((filament) => {
                                         const isSelected = part.filaments?.some(
                                           (entry) => entry.filament_id === filament.id,
                                         )
@@ -1527,10 +1490,10 @@ export function ExcelCalculator({
                               updated[index].printing_time_hr = value === "" ? 0 : Number.parseFloat(value) || 0
                               setPrintedParts(updated)
                             }}
-                            className="border-blue-200 bg-white"
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                           />
                         </td>
-                        <td className="p-2 text-blue-900 font-semibold">€{partCost.toFixed(2)}</td>
+                        <td className="p-2 text-blue-900 dark:text-blue-100 font-semibold">€{partCost.toFixed(2)}</td>
                         {/* CHANGE: Added duplicate button next to delete button */}
                         <td className="p-2">
                           {/* Line 1438: Center the action buttons */}
@@ -1562,7 +1525,7 @@ export function ExcelCalculator({
               </table>
             </div>
             <div className="mt-4 text-right">
-              <span className="text-blue-900 font-bold">Total Printing Cost: €{totalPrintingCost.toFixed(2)}</span>
+              <span className="text-blue-900 dark:text-blue-100 font-bold">Total Printing Cost: €{totalPrintingCost.toFixed(2)}</span>
             </div>
           </Card>
 
@@ -1571,9 +1534,9 @@ export function ExcelCalculator({
           {calculatorType !== "laser-engraving" &&
             calculatorType !== "laser-cutting" &&
             calculatorType !== "stickers" && (
-              <Card className="p-6 bg-white border-2 border-blue-300">
+              <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-blue-900">{batchesLabel}</h2>
+              <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100">{batchesLabel}</h2>
               <Button
                 onClick={() =>
                   setDriedBatches([
@@ -1591,10 +1554,10 @@ export function ExcelCalculator({
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-blue-100 border-b-2 border-blue-300">
-                    <th className="p-3 text-left text-blue-900 font-semibold">Material</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Drying Time (hr)</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Cost (€)</th>
+                  <tr className="bg-blue-100 dark:bg-blue-950 border-b-2 border-blue-300 dark:border-blue-700">
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Material</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Drying Time (hr)</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Cost (€)</th>
                     <th className="p-3"></th>
                   </tr>
                 </thead>
@@ -1615,32 +1578,21 @@ export function ExcelCalculator({
 
                     // Calculate cost based on material type
                     let cost = 0
-                    if (batch.material === "Consumption") {
-                      // For Consumption (CNC), use 1000W/h
-                      const consumptionElectricalCost = globalSettings
-                        ? (1000 / 1000) * globalSettings.electricity_cost_per_kwh
-                        : 0
-                      cost = batch.drying_time_hr * consumptionElectricalCost
-                    } else if (batch.material === "HEATING") {
+                    if (batch.material === "HEATING") {
                       cost = batch.drying_time_hr * totalDryerCostPerHour * 2
                     } else {
                       cost = batch.drying_time_hr * totalDryerCostPerHour
                     }
 
                     return (
-                      <tr key={batch.id} className="border-b border-blue-200">
+                      <tr key={batch.id} className="border-b border-blue-200 dark:border-blue-800">
                         <td className="p-2">
-                          {batch.material === "Consumption" ? (
-                            <div className="px-3 py-2 text-blue-900 bg-gray-100 rounded border border-blue-200">
-                              {batch.material} (Auto)
-                            </div>
-                          ) : (
                             <Popover>
                               <PopoverTrigger asChild>
                                 <Button
                                   variant="outline"
                                   role="combobox"
-                                  className="w-full justify-between border-blue-200 bg-white"
+                                  className="w-full justify-between border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                                 >
                                   {batch.material || "Select material"}
                                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1693,7 +1645,6 @@ export function ExcelCalculator({
                               </Command>
                             </PopoverContent>
                           </Popover>
-                          )}
                         </td>
                         <td className="p-2">
                           <Input
@@ -1706,16 +1657,11 @@ export function ExcelCalculator({
                               updated[index].drying_time_hr = Number.parseFloat(e.target.value) || 0
                               setDriedBatches(updated)
                             }}
-                            className="border-blue-200 bg-white"
-                            disabled={batch.material === "Consumption"}
-                            readOnly={batch.material === "Consumption"}
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                           />
                         </td>
-                        <td className="p-2 text-blue-900 font-semibold">€{cost.toFixed(2)}</td>
+                        <td className="p-2 text-blue-900 dark:text-blue-100 font-semibold">€{cost.toFixed(2)}</td>
                         <td className="p-2">
-                          {batch.material === "Consumption" ? (
-                            <div className="w-9"></div>
-                          ) : (
                             <Button
                               onClick={() => setDriedBatches(driedBatches.filter((_, i) => i !== index))}
                               size="sm"
@@ -1724,7 +1670,6 @@ export function ExcelCalculator({
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
-                          )}
                         </td>
                       </tr>
                     )
@@ -1733,15 +1678,15 @@ export function ExcelCalculator({
               </table>
             </div>
             <div className="mt-4 text-right">
-              <span className="text-blue-900 font-bold">Total Drying Cost: €{totalDryingCost.toFixed(2)}</span>
+              <span className="text-blue-900 dark:text-blue-100 font-bold">Total Drying Cost: €{totalDryingCost.toFixed(2)}</span>
             </div>
           </Card>
             )}
 
           {/* Materials Table */}
-          <Card className="p-6 bg-white border-2 border-blue-300">
+          <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-blue-900">Materials (Hardware, etc.)</h2>
+              <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100">Materials (Hardware, etc.)</h2>
               <Button
                 onClick={() =>
                   setMaterials([...materials, { id: Date.now().toString(), name: "", quantity: 0, unit_cost: 0 }])
@@ -1756,11 +1701,11 @@ export function ExcelCalculator({
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-blue-100 border-b-2 border-blue-300">
-                    <th className="p-3 text-left text-blue-900 font-semibold">Name</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Quantity</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Unit Cost (€)</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Total Cost (€)</th>
+                  <tr className="bg-blue-100 dark:bg-blue-950 border-b-2 border-blue-300 dark:border-blue-700">
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Name</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Quantity</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Unit Cost (€)</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Total Cost (€)</th>
                     <th className="p-3"></th>
                   </tr>
                 </thead>
@@ -1768,7 +1713,7 @@ export function ExcelCalculator({
                   {materials.map((material, index) => {
                     const cost = material.quantity * material.unit_cost
                     return (
-                      <tr key={material.id} className="border-b border-blue-200">
+                      <tr key={material.id} className="border-b border-blue-200 dark:border-blue-800">
                         <td className="p-2">
                           <Input
                             value={material.name}
@@ -1777,7 +1722,7 @@ export function ExcelCalculator({
                               updated[index].name = e.target.value
                               setMaterials(updated)
                             }}
-                            className="border-blue-200 bg-white"
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                             placeholder="Material name"
                           />
                         </td>
@@ -1794,7 +1739,7 @@ export function ExcelCalculator({
                               updated[index].quantity = value === "" ? 0 : Number.parseFloat(value) || 0
                               setMaterials(updated)
                             }}
-                            className="border-blue-200 bg-white"
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                           />
                         </td>
                         <td className="p-2">
@@ -1810,10 +1755,10 @@ export function ExcelCalculator({
                               updated[index].unit_cost = value === "" ? 0 : Number.parseFloat(value) || 0
                               setMaterials(updated)
                             }}
-                            className="border-blue-200 bg-white"
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                           />
                         </td>
-                        <td className="p-2 text-blue-900 font-semibold">€{cost.toFixed(2)}</td>
+                        <td className="p-2 text-blue-900 dark:text-blue-100 font-semibold">€{cost.toFixed(2)}</td>
                         <td className="p-2">
                           <Button
                             onClick={() => setMaterials(materials.filter((_, i) => i !== index))}
@@ -1831,14 +1776,14 @@ export function ExcelCalculator({
               </table>
             </div>
             <div className="mt-4 text-right">
-              <span className="text-blue-900 font-bold">Total Materials Cost: €{totalMaterialsCost.toFixed(2)}</span>
+              <span className="text-blue-900 dark:text-blue-100 font-bold">Total Materials Cost: €{totalMaterialsCost.toFixed(2)}</span>
             </div>
           </Card>
 
           {/* Labor Table */}
-          <Card className="p-6 bg-white border-2 border-blue-300">
+          <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-blue-900">Labor</h2>
+              <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100">Labor</h2>
               <Button
                 onClick={() =>
                   setLabor([...labor, { id: Date.now().toString(), action: "", hours: 0, hourly_cost: 0 }])
@@ -1853,11 +1798,11 @@ export function ExcelCalculator({
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-blue-100 border-b-2 border-blue-300">
-                    <th className="p-3 text-left text-blue-900 font-semibold">Action</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Hours</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Hourly Cost (€)</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Total Cost (€)</th>
+                  <tr className="bg-blue-100 dark:bg-blue-950 border-b-2 border-blue-300 dark:border-blue-700">
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Action</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Hours</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Hourly Cost (€)</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Total Cost (€)</th>
                     <th className="p-3"></th>
                   </tr>
                 </thead>
@@ -1865,7 +1810,7 @@ export function ExcelCalculator({
                   {labor.map((laborItem, index) => {
                     const cost = laborItem.hours * laborItem.hourly_cost
                     return (
-                      <tr key={laborItem.id} className="border-b border-blue-200">
+                      <tr key={laborItem.id} className="border-b border-blue-200 dark:border-blue-800">
                         <td className="p-2">
                           <Input
                             value={laborItem.action}
@@ -1874,7 +1819,7 @@ export function ExcelCalculator({
                               updated[index].action = e.target.value
                               setLabor(updated)
                             }}
-                            className="border-blue-200 bg-white"
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                             placeholder="Labor action"
                           />
                         </td>
@@ -1891,7 +1836,7 @@ export function ExcelCalculator({
                               updated[index].hours = value === "" ? 0 : Number.parseFloat(value) || 0
                               setLabor(updated)
                             }}
-                            className="border-blue-200 bg-white"
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                           />
                         </td>
                         <td className="p-2">
@@ -1907,10 +1852,10 @@ export function ExcelCalculator({
                               updated[index].hourly_cost = value === "" ? 0 : Number.parseFloat(value) || 0
                               setLabor(updated)
                             }}
-                            className="border-blue-200 bg-white"
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                           />
                         </td>
-                        <td className="p-2 text-blue-900 font-semibold">€{cost.toFixed(2)}</td>
+                        <td className="p-2 text-blue-900 dark:text-blue-100 font-semibold">€{cost.toFixed(2)}</td>
                         <td className="p-2">
                           <Button
                             onClick={() => setLabor(labor.filter((_, i) => i !== index))}
@@ -1928,14 +1873,14 @@ export function ExcelCalculator({
               </table>
             </div>
             <div className="mt-4 text-right">
-              <span className="text-blue-900 font-bold">Total Labor Cost: €{totalLaborCost.toFixed(2)}</span>
+              <span className="text-blue-900 dark:text-blue-100 font-bold">Total Labor Cost: €{totalLaborCost.toFixed(2)}</span>
             </div>
           </Card>
 
           {/* Packaging & Shipping Table */}
-          <Card className="p-6 bg-white border-2 border-blue-300">
+          <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-blue-900">Packaging & Shipping</h2>
+              <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100">Packaging & Shipping</h2>
               <Button
                 onClick={() =>
                   setPackaging([...packaging, { id: Date.now().toString(), name: "", quantity: 0, unit_cost: 0 }])
@@ -1950,11 +1895,11 @@ export function ExcelCalculator({
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-blue-100 border-b-2 border-blue-300">
-                    <th className="p-3 text-left text-blue-900 font-semibold">Name</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Quantity</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Unit Cost (€)</th>
-                    <th className="p-3 text-left text-blue-900 font-semibold">Total Cost (€)</th>
+                  <tr className="bg-blue-100 dark:bg-blue-950 border-b-2 border-blue-300 dark:border-blue-700">
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Name</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Quantity</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Unit Cost (€)</th>
+                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Total Cost (€)</th>
                     <th className="p-3"></th>
                   </tr>
                 </thead>
@@ -1962,7 +1907,7 @@ export function ExcelCalculator({
                   {packaging.map((item, index) => {
                     const cost = item.quantity * item.unit_cost
                     return (
-                      <tr key={item.id} className="border-b border-blue-200">
+                      <tr key={item.id} className="border-b border-blue-200 dark:border-blue-800">
                         <td className="p-2">
                           <Input
                             value={item.name}
@@ -1971,7 +1916,7 @@ export function ExcelCalculator({
                               updated[index].name = e.target.value
                               setPackaging(updated)
                             }}
-                            className="border-blue-200 bg-white"
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                             placeholder="Item name"
                           />
                         </td>
@@ -1988,7 +1933,7 @@ export function ExcelCalculator({
                               updated[index].quantity = value === "" ? 0 : Number.parseFloat(value) || 0
                               setPackaging(updated)
                             }}
-                            className="border-blue-200 bg-white"
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                           />
                         </td>
                         <td className="p-2">
@@ -2004,10 +1949,10 @@ export function ExcelCalculator({
                               updated[index].unit_cost = value === "" ? 0 : Number.parseFloat(value) || 0
                               setPackaging(updated)
                             }}
-                            className="border-blue-200 bg-white"
+                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                           />
                         </td>
-                        <td className="p-2 text-blue-900 font-semibold">€{cost.toFixed(2)}</td>
+                        <td className="p-2 text-blue-900 dark:text-blue-100 font-semibold">€{cost.toFixed(2)}</td>
                         <td className="p-2">
                           <Button
                             onClick={() => setPackaging(packaging.filter((_, i) => i !== index))}
@@ -2025,53 +1970,53 @@ export function ExcelCalculator({
               </table>
             </div>
             <div className="mt-4 text-right">
-              <span className="text-blue-900 font-bold">
+              <span className="text-blue-900 dark:text-blue-100 font-bold">
                 Total Packaging & Shipping Cost: €{totalPackagingCost.toFixed(2)}
               </span>
             </div>
           </Card>
 
           {/* Cost Summary */}
-          <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-400">
-            <h2 className="text-2xl font-bold text-blue-900 mb-6">Quote Summary</h2>
+          <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-gray-900 dark:to-gray-800 border-2 border-blue-400 dark:border-blue-700">
+            <h2 className="text-2xl font-bold text-blue-900 dark:text-blue-100 mb-6">Quote Summary</h2>
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 font-medium">Total Printing Cost:</span>
-                  <span className="text-blue-900 font-bold">€{totalPrintingCost.toFixed(2)}</span>
+                  <span className="text-blue-700 dark:text-blue-300 font-medium">Total Printing Cost:</span>
+                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{totalPrintingCost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 font-medium">Added Machine Cost:</span>
+                  <span className="text-blue-700 dark:text-blue-300 font-medium">Added Machine Cost:</span>
                   {/* Adjusted to show only printer capital and electricity, excluding drying cost from this line */}
-                  <span className="text-blue-900 font-bold">€{machineCost.toFixed(2)}</span>
+                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{machineCost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 font-medium">Electricity Cost (Printers & Dryer):</span>
+                  <span className="text-blue-700 dark:text-blue-300 font-medium">Electricity Cost (Printers & Dryer):</span>
                   {/* Combined printer and drying electricity */}
-                  <span className="text-blue-900 font-bold">€{(electricityCost + totalDryingCost).toFixed(2)}</span>
+                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{(electricityCost + totalDryingCost).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 font-medium">Total Materials Cost:</span>
-                  <span className="text-blue-900 font-bold">€{totalMaterialsCost.toFixed(2)}</span>
+                  <span className="text-blue-700 dark:text-blue-300 font-medium">Total Materials Cost:</span>
+                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{totalMaterialsCost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 font-medium">Total Labor Cost:</span>
-                  <span className="text-blue-900 font-bold">€{totalLaborCost.toFixed(2)}</span>
+                  <span className="text-blue-700 dark:text-blue-300 font-medium">Total Labor Cost:</span>
+                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{totalLaborCost.toFixed(2)}</span>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 font-medium">Total Packaging & Shipping Cost:</span>
-                  <span className="text-blue-900 font-bold">€{totalPackagingCost.toFixed(2)}</span>
+                  <span className="text-blue-700 dark:text-blue-300 font-medium">Total Packaging & Shipping Cost:</span>
+                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{totalPackagingCost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 font-medium">Additional Transportation Cost:</span>
-                  <span className="text-blue-900 font-bold">€{fuelCost.toFixed(2)}</span>
+                  <span className="text-blue-700 dark:text-blue-300 font-medium">Additional Transportation Cost:</span>
+                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{fuelCost.toFixed(2)}</span>
                 </div>
                 {isEmergency && emergencyFee > 0 && (
                   <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                    <span className="text-blue-700 font-medium">Emergency Fee:</span>
-                    <span className="text-blue-900 font-bold">€{emergencyFee.toFixed(2)}</span>
+                    <span className="text-blue-700 dark:text-blue-300 font-medium">Emergency Fee:</span>
+                    <span className="text-blue-900 dark:text-blue-100 font-bold">€{emergencyFee.toFixed(2)}</span>
                   </div>
                 )}
                 {/* CHANGE: Update VAT display to show only when enabled */}
@@ -2083,21 +2028,21 @@ export function ExcelCalculator({
                   </div>
                 )}
                 <div className="flex justify-between items-center pb-2 pt-2 border-t-2 border-blue-400">
-                  <span className="text-blue-900 font-bold text-lg">Total Landed Cost:</span>
-                  <span className="text-blue-900 font-bold text-xl">€{totalLandedCost.toFixed(2)}</span>
+                  <span className="text-blue-900 dark:text-blue-100 font-bold text-lg">Total Landed Cost:</span>
+                  <span className="text-blue-900 dark:text-blue-100 font-bold text-xl">€{totalLandedCost.toFixed(2)}</span>
                 </div>
               </div>
             </div>
 
             <div className="mt-8 pt-6 border-t-2 border-blue-400">
-              <h3 className="text-xl font-bold text-blue-900 mb-4">Profit Margins (Click to Select)</h3>
+              <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-4">Profit Margins (Click to Select)</h3>
               {/* Improved mobile grid layout for profit margins */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div
                   className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                     selectedMargin === 30
-                      ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
-                      : "bg-white border-blue-300"
+                      ? "bg-blue-100 dark:bg-blue-900 border-blue-500 ring-2 ring-blue-500"
+                      : "bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600"
                   }`}
                   onClick={() => {
                     setSelectedMargin(30)
@@ -2111,8 +2056,8 @@ export function ExcelCalculator({
                 <div
                   className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                     selectedMargin === 40
-                      ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
-                      : "bg-white border-blue-300"
+                      ? "bg-blue-100 dark:bg-blue-900 border-blue-500 ring-2 ring-blue-500"
+                      : "bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600"
                   }`}
                   onClick={() => {
                     setSelectedMargin(40)
@@ -2126,8 +2071,8 @@ export function ExcelCalculator({
                 <div
                   className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                     selectedMargin === 50
-                      ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
-                      : "bg-white border-blue-300"
+                      ? "bg-blue-100 dark:bg-blue-900 border-blue-500 ring-2 ring-blue-500"
+                      : "bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600"
                   }`}
                   onClick={() => {
                     setSelectedMargin(50)
@@ -2142,8 +2087,8 @@ export function ExcelCalculator({
                 <div
                   className={`p-3 sm:p-4 rounded-lg border-2 hover:shadow-lg transition-shadow ${
                     selectedMargin === customMargin || marginInputMode === "targetPrice"
-                      ? "bg-blue-100 border-blue-500 ring-2 ring-blue-500"
-                      : "bg-white border-blue-300"
+                      ? "bg-blue-100 dark:bg-blue-900 border-blue-500 ring-2 ring-blue-500"
+                      : "bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600"
                   }`}
                 >
                   {/* Toggle between % and € mode */}
@@ -2151,7 +2096,6 @@ export function ExcelCalculator({
                     <button
                       type="button"
                       onClick={() => {
-                        console.log("[v0] Switching to percentage mode")
                         setMarginInputMode("percentage")
                         setTargetPrice(0)
                       }}
@@ -2166,7 +2110,6 @@ export function ExcelCalculator({
                     <button
                       type="button"
                       onClick={() => {
-                        console.log("[v0] Switching to target price mode")
                         setMarginInputMode("targetPrice")
                       }}
                       className={`px-2 py-0.5 text-xs rounded transition-colors ${
@@ -2198,7 +2141,7 @@ export function ExcelCalculator({
                             setMarginInputMode("percentage") // Ensure we are in percentage mode
                             setTargetPrice(0) // Reset target price when manual percentage input changes
                           }}
-                          className="w-12 text-center border border-blue-300 rounded px-1 py-0.5 text-blue-700 font-medium"
+                          className="w-12 text-center border border-blue-300 rounded px-1 py-0.5 text-blue-700 dark:text-blue-300 font-medium"
                         />
                         <span className="text-blue-700 text-xs sm:text-sm font-medium">% Margin</span>
                       </div>
@@ -2226,7 +2169,7 @@ export function ExcelCalculator({
                             }
                           }}
                           placeholder={`> ${totalLandedCost.toFixed(2)}`}
-                          className="w-20 text-center border border-blue-300 rounded px-1 py-0.5 text-blue-700 font-medium"
+                          className="w-20 text-center border border-blue-300 rounded px-1 py-0.5 text-blue-700 dark:text-blue-300 font-medium"
                         />
                         <span className="text-blue-700 text-xs sm:text-sm font-medium">€</span>
                       </div>
@@ -2268,16 +2211,16 @@ export function ExcelCalculator({
 
               {mode === "business" && (
                 <div className="mt-8 pt-6 border-t-2 border-blue-400">
-                  <h3 className="text-xl font-bold text-blue-900 mb-4">
+                  <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-4">
                     Business Profit Split ({selectedMargin}% Margin)
                   </h3>
-                  <div className="mb-4 bg-blue-50 p-3 rounded border-2 border-blue-300">
+                  <div className="mb-4 bg-blue-50 dark:bg-gray-800 p-3 rounded border-2 border-blue-300 dark:border-blue-700">
                     {/* Updated Business Profit Split section with Tooltips */}
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-300 cursor-help">
-                          <div className="text-purple-900 font-semibold mb-2">Owner A Receives:</div>
-                          <div className="text-purple-900 text-2xl font-bold">€{ownerAReceives.toFixed(2)}</div>
+                        <div className="bg-purple-50 dark:bg-purple-950 p-4 rounded-lg border-2 border-purple-300 dark:border-purple-700 cursor-help">
+                          <div className="text-purple-900 dark:text-purple-200 font-semibold mb-2">Owner A Receives:</div>
+                          <div className="text-purple-900 dark:text-purple-100 text-2xl font-bold">€{ownerAReceives.toFixed(2)}</div>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="bg-purple-900 text-white p-3 max-w-xs">
@@ -2320,8 +2263,8 @@ export function ExcelCalculator({
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-300 cursor-help">
-                          <div className="text-blue-900 font-semibold mb-2">
+                        <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border-2 border-blue-300 dark:border-blue-700 cursor-help">
+                          <div className="text-blue-900 dark:text-blue-100 font-semibold mb-2">
                             Owner B Receives{vatEnabled ? " (includes VAT)" : ""}:
                           </div>
                           <div className="text-blue-900 text-2xl font-bold">€{ownerBReceives.toFixed(2)}</div>

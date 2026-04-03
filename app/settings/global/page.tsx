@@ -9,15 +9,15 @@ export default async function GlobalSettingsPage() {
   const { data: settings } = await supabase.from("global_settings").select("*").single()
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-blue-200 bg-white">
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-blue-200 dark:border-blue-800 bg-background">
         <div className="container mx-auto px-4 py-3 sm:py-4 flex items-center gap-2 sm:gap-4">
           <Link href="/settings">
             <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-800 shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
-          <h1 className="text-xl sm:text-2xl font-bold text-blue-900">Global Settings</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-blue-900 dark:text-blue-100">Global Settings</h1>
         </div>
       </header>
 

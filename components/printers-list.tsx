@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Plus, Trash2, Edit2, Check, X, ChevronDown, ChevronUp } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DialogCustom } from "@/components/ui/dialog-custom"
@@ -21,6 +22,7 @@ type Printer = {
   estimated_life_years: number
   estimated_printer_uptime_percent: number
   average_power_consumption_watts: number
+  has_enclosure: boolean
 }
 
 export function PrintersList({ printers: initialPrinters }: { printers: Printer[] }) {
@@ -37,6 +39,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
     estimated_life_years: "3.0",
     estimated_printer_uptime_percent: "0.50",
     average_power_consumption_watts: "150.00",
+    has_enclosure: "false",
   })
   const [editData, setEditData] = useState(newPrinter)
   const router = useRouter()
@@ -58,9 +61,12 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
       estimated_life_years: Number.parseFloat(newPrinter.estimated_life_years),
       estimated_printer_uptime_percent: Number.parseFloat(newPrinter.estimated_printer_uptime_percent),
       average_power_consumption_watts: Number.parseFloat(newPrinter.average_power_consumption_watts),
+      has_enclosure: newPrinter.has_enclosure === "true",
     })
 
     if (!error) {
+      const { data } = await supabase.from("printers").select("*").order("name", { ascending: true })
+      if (data) setPrinters(data)
       setNewPrinter({
         name: "",
         owner: "Owner B",
@@ -70,9 +76,9 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         estimated_life_years: "3.0",
         estimated_printer_uptime_percent: "0.50",
         average_power_consumption_watts: "150.00",
+        has_enclosure: "false",
       })
       setIsAdding(false)
-      router.refresh()
     }
   }
 
@@ -107,13 +113,15 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         estimated_life_years: Number.parseFloat(editData.estimated_life_years),
         estimated_printer_uptime_percent: Number.parseFloat(editData.estimated_printer_uptime_percent),
         average_power_consumption_watts: Number.parseFloat(editData.average_power_consumption_watts),
+        has_enclosure: editData.has_enclosure === "true",
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
 
     if (!error) {
+      const { data } = await supabase.from("printers").select("*").order("name", { ascending: true })
+      if (data) setPrinters(data)
       setEditingId(null)
-      router.refresh()
     }
   }
 
@@ -128,6 +136,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
       estimated_life_years: printer.estimated_life_years.toString(),
       estimated_printer_uptime_percent: printer.estimated_printer_uptime_percent.toString(),
       average_power_consumption_watts: printer.average_power_consumption_watts.toString(),
+      has_enclosure: (printer.has_enclosure ?? false).toString(),
     })
   }
 
@@ -228,13 +237,24 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
           className="bg-white border-blue-200"
         />
       </div>
+
+      <div className="flex items-center gap-2 md:col-span-2 pt-2">
+        <Checkbox
+          id="has-enclosure"
+          checked={data.has_enclosure === "true"}
+          onCheckedChange={(checked) => onChange({ ...data, has_enclosure: checked ? "true" : "false" })}
+        />
+        <Label htmlFor="has-enclosure" className="cursor-pointer">
+          Has Enclosure
+        </Label>
+      </div>
     </div>
   )
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-0 mb-6">
-        <h2 className="text-xl font-semibold text-blue-900">3D Printers</h2>
+        <h2 className="text-xl font-semibold text-blue-900 dark:text-blue-100">3D Printers</h2>
         <Button onClick={() => setIsAdding(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
           <Plus className="w-4 h-4 mr-2" />
           Add Printer
@@ -265,7 +285,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
 
       <div className="grid gap-4">
         {printers.map((printer) => (
-          <Card key={printer.id} className="border-blue-200 bg-white">
+          <Card key={printer.id} className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900">
             <CardContent className="p-6">
               {editingId === printer.id ? (
                 <div className="space-y-4">
@@ -290,12 +310,17 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-semibold text-blue-900">{printer.name}</h3>
+                        <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">{printer.name}</h3>
                         <span
                           className={`px-2 py-1 rounded text-xs font-semibold ${printer.owner === "Owner A" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}
                         >
                           {printer.owner}
                         </span>
+                        {printer.has_enclosure && (
+                          <span className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-700">
+                            Enclosed
+                          </span>
+                        )}
                       </div>
                       <p className="text-blue-600 text-sm">
                         Cost: €{printer.printer_cost.toFixed(2)} | Life: {printer.estimated_life_years}yrs | Power:{" "}
@@ -346,6 +371,12 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
                         <span className="text-blue-600">Printer Uptime:</span>
                         <span className="text-blue-900 ml-2 font-semibold">
                           {(printer.estimated_printer_uptime_percent * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-blue-600">Has Enclosure:</span>
+                        <span className="text-blue-900 ml-2 font-semibold">
+                          {printer.has_enclosure ? "Yes" : "No"}
                         </span>
                       </div>
                     </div>

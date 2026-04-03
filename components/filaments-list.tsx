@@ -786,7 +786,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         </CardContent>
       </Card>
 
-      <h2 className="text-xl font-semibold text-blue-900 mb-4">3D Printing Filaments</h2>
+      <h2 className="text-xl font-semibold text-blue-900 dark:text-blue-100 mb-4">3D Printing Filaments</h2>
 
       <div className="mb-4 text-sm text-blue-600">Showing {displayFilaments.length} filament(s)</div>
 
@@ -887,7 +887,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                           value={newFilament.color_hex}
                           onChange={(e) => setNewFilament({ ...newFilament, color_hex: e.target.value })}
                           placeholder="#FF5733"
-                          className="border-blue-200 bg-white"
+                          className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                         />
                         {newFilament.color_hex && (
                           <div
@@ -923,7 +923,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                   step="0.01"
                   value={newFilament.price_per_kg}
                   onChange={(e) => setNewFilament({ ...newFilament, price_per_kg: e.target.value })}
-                  className="border-blue-200 bg-white"
+                  className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                 />
               </div>
               <div className="flex gap-2">
@@ -1058,7 +1058,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                               value={editData.color_hex}
                               onChange={(e) => setEditData({ ...editData, color_hex: e.target.value })}
                               placeholder="#FF5733"
-                              className="border-blue-200 bg-white"
+                              className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                             />
                             {editData.color_hex && (
                               <div
@@ -1094,7 +1094,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       step="0.01"
                       value={editData.price_per_kg}
                       onChange={(e) => setEditData({ ...editData, price_per_kg: e.target.value })}
-                      className="border-blue-200 bg-white"
+                      className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                     />
                   </div>
                   <div className="flex gap-2">
@@ -1224,7 +1224,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       </div>
 
       <div className="mt-12">
-        <h2 className="text-xl font-semibold text-blue-900 mb-6">Laser Materials</h2>
+        <h2 className="text-xl font-semibold text-blue-900 dark:text-blue-100 mb-6">Laser Materials</h2>
 
         <div className="mb-4 text-sm text-blue-600">Showing {displayMaterials.length} material(s)</div>
 
@@ -1345,7 +1345,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                         step="0.01"
                         value={editData.price_per_kg}
                         onChange={(e) => setEditData({ ...editData, price_per_kg: e.target.value })}
-                        className="border-blue-200 bg-white"
+                        className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                       />
                     </div>
                     <div className="flex gap-2">
@@ -1544,7 +1544,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         variant="default"
       >
         <div className="mt-4">
-          <Label htmlFor="bulkPrice" className="text-blue-900 font-semibold">
+          <Label htmlFor="bulkPrice" className="text-blue-900 dark:text-blue-100 font-semibold">
             New Price per kg (€)
           </Label>
           <Input
@@ -1554,7 +1554,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
             step="0.01"
             value={bulkUpdateDialog.newPrice}
             onChange={(e) => setBulkUpdateDialog({ ...bulkUpdateDialog, newPrice: e.target.value })}
-            className="border-blue-200 bg-white"
+            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
             placeholder="Enter new price"
             autoFocus
           />

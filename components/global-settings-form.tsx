@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Save } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 
 type GlobalSettings = {
   id: string
@@ -33,6 +34,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
   const [doubleHeatingCost, setDoubleHeatingCost] = useState(settings?.double_heating_cost ?? true)
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
+  const { toast } = useToast()
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -56,10 +58,10 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
     setIsSaving(false)
 
     if (!error) {
-      alert("Settings saved successfully!")
+      toast({ title: "Success", description: "Settings saved successfully!" })
       router.refresh()
     } else {
-      alert("Error saving settings")
+      toast({ title: "Error", description: "Error saving settings", variant: "destructive" })
     }
   }
 

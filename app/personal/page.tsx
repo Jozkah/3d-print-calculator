@@ -21,7 +21,7 @@ export default async function PersonalPage({
 
   try {
     const [printersResult, filamentsResult, globalSettingsResult, clientsResult] = await Promise.all([
-      supabase.from("printers").select("*").order("created_at", { ascending: true }),
+      supabase.from("printers").select("*").order("name", { ascending: true }),
       supabase.from("filaments").select("*").order("created_at", { ascending: true }),
       supabase.from("global_settings").select("*").limit(1).single(),
       supabase.from("clients").select("*").order("name"),
@@ -42,8 +42,8 @@ export default async function PersonalPage({
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="border-b-2 border-blue-200 bg-white">
+    <div className="min-h-screen bg-background">
+      <div className="border-b-2 border-blue-200 dark:border-blue-800 bg-background">
         <div className="max-w-[1600px] mx-auto p-4 sm:p-6 flex items-center gap-2 sm:gap-4">
           <Link href="/">
             <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-800 shrink-0">
@@ -51,8 +51,8 @@ export default async function PersonalPage({
             </Button>
           </Link>
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-blue-600 truncate">Personal Calculator</h1>
-            <p className="text-sm sm:text-base text-gray-600 mt-1 hidden sm:block">
+            <h1 className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400 truncate">Personal Calculator</h1>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 hidden sm:block">
               Calculate costs for personal projects
             </p>
           </div>

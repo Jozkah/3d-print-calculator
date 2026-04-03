@@ -3,6 +3,22 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Mobile touch optimization */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, a, [role="button"], input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* Safe area padding for notched devices */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .fixed.bottom-4 {
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+}
+
 :root {
   /* White and blue color scheme for entire website */
   --background: oklch(0.99 0 0);

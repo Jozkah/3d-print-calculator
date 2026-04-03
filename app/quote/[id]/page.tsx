@@ -100,20 +100,6 @@ export default function QuotePage() {
   const vatAmount = isBusinessQuote ? priceWithMarginAndEmergency * 0.23 : 0
   const finalPrice = priceWithMarginAndEmergency + vatAmount
 
-  console.log("[v0] Quote calculations:", {
-    printingAndMaterialsWithMargin,
-    laborCost,
-    packagingShippingCost,
-    totalLandedCost,
-    selectedMargin: quote.selected_margin,
-    marginPercentage,
-    priceWithMargin,
-    emergencyFeeCost,
-    priceWithMarginAndEmergency,
-    vatAmount,
-    finalPrice,
-  })
-
   return (
     <div className="min-h-screen bg-white">
       {/* Print button - hidden when printing */}
