@@ -1427,6 +1427,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                             type: filament.type || "",
                             color: filament.color || "",
                             material_type: filament.material_type,
+                            color_hex: filament.color_hex || "",
                             thickness: filament.thickness || "",
                             size: filament.size || "",
                           })
