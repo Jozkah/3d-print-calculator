@@ -309,22 +309,13 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
       <DialogCustom
         isOpen={deleteDialog.isOpen}
         onClose={() => setDeleteDialog({ isOpen: false, clientId: null })}
+        onConfirm={confirmDelete}
         title="Delete Client"
         description="Are you sure you want to delete this client? This will not delete associated quotes."
-      >
-        <div className="flex justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setDeleteDialog({ isOpen: false, clientId: null })}
-            className="border-blue-300 text-blue-900"
-          >
-            Cancel
-          </Button>
-          <Button onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-            Delete
-          </Button>
-        </div>
-      </DialogCustom>
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
 
       {/* Clients List */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
