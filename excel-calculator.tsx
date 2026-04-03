@@ -1062,7 +1062,7 @@ export function ExcelCalculator({
           isOpen={showErrorDialog}
           onClose={() => setShowErrorDialog(false)}
           title={errorDialogTitle}
-          message={errorDialogMessage}
+          description={errorDialogMessage}
           onConfirm={() => setShowErrorDialog(false)}
           confirmText="OK"
           variant="danger"
@@ -1074,7 +1074,7 @@ export function ExcelCalculator({
           isOpen={showSaveDialog}
           onClose={() => setShowSaveDialog(false)}
           title="Quote Saved Successfully"
-          message={saveDialogMessage}
+          description={saveDialogMessage}
           onConfirm={() => setShowSaveDialog(false)}
           confirmText="OK"
           variant="success"
