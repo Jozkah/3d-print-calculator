@@ -4,6 +4,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 export default async function BusinessPage({
   searchParams,
@@ -76,14 +77,16 @@ export default async function BusinessPage({
           </Alert>
         </div>
       ) : (
-        <ExcelCalculator
-          mode="business"
+        <TooltipProvider>
+          <ExcelCalculator
+            mode="business"
           printers={printers}
           filaments={filaments}
           globalSettings={globalSettingsData}
           clients={clients}
           editingQuoteId={params.edit}
-        />
+          />
+        </TooltipProvider>
       )}
     </div>
   )
