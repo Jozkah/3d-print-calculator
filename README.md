@@ -41,11 +41,22 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 
 ### 2. Database setup
 
-Run the migration files in [`scripts/`](scripts) **in numeric order** (`001_…` first) against your Supabase database — paste them into the Supabase SQL editor, or use the CLI. They create the tables and seed a few example printers/filaments.
+Run [`scripts/schema.sql`](scripts/schema.sql) once against your Supabase database (paste it into the Supabase SQL editor) to create all tables and seed a few example printers/filaments. It is the consolidated equivalent of the step-by-step files kept in [`scripts/migrations/`](scripts/migrations) for history.
 
-> **Important — enable Row-Level Security.** The anon key ships to the browser, so RLS is what actually protects your data. Enable RLS on every table and add policies that match how you intend to use the app (e.g. authenticated-only writes). Without RLS, anyone with the public anon key could read/write your tables.
+Then apply the security policies — see below.
 
-### 3. Run
+### 3. Security (read this before going public)
+
+This app talks to Supabase with the **public anon key** and ships with **no login screen**. That key is embedded in the browser bundle, so **without Row-Level Security anyone who opens the site can read and write every table.**
+
+Run [`scripts/rls_policies.sql`](scripts/rls_policies.sql) to enable RLS. It offers two models:
+
+- **Model A (recommended):** access for logged-in users only. You'll need to add [Supabase Auth](https://supabase.com/docs/guides/auth) (e.g. email magic-link) to your deployment, after which the policies lock out the public.
+- **Model B (danger):** allow the anon role — only acceptable on a trusted/private network. The file documents the trade-off.
+
+If you do nothing here, **do not expose the deployment to the public internet.**
+
+### 4. Run
 
 ```bash
 pnpm install
@@ -62,11 +73,29 @@ pnpm build && pnpm start
 
 Deploys cleanly to Vercel or any Node host. Set the two `NEXT_PUBLIC_SUPABASE_*` variables in your host's environment.
 
+## Configuration
+
+The two-owner business model (owner names + how profit and emergency fees are
+split) lives in one file: [`lib/business-config.ts`](lib/business-config.ts).
+Rename the owners or change the split ratio there.
+
 ## Tech stack
 
-- [Next.js 14](https://nextjs.org) (App Router) + React + TypeScript
+- [Next.js 16](https://nextjs.org) (App Router) + React 19 + TypeScript
 - [Supabase](https://supabase.com) (Postgres) via `@supabase/ssr`
-- Tailwind CSS + [shadcn/ui](https://ui.shadcn.com)
+- Tailwind CSS v4 + [shadcn/ui](https://ui.shadcn.com)
+
+## Known issues
+
+The schema evolved through many incremental migrations and a couple of places in
+the app have drifted from it. If you build on this, be aware:
+
+- `cost-calculator.tsx` reads `global_settings.electricity_rate` and
+  `global_settings.vat_rate`, but the settings UI persists
+  `electricity_cost_per_kwh` (and there is no VAT column). Until reconciled the
+  per-job calculator falls back to defaults (electricity `0.15`, VAT `0.23`).
+- The bulk "Excel" calculator contains a few hard-coded printer-name special
+  cases; generalising it is a good first contribution.
 
 ## License
 

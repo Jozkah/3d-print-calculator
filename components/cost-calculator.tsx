@@ -2,6 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
+import {
+  OWNER_A_KEY,
+  OWNER_B_KEY,
+  OWNER_A_LABEL,
+  OWNER_B_LABEL,
+  PROFIT_SPLIT_RATIO,
+  EMERGENCY_SPLIT_RATIO,
+} from "@/lib/business-config"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -277,48 +285,48 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
     const totalCosts =
       totalFilamentCost + totalMachineCost + materials + labor + packaging + shipping + electricityCost + emergencyFees
     const profit = salePrice - totalCosts
-    const profitSplit = profit * 0.5
-    const emergencySplit = emergencyFees * 0.5
+    const ownerAProfit = profit * PROFIT_SPLIT_RATIO
+    const ownerBProfit = profit * (1 - PROFIT_SPLIT_RATIO)
+    const ownerAEmergency = emergencyFees * EMERGENCY_SPLIT_RATIO
+    const ownerBEmergency = emergencyFees * (1 - EMERGENCY_SPLIT_RATIO)
     const vatCost = salePrice * vatRate
 
     // Determine owner based on first part (or majority owner if needed)
-    const owner = partResults[0]?.printer?.owner || "Owner B"
+    const owner = partResults[0]?.printer?.owner || OWNER_B_KEY
 
     let ownerATotal = 0
     let ownerBTotal = 0
 
-    if (owner === "Owner A") {
+    if (owner === OWNER_A_KEY) {
       // Owner A owns printer
-      ownerATotal = totalMachineCost + labor + electricityCost + profitSplit + emergencySplit
-      ownerBTotal = totalFilamentCost + materials + packaging + profitSplit + emergencySplit + vatCost
+      ownerATotal = totalMachineCost + labor + electricityCost + ownerAProfit + ownerAEmergency
+      ownerBTotal = totalFilamentCost + materials + packaging + ownerBProfit + ownerBEmergency + vatCost
     } else {
       // Owner B owns printer
-      ownerATotal = labor + electricityCost + profitSplit + emergencySplit
+      ownerATotal = labor + electricityCost + ownerAProfit + ownerAEmergency
       ownerBTotal =
-        totalMachineCost + totalFilamentCost + materials + packaging + profitSplit + emergencySplit + vatCost
+        totalMachineCost + totalFilamentCost + materials + packaging + ownerBProfit + ownerBEmergency + vatCost
     }
 
     return {
       owner,
       profit,
-      profitSplit,
-      emergencySplit,
       vatCost,
       ownerA: {
-        machineCost: owner === "Owner A" ? totalMachineCost : 0,
+        machineCost: owner === OWNER_A_KEY ? totalMachineCost : 0,
         labor,
         electricityCost,
-        profitSplit,
-        emergencySplit,
+        profitSplit: ownerAProfit,
+        emergencySplit: ownerAEmergency,
         total: ownerATotal,
       },
       ownerB: {
-        machineCost: owner === "Owner B" ? totalMachineCost : 0,
+        machineCost: owner === OWNER_B_KEY ? totalMachineCost : 0,
         filamentCost: totalFilamentCost,
         materials,
         packaging,
-        profitSplit,
-        emergencySplit,
+        profitSplit: ownerBProfit,
+        emergencySplit: ownerBEmergency,
         vatCost,
         total: ownerBTotal,
       },
@@ -382,7 +390,7 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
           part_name: part.partName || "Unnamed Part",
           printer_id: part.printer?.id,
           printer_name: part.printer?.name,
-          printer_owner: part.printer?.owner || "Owner B",
+          printer_owner: part.printer?.owner || OWNER_B_KEY,
           filament_id: part.filaments[0]?.filament?.id, // Primary filament ID for backwards compatibility
           filament_name: filamentNames.join(", "), // Concatenated filament names
           filament_weight_grams: totalWeight,
@@ -745,11 +753,11 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                     <h3 className="text-white font-semibold mb-3">Profit Split (50% Margin)</h3>
                     <div className="space-y-3">
                       <div className="p-3 bg-purple-950 rounded-lg">
-                        <div className="text-purple-300 text-sm mb-1">Owner A Receives</div>
+                        <div className="text-purple-300 text-sm mb-1">{OWNER_A_LABEL} Receives</div>
                         <div className="text-white font-bold">${results.profitSplits.ownerA.total.toFixed(2)}</div>
                       </div>
                       <div className="p-3 bg-blue-950 rounded-lg">
-                        <div className="text-blue-300 text-sm mb-1">Owner B Receives</div>
+                        <div className="text-blue-300 text-sm mb-1">{OWNER_B_LABEL} Receives</div>
                         <div className="text-white font-bold">${results.profitSplits.ownerB.total.toFixed(2)}</div>
                       </div>
                     </div>

@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DialogCustom } from "@/components/ui/dialog-custom"
+import { OWNER_A_KEY, OWNER_B_KEY, OWNER_OPTIONS } from "@/lib/business-config"
 
 type Printer = {
   id: string
@@ -32,7 +33,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [newPrinter, setNewPrinter] = useState({
     name: "",
-    owner: "Owner B",
+    owner: OWNER_B_KEY,
     printer_cost: "500.00",
     additional_upfront_cost: "100.00",
     estimated_annual_maintenance: "75.00",
@@ -69,7 +70,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
       if (data) setPrinters(data)
       setNewPrinter({
         name: "",
-        owner: "Owner B",
+        owner: OWNER_B_KEY,
         printer_cost: "500.00",
         additional_upfront_cost: "100.00",
         estimated_annual_maintenance: "75.00",
@@ -159,8 +160,11 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="Owner A">Owner A</SelectItem>
-            <SelectItem value="Owner B">Owner B</SelectItem>
+            {OWNER_OPTIONS.map((o) => (
+              <SelectItem key={o.key} value={o.key}>
+                {o.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -312,7 +316,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">{printer.name}</h3>
                         <span
-                          className={`px-2 py-1 rounded text-xs font-semibold ${printer.owner === "Owner A" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}
+                          className={`px-2 py-1 rounded text-xs font-semibold ${printer.owner === OWNER_A_KEY ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}
                         >
                           {printer.owner}
                         </span>

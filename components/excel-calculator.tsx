@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { OWNER_A_KEY, OWNER_B_KEY, PROFIT_SPLIT_RATIO, EMERGENCY_SPLIT_RATIO } from "@/lib/business-config"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -507,8 +508,8 @@ export function ExcelCalculator({
       totalMachineCost += partMachineCost
 
       // Distribute machine cost based on printer owner
-      const ownerLower = printer.owner?.toLowerCase() || "owner b"
-      if (ownerLower === "owner a") {
+      const ownerLower = printer.owner?.toLowerCase() || OWNER_B_KEY.toLowerCase()
+      if (ownerLower === OWNER_A_KEY.toLowerCase()) {
         ownerAMachine += partMachineCost
       } else {
         ownerBMachine += partMachineCost
@@ -555,8 +556,8 @@ export function ExcelCalculator({
       totalElectricity += partElectricityCost
 
       // Distribute electricity cost based on printer owner
-      const ownerLower = printer.owner?.toLowerCase() || "owner b"
-      if (ownerLower === "owner a") {
+      const ownerLower = printer.owner?.toLowerCase() || OWNER_B_KEY.toLowerCase()
+      if (ownerLower === OWNER_A_KEY.toLowerCase()) {
         ownerAElectricity += partElectricityCost
       } else {
         ownerBElectricity += partElectricityCost
@@ -656,31 +657,33 @@ export function ExcelCalculator({
   }
   // Default to 'owner b' if no owner is found or no printed parts
   if (!selectedPrinterOwner) {
-    selectedPrinterOwner = "owner b"
+    selectedPrinterOwner = OWNER_B_KEY.toLowerCase()
   }
 
   const totalProfit = selectedMarginValue - totalLandedCost
-  const halfProfit = totalProfit / 2
-  const halfEmergency = emergencyFee / 2
+  const ownerAProfit = totalProfit * PROFIT_SPLIT_RATIO
+  const ownerBProfit = totalProfit * (1 - PROFIT_SPLIT_RATIO)
+  const ownerAEmergency = emergencyFee * EMERGENCY_SPLIT_RATIO
+  const ownerBEmergency = emergencyFee * (1 - EMERGENCY_SPLIT_RATIO)
 
-  // Owner B gets his machine costs + filament + materials + packaging + half profit + VAT
-  // Owner A receives his share of machine costs + ALL electricity + ALL drying + labor + fuel + half profit + half emergency fee
+  // Owner B gets his machine costs + filament + materials + packaging + profit share + VAT
+  // Owner A receives his share of machine costs + ALL electricity + ALL drying + labor + fuel + profit share + emergency share
   const ownerAReceives =
     ownerAMachineCost +
     electricityCost + // ALL electricity goes to Owner A, not just ownerAElectricityCost
     totalLaborCost +
     fuelCost +
     totalDryingCost + // ALL drying cost goes to Owner A
-    halfProfit +
-    halfEmergency
+    ownerAProfit +
+    ownerAEmergency
 
   const ownerBReceives =
     ownerBMachineCost +
     totalPrintingCost + // Filament cost
     totalMaterialsCost +
     totalPackagingCost +
-    halfProfit +
-    halfEmergency +
+    ownerBProfit +
+    ownerBEmergency +
     vatAmountFromSellingPrice
 
   // ADDED STATE FOR SAVE DIALOG
@@ -2249,12 +2252,12 @@ export function ExcelCalculator({
                             <span>€{fuelCost.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between gap-4">
-                            <span>Half Profit:</span>
-                            <span>€{halfProfit.toFixed(2)}</span>
+                            <span>Profit Share:</span>
+                            <span>€{ownerAProfit.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between gap-4">
-                            <span>Half Emergency:</span>
-                            <span>€{halfEmergency.toFixed(2)}</span>
+                            <span>Emergency Share:</span>
+                            <span>€{ownerAEmergency.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between gap-4 font-bold border-t border-purple-700 pt-1 mt-2">
                             <span>Total:</span>
@@ -2292,12 +2295,12 @@ export function ExcelCalculator({
                             <span>€{totalPackagingCost.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between gap-4">
-                            <span>Half Profit:</span>
-                            <span>€{halfProfit.toFixed(2)}</span>
+                            <span>Profit Share:</span>
+                            <span>€{ownerBProfit.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between gap-4">
-                            <span>Half Emergency:</span>
-                            <span>€{halfEmergency.toFixed(2)}</span>
+                            <span>Emergency Share:</span>
+                            <span>€{ownerBEmergency.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between gap-4">
                             <span>VAT (23%):</span>
