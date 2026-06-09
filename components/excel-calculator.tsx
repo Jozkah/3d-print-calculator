@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { OWNER_A_KEY, OWNER_B_KEY, PROFIT_SPLIT_RATIO, EMERGENCY_SPLIT_RATIO } from "@/lib/business-config"
 import { Button } from "@/components/ui/button"
@@ -210,6 +210,10 @@ export function ExcelCalculator({
   const [isEditingQuote, setIsEditingQuote] = useState(false)
   const [currentQuoteId, setCurrentQuoteId] = useState<string | null>(null)
 
+  // Set while restoring a saved quote so the heating-recompute effect skips
+  // exactly one run after load and preserves the loaded HEATING drying_time_hr.
+  const isHydratingRef = useRef(false)
+
   const [isSavingDraft, setIsSavingDraft] = useState(false)
 
   const availableFilaments = filaments.filter((f) => {
@@ -329,11 +333,16 @@ export function ExcelCalculator({
 
 
         // Load all quote data into state
-        setCalculatorType(quote.calculator_type || "3d-print") // Load calculator type
+        // Read the same column the save paths write (`quote_type_mode`); the
+        // legacy `calculator_type` field is never persisted, so reading it
+        // always reset edited quotes back to "3d-print".
+        setCalculatorType(quote.quote_type_mode || "3d-print") // Load calculator type
         setClientName(quote.quote_name || "")
         setIsEmergency(quote.is_emergency || false)
         setDistanceTraveledKm(quote.distance_traveled_km || 0)
-        setSelectedMargin(quote.selected_margin_percentage || quote.selected_margin || 50)
+        // Clamp to 99 so a stored/legacy margin of >=100 can never make the
+        // (1 - margin/100) price denominator 0 (which yields Infinity/NaN).
+        setSelectedMargin(Math.min(99, Number(quote.selected_margin_percentage || quote.selected_margin || 50)))
         setVatEnabled(quote.vat_enabled !== undefined ? quote.vat_enabled : true) // Load VAT enabled state
 
         // Correctly handle legacy and new filament data
@@ -351,6 +360,9 @@ export function ExcelCalculator({
             return part as PrintedPart
           },
         )
+        // Mark hydration so the heating effect (which depends on printedParts)
+        // does not immediately overwrite the restored HEATING drying_time_hr.
+        isHydratingRef.current = true
         setPrintedParts(restoredPrintedParts)
         setDriedBatches(Array.isArray(quote.dried_batches) ? quote.dried_batches : [])
         setMaterials(Array.isArray(quote.materials) ? quote.materials : [])
@@ -379,6 +391,14 @@ export function ExcelCalculator({
   }, [editingQuoteId]) // Keep minimal dependencies to avoid re-runs
 
   useEffect(() => {
+    // Skip the single recompute triggered by loading a saved quote so the
+    // restored/edited HEATING drying_time_hr is preserved; genuine later edits
+    // to printedParts/filaments still recompute normally.
+    if (isHydratingRef.current) {
+      isHydratingRef.current = false
+      return
+    }
+
     // Create a map of heating requirements from printed parts
     const heatingRequirements: { [key: string]: number } = {}
 
@@ -434,7 +454,6 @@ export function ExcelCalculator({
     if (!part.filaments || part.filaments.length === 0 || !globalSettings) return sum
 
     let partFilamentCost = 0
-    let partElectricityCost = 0
 
     part.filaments.forEach((filamentEntry) => {
       const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
@@ -444,9 +463,12 @@ export function ExcelCalculator({
         // Assuming filament.price_per_kg is used for material cost in non-3D print scenarios
         // This might need adjustment based on actual use case for non-3D print materials
         const materialCost = filament.price_per_kg // Placeholder, might need adjustment
-        partElectricityCost += part.printing_time_hr * globalSettings.electricity_cost_per_kwh
+        // Compute electricity per filament (fresh local, NOT accumulated) so the
+        // summary total matches the per-row table cell; accumulating across
+        // filaments made cost grow super-linearly for multi-material parts.
+        const electricityCost = part.printing_time_hr * globalSettings.electricity_cost_per_kwh
         // Assuming the '11' is a factor for non-3D print material cost calculation
-        partFilamentCost += (materialCost + partElectricityCost) * 11
+        partFilamentCost += (materialCost + electricityCost) * 11
       } else {
         // For 3D print, calculate cost based on grams
         partFilamentCost += (filament.price_per_kg * filamentEntry.grams) / 1000
@@ -496,7 +518,11 @@ export function ExcelCalculator({
       const totalInvestment = printer.printer_cost + printer.additional_upfront_cost
       const lifetimeCost = totalInvestment + printer.estimated_annual_maintenance * printer.estimated_life_years
       const estimatedUptimeHoursPerYear = 8760 * printer.estimated_printer_uptime_percent
-      const printerCapitalCostPerHour = lifetimeCost / (estimatedUptimeHoursPerYear * printer.estimated_life_years)
+      // Guard the denominator: a printer saved with 0 uptime or 0 life years
+      // would otherwise produce Infinity that cascades into the whole quote.
+      // Mirrors the guarded tooltip calc further down (uptime/life > 0).
+      const capitalDenominator = estimatedUptimeHoursPerYear * printer.estimated_life_years
+      const printerCapitalCostPerHour = capitalDenominator > 0 ? lifetimeCost / capitalDenominator : 0
 
       // Apply buffer factor only to capital cost
       const costBufferFactor = 1.3
@@ -601,7 +627,15 @@ export function ExcelCalculator({
 
   const vatRate = 0.23
   const vatAmountFromLandedCost = mode === "business" && vatEnabled ? totalLandedCost * vatRate : 0
-  const vatAmountFromSellingPrice = mode === "business" && vatEnabled ? selectedMarginValue * vatRate : 0
+  // In target-price mode the client price is exactly targetPrice (VAT-inclusive),
+  // so derive the VAT line from the actual target to avoid drift from the rounded
+  // back-solved margin; otherwise use VAT of the ex-VAT selling price.
+  const vatAmountFromSellingPrice =
+    mode === "business" && vatEnabled
+      ? marginInputMode === "targetPrice" && targetPrice > 0
+        ? targetPrice - targetPrice / (1 + vatRate)
+        : selectedMarginValue * vatRate
+      : 0
 
   // Calculations with VAT included
   const margin30WithVAT = mode === "business" && vatEnabled ? margin30 * (1 + vatRate) : margin30
@@ -620,7 +654,13 @@ export function ExcelCalculator({
 
   useEffect(() => {
     if (marginInputMode === "targetPrice" && targetPrice > 0) {
-      const priceBeforeEmergency = Math.max(0, targetPrice - emergencyFee)
+      // The client pays targetPrice INCLUDING VAT. Strip VAT before back-solving
+      // the margin so selectedMarginValue becomes the ex-VAT selling price;
+      // otherwise the owner split (which adds VAT separately) over-distributed
+      // by ~the VAT amount versus what the client actually pays.
+      const vatApplies = mode === "business" && vatEnabled
+      const targetExVat = vatApplies ? targetPrice / (1 + vatRate) : targetPrice
+      const priceBeforeEmergency = Math.max(0, targetExVat - emergencyFee)
       const totalLandedCostValue = vatEnabled ? totalLandedCost : totalLandedCost - vatAmountFromLandedCost
 
       if (totalLandedCostValue > 0 && priceBeforeEmergency > totalLandedCostValue) {
@@ -637,7 +677,7 @@ export function ExcelCalculator({
       }
       // </CHANGE>
     }
-  }, [marginInputMode, targetPrice, totalLandedCost, vatEnabled, vatAmountFromLandedCost, emergencyFee])
+  }, [marginInputMode, targetPrice, totalLandedCost, vatEnabled, vatAmountFromLandedCost, emergencyFee, mode, vatRate])
   // </CHANGE>
 
   // Business profit split calculations
@@ -716,9 +756,12 @@ export function ExcelCalculator({
         const costBufferFactor = 1.3
         const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
 
+        // Honor the double_heating_cost toggle (same as the live totalDryingCost)
+        // so the persisted per-batch cost stays consistent with drying_cost.
+        const heatingMultiplier = globalSettings?.double_heating_cost !== false ? 2 : 1
         const cost =
           batch.material === "HEATING"
-            ? batch.drying_time_hr * totalDryerCostPerHour * 2
+            ? batch.drying_time_hr * totalDryerCostPerHour * heatingMultiplier
             : batch.drying_time_hr * totalDryerCostPerHour
 
         return {
@@ -853,9 +896,12 @@ export function ExcelCalculator({
         const electricalCostPerHour = globalSettings ? (150 / 1000) * globalSettings.electricity_cost_per_kwh : 0
         const costBufferFactor = 1.3
         const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
+        // Honor the double_heating_cost toggle so the persisted per-batch cost
+        // matches the live totalDryingCost / saved drying_cost.
+        const heatingMultiplier = globalSettings?.double_heating_cost !== false ? 2 : 1
         const cost =
           batch.material === "HEATING"
-            ? batch.drying_time_hr * totalDryerCostPerHour * 2
+            ? batch.drying_time_hr * totalDryerCostPerHour * heatingMultiplier
             : batch.drying_time_hr * totalDryerCostPerHour
         return { ...batch, cost }
       })
@@ -974,20 +1020,25 @@ export function ExcelCalculator({
       : "Processing Batches"
 
   // ADDED FUNCTIONS FOR FILAMENT MANAGEMENT
+  // Build new objects immutably instead of mutating nested state in place
+  // (a shallow [...printedParts] copy still shares the inner part/filaments
+  // references, which violates React's update contract).
   const addFilamentToPart = (partIndex: number) => {
-    const updated = [...printedParts]
-    updated[partIndex].filaments.push({
-      id: Date.now().toString(),
-      filament_id: "",
-      grams: 0,
-    })
-    setPrintedParts(updated)
+    setPrintedParts((prev) =>
+      prev.map((p, i) =>
+        i === partIndex
+          ? { ...p, filaments: [...p.filaments, { id: Date.now().toString(), filament_id: "", grams: 0 }] }
+          : p,
+      ),
+    )
   }
 
   const removeFilamentFromPart = (partIndex: number, filamentIndex: number) => {
-    const updated = [...printedParts]
-    updated[partIndex].filaments = updated[partIndex].filaments.filter((_, i) => i !== filamentIndex)
-    setPrintedParts(updated)
+    setPrintedParts((prev) =>
+      prev.map((p, i) =>
+        i === partIndex ? { ...p, filaments: p.filaments.filter((_, fi) => fi !== filamentIndex) } : p,
+      ),
+    )
   }
 
   const duplicatePrintedPart = (index: number) => {
@@ -1009,13 +1060,22 @@ export function ExcelCalculator({
     field: "filament_id" | "grams",
     value: string | number,
   ) => {
-    const updated = [...printedParts]
-    if (field === "filament_id") {
-      updated[partIndex].filaments[filamentIndex].filament_id = value as string
-    } else {
-      updated[partIndex].filaments[filamentIndex].grams = value as number
-    }
-    setPrintedParts(updated)
+    // Immutable update: clone the touched part and filament entry rather than
+    // mutating the existing state objects in place.
+    setPrintedParts((prev) =>
+      prev.map((p, i) =>
+        i === partIndex
+          ? {
+              ...p,
+              filaments: p.filaments.map((f, fi) =>
+                fi === filamentIndex
+                  ? { ...f, [field]: field === "grams" ? (value as number) : (value as string) }
+                  : f,
+              ),
+            }
+          : p,
+      ),
+    )
   }
 
   const getTotalGrams = (part: PrintedPart): number => {
@@ -1251,9 +1311,8 @@ export function ExcelCalculator({
                           <Input
                             value={part.name}
                             onChange={(e) => {
-                              const updated = [...printedParts]
-                              updated[index].name = e.target.value
-                              setPrintedParts(updated)
+                              // Immutable update via helper instead of mutating state in place.
+                              updatePartField(index, "name", e.target.value)
                             }}
                             className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                             placeholder="Part name"
@@ -1276,9 +1335,8 @@ export function ExcelCalculator({
                                 <Select
                                   value={part.printer_id === "" ? undefined : part.printer_id}
                                   onValueChange={(value) => {
-                                    const updated = [...printedParts]
-                                    updated[index].printer_id = value
-                                    setPrintedParts(updated)
+                                    // Immutable update via helper instead of mutating state in place.
+                                    updatePartField(index, "printer_id", value)
                                   }}
                                 >
                                   <SelectTrigger className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900">
@@ -1381,11 +1439,14 @@ export function ExcelCalculator({
                                             step="0.1"
                                             value={filamentEntry.grams || ""}
                                             onChange={(e) => {
-                                              const updated = [...printedParts]
+                                              // Immutable update via helper instead of mutating state in place.
                                               const value = e.target.value
-                                              updated[index].filaments[originalIndex].grams =
-                                                value === "" ? 0 : Number.parseFloat(value) || 0
-                                              setPrintedParts(updated)
+                                              updateFilamentInPart(
+                                                index,
+                                                originalIndex,
+                                                "grams",
+                                                value === "" ? 0 : Number.parseFloat(value) || 0,
+                                              )
                                             }}
                                             className="w-16 h-6 text-xs border-blue-200 bg-white px-1"
                                             placeholder="g"
@@ -1441,17 +1502,21 @@ export function ExcelCalculator({
                                             key={filament.id}
                                             value={`${filament.id}-${filament.name}`}
                                             onSelect={() => {
-                                              const updated = [...printedParts]
-                                              if (!isSelected) {
-                                                // Add filament
-                                                updated[index].filaments.push({
-                                                  id: Date.now().toString(),
-                                                  filament_id: filament.id,
-                                                  grams: 0,
-                                                })
-                                              }
-                                              // Note: Removal is now done via the X button, not by clicking again
-                                              setPrintedParts(updated)
+                                              // Immutable add (only when not already selected); removal is
+                                              // handled via the X button, not by clicking again.
+                                              setPrintedParts((prev) =>
+                                                prev.map((p, i) =>
+                                                  i === index && !isSelected
+                                                    ? {
+                                                        ...p,
+                                                        filaments: [
+                                                          ...p.filaments,
+                                                          { id: Date.now().toString(), filament_id: filament.id, grams: 0 },
+                                                        ],
+                                                      }
+                                                    : p,
+                                                ),
+                                              )
                                             }}
                                             disabled={isSelected}
                                             className={isSelected ? "opacity-50" : ""}
@@ -1476,10 +1541,9 @@ export function ExcelCalculator({
                             step="0.1"
                             value={part.printing_time_hr || ""}
                             onChange={(e) => {
-                              const updated = [...printedParts]
+                              // Immutable update via helper instead of mutating state in place.
                               const value = e.target.value
-                              updated[index].printing_time_hr = value === "" ? 0 : Number.parseFloat(value) || 0
-                              setPrintedParts(updated)
+                              updatePartField(index, "printing_time_hr", value === "" ? 0 : Number.parseFloat(value) || 0)
                             }}
                             className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
                           />
@@ -1567,10 +1631,13 @@ export function ExcelCalculator({
                     const costBufferFactor = 1.3
                     const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
 
-                    // Calculate cost based on material type
+                    // Calculate cost based on material type.
+                    // Honor the double_heating_cost toggle so the displayed row
+                    // cost matches the live totalDryingCost and the saved figure.
+                    const heatingMultiplier = globalSettings?.double_heating_cost !== false ? 2 : 1
                     let cost = 0
                     if (batch.material === "HEATING") {
-                      cost = batch.drying_time_hr * totalDryerCostPerHour * 2
+                      cost = batch.drying_time_hr * totalDryerCostPerHour * heatingMultiplier
                     } else {
                       cost = batch.drying_time_hr * totalDryerCostPerHour
                     }
@@ -1982,8 +2049,8 @@ export function ExcelCalculator({
                   <span className="text-blue-900 dark:text-blue-100 font-bold">€{machineCost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 dark:text-blue-300 font-medium">Electricity Cost (Printers & Dryer):</span>
-                  {/* Combined printer and drying electricity */}
+                  <span className="text-blue-700 dark:text-blue-300 font-medium">Electricity &amp; Drying Cost:</span>
+                  {/* Printer electricity + full drying cost (dryer capital + electricity + buffer). Relabeled so the label matches what is summed; the dryer capital was previously mislabeled as "Electricity". */}
                   <span className="text-blue-900 dark:text-blue-100 font-bold">€{(electricityCost + totalDryingCost).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-blue-300">
@@ -2153,11 +2220,12 @@ export function ExcelCalculator({
                             const target = Math.max(0, Number(e.target.value) || 0)
                             setTargetPrice(target)
                             setMarginInputMode("targetPrice")
-                            if (target > totalLandedCost) {
-                              const calculatedMargin = ((target - totalLandedCost) / totalLandedCost) * 100
-                              setCustomMargin(Number(calculatedMargin.toFixed(2)))
-                              setSelectedMargin(Number(calculatedMargin.toFixed(2)))
-                            }
+                            // customMargin/selectedMargin are derived from targetPrice by the
+                            // useEffect above using the correct profit-margin formula
+                            // (1 - cost/price). The previous inline markup formula
+                            // ((target - cost) / cost) used the wrong definition, divided by
+                            // zero on an empty quote (totalLandedCost === 0 -> Infinity), and
+                            // could set margin >= 100; deriving it in one place fixes all three.
                           }}
                           placeholder={`> ${totalLandedCost.toFixed(2)}`}
                           className="w-20 text-center border border-blue-300 rounded px-1 py-0.5 text-blue-700 dark:text-blue-300 font-medium"

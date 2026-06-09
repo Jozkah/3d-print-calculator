@@ -21,9 +21,16 @@ import { useRouter } from "next/navigation"
 type Printer = {
   id: string
   name: string
-  cost: number
-  estimated_life_hours: number
-  power_consumption_watts: number
+  // Field names aligned with the real `printers` table (scripts/schema.sql) and
+  // with excel-calculator.tsx. The previous `cost`/`estimated_life_hours`/
+  // `power_consumption_watts` names did not exist on the DB rows (select("*")),
+  // so every machine/electricity figure evaluated to NaN.
+  printer_cost: number
+  additional_upfront_cost: number
+  estimated_annual_maintenance: number
+  estimated_life_years: number
+  estimated_printer_uptime_percent: number
+  average_power_consumption_watts: number
   owner?: string
 }
 
@@ -61,6 +68,32 @@ type CalculatorProps = {
   quoteType: "personal" | "business"
   printers: Printer[]
   filaments: Filament[]
+}
+
+// Parse a user-entered numeric string into a finite number. Controlled number
+// inputs store their raw string value, and clearing a field yields "" (and
+// Number.parseFloat("") === NaN). Coercing to 0 here prevents a single empty
+// field from poisoning landedCost / margins / the profit split with NaN, and
+// from persisting NaN/null into the database on save.
+const safeNum = (s: string | undefined | null): number => {
+  const n = Number.parseFloat(s ?? "")
+  return Number.isFinite(n) ? n : 0
+}
+
+// Per-part machine + electricity cost, derived from the printer's real DB
+// columns. Centralised so calculate() (display) and saveQuote() (persistence)
+// can never diverge. Guards both undefined operands and zero divisors.
+const computePartMachineCosts = (printer: Printer | null, hours: number, electricityRate: number) => {
+  const totalInvestment = (printer?.printer_cost || 0) + (printer?.additional_upfront_cost || 0)
+  const lifeYears = printer?.estimated_life_years || 0
+  const lifetimeCost = totalInvestment + (printer?.estimated_annual_maintenance || 0) * lifeYears
+  const uptimeHoursPerYear = 8760 * (printer?.estimated_printer_uptime_percent || 0)
+  const denom = uptimeHoursPerYear * lifeYears
+  // Guard against zero/undefined life or uptime producing Infinity/NaN.
+  const machineCostPerHour = denom > 0 ? lifetimeCost / denom : 0
+  const machineCost = hours * machineCostPerHour
+  const electricityCost = ((printer?.average_power_consumption_watts || 0) / 1000) * hours * electricityRate
+  return { machineCost, electricityCost }
 }
 
 export function CostCalculator({ quoteType, printers, filaments }: CalculatorProps) {
@@ -184,25 +217,32 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
     const partResults: any[] = []
 
     for (const part of parts) {
-      if (!part.printer || !part.printTime || part.filaments.length === 0) {
+      // Skip parts that have no USABLE filament (a filament selected AND a
+      // weight), matching saveQuote()'s filter below. Previously this only
+      // checked filaments.length, so a part with a printer + print time but a
+      // blank/unselected filament was counted on screen yet dropped on save —
+      // making the displayed landed cost diverge from what got persisted.
+      if (!part.printer || !part.printTime || !part.filaments.some((f) => f.filament && f.weight)) {
         continue
       }
 
-      const hours = Number.parseFloat(part.printTime)
-      const emergency = Number.parseFloat(part.emergencyFee)
+      const hours = safeNum(part.printTime)
+      const emergency = safeNum(part.emergencyFee)
 
       // Calculate filament cost from all filaments in this part
       let partFilamentCost = 0
       for (const filamentEntry of part.filaments) {
         if (filamentEntry.filament && filamentEntry.weight) {
-          const weightInKg = Number.parseFloat(filamentEntry.weight) / 1000
+          const weightInKg = safeNum(filamentEntry.weight) / 1000
           partFilamentCost += weightInKg * filamentEntry.filament.price_per_kg
         }
       }
 
-      const machineCostPerHour = part.printer.cost / part.printer.estimated_life_hours
-      const machineCost = hours * machineCostPerHour
-      const electricityCost = (part.printer.power_consumption_watts / 1000) * hours * globalSettings.electricity_rate
+      const { machineCost, electricityCost } = computePartMachineCosts(
+        part.printer,
+        hours,
+        globalSettings.electricity_rate,
+      )
       const dryerCost = 0 // Can be calculated based on dryer settings if needed
 
       totalFilamentCost += partFilamentCost
@@ -222,10 +262,12 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
       })
     }
 
-    const materials = Number.parseFloat(materialsCost)
-    const labor = Number.parseFloat(laborCost)
-    const packaging = Number.parseFloat(packagingCost)
-    const shipping = Number.parseFloat(shippingCost)
+    // safeNum coerces a cleared ("") field to 0 instead of NaN, so blanking any
+    // additional-cost input no longer turns the whole quote into $NaN.
+    const materials = safeNum(materialsCost)
+    const labor = safeNum(laborCost)
+    const packaging = safeNum(packagingCost)
+    const shipping = safeNum(shippingCost)
 
     const totalPrintingCost = totalFilamentCost + totalMachineCost + totalElectricityCost + totalDryerCost
     const landedCost = totalPrintingCost + materials + labor + packaging + shipping + totalEmergencyFees
@@ -285,6 +327,19 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
   ) => {
     const totalMachineCost = partResults.reduce((sum, p) => sum + p.machineCost, 0)
     const totalFilamentCost = partResults.reduce((sum, p) => sum + p.filamentCost, 0)
+
+    // Attribute machine cost to each owner by the owner of the printer used on
+    // each part, instead of dumping the whole total onto the first part's
+    // owner. For single-owner quotes this collapses to the old behaviour; for
+    // mixed-owner quotes the per-owner split is now correct.
+    let ownerAMachineCost = 0
+    let ownerBMachineCost = 0
+    for (const p of partResults) {
+      const partOwner = p?.printer?.owner || OWNER_B_KEY
+      if (partOwner === OWNER_A_KEY) ownerAMachineCost += p.machineCost
+      else ownerBMachineCost += p.machineCost
+    }
+
     const totalCosts =
       totalFilamentCost + totalMachineCost + materials + labor + packaging + shipping + electricityCost + emergencyFees
     const profit = salePrice - totalCosts
@@ -293,38 +348,41 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
     const ownerAEmergency = emergencyFees * EMERGENCY_SPLIT_RATIO
     const ownerBEmergency = emergencyFees * (1 - EMERGENCY_SPLIT_RATIO)
     const vatCost = salePrice * vatRate
+    // The customer pays the (VAT-exclusive) margin price PLUS VAT. Surfacing
+    // this VAT-inclusive figure lets the two owner totals reconcile to what is
+    // actually charged (salePrice * (1 + vatRate)).
+    const clientPrice = salePrice + vatCost
 
-    // Determine owner based on first part (or majority owner if needed)
+    // Retained only as a display hint (owner of the first part). It no longer
+    // drives the machine-cost allocation above.
     const owner = partResults[0]?.printer?.owner || OWNER_B_KEY
 
-    let ownerATotal = 0
-    let ownerBTotal = 0
-
-    if (owner === OWNER_A_KEY) {
-      // Owner A owns printer
-      ownerATotal = totalMachineCost + labor + electricityCost + ownerAProfit + ownerAEmergency
-      ownerBTotal = totalFilamentCost + materials + packaging + ownerBProfit + ownerBEmergency + vatCost
-    } else {
-      // Owner B owns printer
-      ownerATotal = labor + electricityCost + ownerAProfit + ownerAEmergency
-      ownerBTotal =
-        totalMachineCost + totalFilamentCost + materials + packaging + ownerBProfit + ownerBEmergency + vatCost
-    }
+    // Owner A fronts labour, electricity and shipping (mirrors excel-calculator,
+    // which assigns fuel/shipping to Owner A). Previously shipping was subtracted
+    // from distributable profit but never reimbursed to either owner, so the two
+    // totals fell short by exactly `shipping`. Owner B carries filament,
+    // materials, packaging and the VAT pass-through.
+    const ownerATotal =
+      ownerAMachineCost + labor + electricityCost + shipping + ownerAProfit + ownerAEmergency
+    const ownerBTotal =
+      ownerBMachineCost + totalFilamentCost + materials + packaging + ownerBProfit + ownerBEmergency + vatCost
 
     return {
       owner,
       profit,
       vatCost,
+      clientPrice,
       ownerA: {
-        machineCost: owner === OWNER_A_KEY ? totalMachineCost : 0,
+        machineCost: ownerAMachineCost,
         labor,
         electricityCost,
+        shipping,
         profitSplit: ownerAProfit,
         emergencySplit: ownerAEmergency,
         total: ownerATotal,
       },
       ownerB: {
-        machineCost: owner === OWNER_B_KEY ? totalMachineCost : 0,
+        machineCost: ownerBMachineCost,
         filamentCost: totalFilamentCost,
         materials,
         packaging,
@@ -362,31 +420,30 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
       return
     }
 
-    // Insert quote parts - updated to handle multiple filaments
+    // Insert quote parts - updated to handle multiple filaments.
+    // This filter uses the SAME predicate as the calculate() loop guard, so the
+    // qualifying parts here line up index-for-index with results.partResults.
+    // We reuse the already-computed machine/electricity/filament costs from
+    // results.partResults instead of recomputing them, guaranteeing the saved
+    // numbers equal the numbers the user saw (and avoiding duplicated, drifting
+    // cost math between the two paths).
     const partInserts = parts
       .filter((p) => p.printer && p.printTime && p.filaments.some((f) => f.filament && f.weight))
-      .map((part) => {
-        const hours = Number.parseFloat(part.printTime)
-        const emergency = Number.parseFloat(part.emergencyFee)
+      .map((part, i) => {
+        const pr = results.partResults?.[i]
+        const hours = safeNum(part.printTime)
+        const emergency = safeNum(part.emergencyFee)
 
-        // Calculate total filament cost and weight
-        let totalFilamentCost = 0
+        // Total filament weight + display names (cost comes from pr below).
         let totalWeight = 0
         const filamentNames: string[] = []
 
         for (const filamentEntry of part.filaments) {
           if (filamentEntry.filament && filamentEntry.weight) {
-            const weightInKg = Number.parseFloat(filamentEntry.weight) / 1000
-            totalFilamentCost += weightInKg * filamentEntry.filament.price_per_kg
-            totalWeight += Number.parseFloat(filamentEntry.weight)
+            totalWeight += safeNum(filamentEntry.weight)
             filamentNames.push(filamentEntry.filament.name)
           }
         }
-
-        const machineCostPerHour = (part.printer?.cost || 0) / (part.printer?.estimated_life_hours || 1)
-        const machineCost = hours * machineCostPerHour
-        const electricityCost =
-          ((part.printer?.power_consumption_watts || 0) / 1000) * hours * globalSettings.electricity_rate
 
         return {
           quote_header_id: header.id,
@@ -399,9 +456,9 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
           filament_weight_grams: totalWeight,
           print_time_hours: hours,
           emergency_fee: emergency,
-          filament_cost: totalFilamentCost,
-          machine_cost: machineCost,
-          electricity_cost: electricityCost,
+          filament_cost: pr?.filamentCost ?? 0,
+          machine_cost: pr?.machineCost ?? 0,
+          electricity_cost: pr?.electricityCost ?? 0,
           dryer_cost: 0,
         }
       })
@@ -754,6 +811,14 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
                 {results.profitSplits && (
                   <div className="pt-4 border-t border-slate-600">
                     <h3 className="text-white font-semibold mb-3">Profit Split (50% Margin)</h3>
+                    {/* The customer is charged the VAT-inclusive price; the two
+                        owner totals below sum to exactly this amount. */}
+                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-700">
+                      <span className="text-slate-300 font-semibold">Client Pays (incl. VAT)</span>
+                      <span className="text-white font-bold">
+                        ${results.profitSplits.clientPrice.toFixed(2)}
+                      </span>
+                    </div>
                     <div className="space-y-3">
                       <div className="p-3 bg-purple-950 rounded-lg">
                         <div className="text-purple-300 text-sm mb-1">{OWNER_A_LABEL} Receives</div>

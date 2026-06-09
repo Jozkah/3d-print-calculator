@@ -49,38 +49,75 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
     printerId: null,
   })
 
+  // Parse and validate the numeric printer fields shared by add/edit.
+  // The form fields are controlled inputs that can be cleared to "" — Number.parseFloat("") is NaN,
+  // and the target columns (printer_cost, ..., average_power_consumption_watts) are DECIMAL NOT NULL.
+  // Sending NaN makes Postgres reject the insert/update; we previously swallowed that error silently.
+  // Returning null here lets the caller surface a clear validation message instead of no-oping.
+  const parsePrinterNums = (data: typeof newPrinter) => {
+    const nums = {
+      printer_cost: Number.parseFloat(data.printer_cost),
+      additional_upfront_cost: Number.parseFloat(data.additional_upfront_cost),
+      estimated_annual_maintenance: Number.parseFloat(data.estimated_annual_maintenance),
+      estimated_life_years: Number.parseFloat(data.estimated_life_years),
+      estimated_printer_uptime_percent: Number.parseFloat(data.estimated_printer_uptime_percent),
+      average_power_consumption_watts: Number.parseFloat(data.average_power_consumption_watts),
+    }
+
+    // Reject NaN/Infinity and negatives for every numeric field.
+    if (Object.values(nums).some((n) => !Number.isFinite(n) || n < 0)) {
+      alert("Please enter valid non-negative numbers for all printer fields.")
+      return null
+    }
+    // estimated_life_years and estimated_printer_uptime_percent feed a division in the calculator
+    // (excel-calculator: lifetimeCost / (uptimeHoursPerYear * estimated_life_years)); a 0 here
+    // produces Infinity/NaN machine cost, so require life > 0 and uptime in (0, 1].
+    if (
+      nums.estimated_life_years <= 0 ||
+      nums.estimated_printer_uptime_percent <= 0 ||
+      nums.estimated_printer_uptime_percent > 1
+    ) {
+      alert("Estimated life (years) must be greater than 0, and uptime must be between 0 (exclusive) and 1.")
+      return null
+    }
+
+    return nums
+  }
+
   const handleAdd = async () => {
     if (!newPrinter.name) return
+
+    const nums = parsePrinterNums(newPrinter)
+    if (!nums) return
 
     const supabase = createClient()
     const { error } = await supabase.from("printers").insert({
       name: newPrinter.name,
       owner: newPrinter.owner,
-      printer_cost: Number.parseFloat(newPrinter.printer_cost),
-      additional_upfront_cost: Number.parseFloat(newPrinter.additional_upfront_cost),
-      estimated_annual_maintenance: Number.parseFloat(newPrinter.estimated_annual_maintenance),
-      estimated_life_years: Number.parseFloat(newPrinter.estimated_life_years),
-      estimated_printer_uptime_percent: Number.parseFloat(newPrinter.estimated_printer_uptime_percent),
-      average_power_consumption_watts: Number.parseFloat(newPrinter.average_power_consumption_watts),
+      ...nums,
       has_enclosure: newPrinter.has_enclosure === "true",
     })
 
-    if (!error) {
-      const { data } = await supabase.from("printers").select("*").order("name", { ascending: true })
-      if (data) setPrinters(data)
-      setNewPrinter({
-        name: "",
-        owner: OWNER_B_KEY,
-        printer_cost: "500.00",
-        additional_upfront_cost: "100.00",
-        estimated_annual_maintenance: "75.00",
-        estimated_life_years: "3.0",
-        estimated_printer_uptime_percent: "0.50",
-        average_power_consumption_watts: "150.00",
-        has_enclosure: "false",
-      })
-      setIsAdding(false)
+    if (error) {
+      // Surface DB failures instead of silently doing nothing.
+      alert(`Could not save printer: ${error.message}`)
+      return
     }
+
+    const { data } = await supabase.from("printers").select("*").order("name", { ascending: true })
+    if (data) setPrinters(data)
+    setNewPrinter({
+      name: "",
+      owner: OWNER_B_KEY,
+      printer_cost: "500.00",
+      additional_upfront_cost: "100.00",
+      estimated_annual_maintenance: "75.00",
+      estimated_life_years: "3.0",
+      estimated_printer_uptime_percent: "0.50",
+      average_power_consumption_watts: "150.00",
+      has_enclosure: "false",
+    })
+    setIsAdding(false)
   }
 
   const handleDelete = async (id: string) => {
@@ -102,28 +139,30 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
   const handleEdit = async (id: string) => {
     if (!editData.name) return
 
+    const nums = parsePrinterNums(editData)
+    if (!nums) return
+
     const supabase = createClient()
     const { error } = await supabase
       .from("printers")
       .update({
         name: editData.name,
         owner: editData.owner,
-        printer_cost: Number.parseFloat(editData.printer_cost),
-        additional_upfront_cost: Number.parseFloat(editData.additional_upfront_cost),
-        estimated_annual_maintenance: Number.parseFloat(editData.estimated_annual_maintenance),
-        estimated_life_years: Number.parseFloat(editData.estimated_life_years),
-        estimated_printer_uptime_percent: Number.parseFloat(editData.estimated_printer_uptime_percent),
-        average_power_consumption_watts: Number.parseFloat(editData.average_power_consumption_watts),
+        ...nums,
         has_enclosure: editData.has_enclosure === "true",
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
 
-    if (!error) {
-      const { data } = await supabase.from("printers").select("*").order("name", { ascending: true })
-      if (data) setPrinters(data)
-      setEditingId(null)
+    if (error) {
+      // Surface DB failures instead of silently doing nothing.
+      alert(`Could not update printer: ${error.message}`)
+      return
     }
+
+    const { data } = await supabase.from("printers").select("*").order("name", { ascending: true })
+    if (data) setPrinters(data)
+    setEditingId(null)
   }
 
   const startEdit = (printer: Printer) => {

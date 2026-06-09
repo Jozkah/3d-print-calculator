@@ -28,21 +28,24 @@ interface Material {
   name: string
   quantity: number
   unit_cost: number
-  total_cost: number
+  // Saved JSONB items never contain total_cost; line totals are derived from unit_cost*quantity.
+  total_cost?: number
 }
 
 interface LaborItem {
   action: string
   hours: number
   hourly_cost: number
-  total_cost: number
+  // Saved JSONB items never contain total_cost; line totals are derived from hours*hourly_cost.
+  total_cost?: number
 }
 
 interface PackagingItem {
   name: string
   quantity: number
   unit_cost: number
-  total_cost: number
+  // Saved JSONB items never contain total_cost; line totals are derived from unit_cost*quantity.
+  total_cost?: number
 }
 
 interface Quote {
@@ -68,6 +71,9 @@ interface Quote {
   labor_items: LaborItem[]
   packaging_items: PackagingItem[]
   distance_traveled_km: number
+  // Authoritative total stored for target-price quotes (operator's exact entered total,
+  // already inclusive of emergency fee and VAT). null when the quote used margin mode.
+  final_price?: number | null
 }
 
 export default function DetailedQuotePage() {
@@ -117,31 +123,29 @@ export default function DetailedQuotePage() {
       })
 
       const filamentIds = [...new Set(allFilamentIds)]
-      const { data: filaments } = await supabase.from("filaments").select("id, name").in("id", filamentIds)
+      // Fetch price_per_kg so each part's cost can be computed from its OWN filament prices,
+      // instead of splitting total_printing_cost purely by weight (which makes two equal-gram
+      // parts using different-priced filament show an identical, wrong per-part cost).
+      const { data: filaments } = await supabase
+        .from("filaments")
+        .select("id, name, price_per_kg")
+        .in("id", filamentIds)
       const filamentMap = new Map(filaments?.map((f) => [f.id, f.name]) || [])
-
-      // Calculate total grams considering both structures
-      const totalGrams = data.printed_parts.reduce((sum: number, p: any) => {
-        // Old structure
-        if (p.filament_grams) {
-          return sum + p.filament_grams
-        }
-        // New structure
-        if (p.filaments && Array.isArray(p.filaments)) {
-          const partGrams = p.filaments.reduce((partSum: number, f: any) => partSum + (f.grams || 0), 0)
-          return sum + partGrams
-        }
-        return sum
-      }, 0)
+      const priceMap = new Map(filaments?.map((f) => [f.id, f.price_per_kg]) || [])
 
       data.printed_parts = data.printed_parts.map((part: any) => {
         let materialName = "Unknown"
         let partGrams = 0
+        // Compute material cost per part using its filament price(s): price_per_kg * grams / 1000.
+        // This mirrors the calculator's total_printing_cost formula so per-part Base Cost /
+        // With Margin are accurate and the per-part sum reconciles with the subtotal.
+        let partCost = 0
 
         // Handle old structure
         if (part.filament_id) {
           materialName = filamentMap.get(part.filament_id) || "Unknown"
           partGrams = part.filament_grams || 0
+          partCost = ((priceMap.get(part.filament_id) || 0) * partGrams) / 1000
         }
         // Handle new structure (multiple filaments per part)
         else if (part.filaments && Array.isArray(part.filaments) && part.filaments.length > 0) {
@@ -152,13 +156,17 @@ export default function DetailedQuotePage() {
             .join(", ")
           materialName = filamentNames || "Unknown"
           partGrams = part.filaments.reduce((sum: number, f: any) => sum + (f.grams || 0), 0)
+          partCost = part.filaments.reduce(
+            (sum: number, f: any) => sum + ((priceMap.get(f.filament_id) || 0) * (f.grams || 0)) / 1000,
+            0,
+          )
         }
 
         return {
           ...part,
           material: materialName,
           filament_grams: partGrams,
-          part_cost: totalGrams > 0 ? (data.total_printing_cost * partGrams) / totalGrams : 0,
+          part_cost: partCost,
         }
       })
     }
@@ -208,8 +216,22 @@ export default function DetailedQuotePage() {
   const priceWithMarginAndEmergency = priceWithMargin + emergencyFeeCost
 
   const isBusinessQuote = quote.quote_type === "business"
-  const vatAmount = isBusinessQuote ? priceWithMarginAndEmergency * 0.23 : 0
-  const finalPrice = priceWithMarginAndEmergency + vatAmount
+  const recomputedVat = isBusinessQuote ? priceWithMarginAndEmergency * 0.23 : 0
+  const recomputedFinal = priceWithMarginAndEmergency + recomputedVat
+
+  // Prefer the stored authoritative final_price (set for target-price quotes) over the margin
+  // recompute. selected_margin is stored rounded to 0.1% and, for business+VAT quotes, derived
+  // without stripping VAT — so recomputing here diverges from the operator's entered total.
+  // Only fall back to the recompute when no target price was stored (margin-mode quotes).
+  const finalPrice = quote.final_price != null ? quote.final_price : recomputedFinal
+  // For business quotes the stored final_price is VAT-inclusive, so back out the VAT
+  // component (total - total/1.23) instead of re-applying 23% on top.
+  const vatAmount =
+    quote.final_price != null
+      ? isBusinessQuote
+        ? quote.final_price - quote.final_price / 1.23
+        : 0
+      : recomputedVat
 
   return (
     <div className="min-h-screen bg-white">
@@ -381,19 +403,24 @@ export default function DetailedQuotePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {quote.materials.map((material, index) => (
+                  {quote.materials.map((material, index) => {
+                    // Saved items have no total_cost; derive the line total from unit_cost*quantity
+                    // so Base Cost / With Margin are non-zero and reconcile with the subtotal.
+                    const lineTotal = (material.unit_cost || 0) * (material.quantity || 0)
+                    return (
                     <tr key={index} className={index % 2 === 0 ? "bg-blue-50" : "bg-white"}>
                       <td className="py-2 px-4 text-gray-900">{material.name}</td>
                       <td className="py-2 px-4 text-right text-gray-700">{material.quantity}</td>
                       <td className="py-2 px-4 text-right text-gray-700">{material.unit_cost?.toFixed(2) || "0.00"}</td>
                       <td className="py-2 px-4 text-right text-gray-700">
-                        {material.total_cost?.toFixed(2) || "0.00"}
+                        {lineTotal.toFixed(2)}
                       </td>
                       <td className="py-2 px-4 text-right font-medium text-gray-900">
-                        {((material.total_cost || 0) * marginMultiplier).toFixed(2)}
+                        {(lineTotal * marginMultiplier).toFixed(2)}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                   <tr className="bg-blue-200 font-semibold">
                     <td colSpan={4} className="py-2 px-4 text-right text-gray-900">
                       Subtotal:
@@ -425,17 +452,22 @@ export default function DetailedQuotePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {quote.labor_items.map((labor, index) => (
+                  {quote.labor_items.map((labor, index) => {
+                    // Saved items have no total_cost; derive the line total from hours*hourly_cost
+                    // so Base Cost / With Margin are non-zero and reconcile with the subtotal.
+                    const lineTotal = (labor.hours || 0) * (labor.hourly_cost || 0)
+                    return (
                     <tr key={index} className={index % 2 === 0 ? "bg-blue-50" : "bg-white"}>
                       <td className="py-2 px-4 text-gray-900">{labor.action}</td>
                       <td className="py-2 px-4 text-right text-gray-700">{labor.hours?.toFixed(2) || "0.00"}</td>
                       <td className="py-2 px-4 text-right text-gray-700">{labor.hourly_cost?.toFixed(2) || "0.00"}</td>
-                      <td className="py-2 px-4 text-right text-gray-700">{labor.total_cost?.toFixed(2) || "0.00"}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{lineTotal.toFixed(2)}</td>
                       <td className="py-2 px-4 text-right font-medium text-gray-900">
-                        {((labor.total_cost || 0) * marginMultiplier).toFixed(2)}
+                        {(lineTotal * marginMultiplier).toFixed(2)}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                   <tr className="bg-blue-200 font-semibold">
                     <td colSpan={4} className="py-2 px-4 text-right text-gray-900">
                       Subtotal:
@@ -467,17 +499,22 @@ export default function DetailedQuotePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {quote.packaging_items.map((pkg, index) => (
+                  {quote.packaging_items.map((pkg, index) => {
+                    // Saved items have no total_cost; derive the line total from unit_cost*quantity
+                    // so Base Cost / With Margin are non-zero and reconcile with the subtotal.
+                    const lineTotal = (pkg.unit_cost || 0) * (pkg.quantity || 0)
+                    return (
                     <tr key={index} className={index % 2 === 0 ? "bg-blue-50" : "bg-white"}>
                       <td className="py-2 px-4 text-gray-900">{pkg.name}</td>
                       <td className="py-2 px-4 text-right text-gray-700">{pkg.quantity}</td>
                       <td className="py-2 px-4 text-right text-gray-700">{pkg.unit_cost?.toFixed(2) || "0.00"}</td>
-                      <td className="py-2 px-4 text-right text-gray-700">{pkg.total_cost?.toFixed(2) || "0.00"}</td>
+                      <td className="py-2 px-4 text-right text-gray-700">{lineTotal.toFixed(2)}</td>
                       <td className="py-2 px-4 text-right font-medium text-gray-900">
-                        {((pkg.total_cost || 0) * marginMultiplier).toFixed(2)}
+                        {(lineTotal * marginMultiplier).toFixed(2)}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                   {quote.distance_traveled_km > 0 && (
                     <tr className="bg-white">
                       <td className="py-2 px-4 text-gray-900">Transportation fuel cost</td>

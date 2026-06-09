@@ -22,6 +22,9 @@ interface Quote {
   selected_margin: string
   is_emergency: boolean
   created_at: string
+  // Authoritative total stored for target-price quotes (operator's exact entered total,
+  // already inclusive of emergency fee and VAT). null when the quote used margin mode.
+  final_price?: number | null
 }
 
 export default function QuotePage() {
@@ -97,8 +100,23 @@ export default function QuotePage() {
 
   // Add VAT for business quotes (23%)
   const isBusinessQuote = quote.quote_type === "business"
-  const vatAmount = isBusinessQuote ? priceWithMarginAndEmergency * 0.23 : 0
-  const finalPrice = priceWithMarginAndEmergency + vatAmount
+  const recomputedVat = isBusinessQuote ? priceWithMarginAndEmergency * 0.23 : 0
+  const recomputedFinal = priceWithMarginAndEmergency + recomputedVat
+
+  // Prefer the stored authoritative final_price (set for target-price quotes) over the
+  // margin recompute. selected_margin is stored rounded to 0.1% and, for business+VAT
+  // quotes, is derived without stripping VAT — so recomputing here would diverge from the
+  // operator's entered total (and from what quote-history shows). Only fall back to the
+  // recompute when no target price was stored (margin-mode quotes).
+  const finalPrice = quote.final_price != null ? quote.final_price : recomputedFinal
+  // For business quotes the stored final_price is VAT-inclusive, so back out the VAT
+  // component (total - total/1.23) instead of re-applying 23% on top.
+  const vatAmount =
+    quote.final_price != null
+      ? isBusinessQuote
+        ? quote.final_price - quote.final_price / 1.23
+        : 0
+      : recomputedVat
 
   return (
     <div className="min-h-screen bg-white">

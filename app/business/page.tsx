@@ -24,7 +24,10 @@ export default async function BusinessPage({
     const [printersResult, filamentsResult, globalSettingsResult, clientsResult] = await Promise.all([
       supabase.from("printers").select("*").order("name", { ascending: true }),
       supabase.from("filaments").select("*").order("created_at", { ascending: true }),
-      supabase.from("global_settings").select("*").limit(1).single(),
+      // Use maybeSingle() so a 0-row global_settings table returns { data: null, error: null }
+      // instead of a PGRST116 error. The downstream ExcelCalculator already handles a null
+      // globalSettings prop, so a missing settings row must not blank the whole calculator.
+      supabase.from("global_settings").select("*").limit(1).maybeSingle(),
       supabase.from("clients").select("*").order("name"),
     ])
 

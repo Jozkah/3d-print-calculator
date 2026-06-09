@@ -150,6 +150,18 @@ CREATE TABLE IF NOT EXISTS quotes (
   ownerB_machine_cost NUMERIC,
   ownerA_electricity_cost NUMERIC,
   ownerB_electricity_cost NUMERIC,
+  -- Legacy roll-up fields the calculator still writes on every save/draft/duplicate
+  -- (excel-calculator.tsx handleSaveQuote + handleSaveAsDraft). These were created in
+  -- migrations 001/002 and made nullable in 012, but were dropped when consolidating
+  -- into this file — their absence makes PostgREST reject every quote insert/update
+  -- (PGRST204). Kept nullable to match migration 012, since the app does not always
+  -- populate every margin.
+  total_printing_cost NUMERIC,
+  distance_traveled_km NUMERIC DEFAULT 0,
+  margin_30 NUMERIC,
+  margin_40 NUMERIC,
+  margin_50 NUMERIC,
+  margin_60 NUMERIC,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

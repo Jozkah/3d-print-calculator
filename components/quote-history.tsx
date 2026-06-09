@@ -134,8 +134,14 @@ function QuoteHistory({
       status: "pending",
     }
     
-    // Remove id and other auto-generated fields
-    const { id, ...quoteData } = duplicatedQuote as any
+    // Remove id and other non-column fields before insert.
+    // The history query loads quotes with select("*, clients(name)"), so each row
+    // carries a nested `clients` object (a PostgREST embed, not a real column). Spreading
+    // the whole row would send `clients` (and other read/derived join artifacts like
+    // `client_name`) as payload keys, and PostgREST rejects any unknown column
+    // ("Could not find the 'clients' column of 'quotes'..."), so duplicate always failed.
+    // Strip those join artifacts so the insert only contains real `quotes` columns.
+    const { id, clients, client_name, ...quoteData } = duplicatedQuote as any
     
     const { data, error } = await supabase.from("quotes").insert([quoteData]).select()
     
@@ -799,8 +805,11 @@ function QuoteHistory({
                       <div className="bg-white p-3 rounded border border-gray-200 space-y-2">
                         {quote.materials.map((item: any, index: number) => (
                           <div key={index} className="flex justify-between text-sm">
-                            <span className="text-gray-600">{item.description || "N/A"}</span>
-                            <span className="text-gray-900">€{safeFixed(item.cost)}</span>
+                            {/* Materials are stored as {id, name, quantity, unit_cost} (no description/cost keys),
+                                so read `name` and compute the line cost as quantity * unit_cost to mirror the
+                                calculator's totals math, instead of the always-undefined item.description/item.cost. */}
+                            <span className="text-gray-600">{item.name || "N/A"}</span>
+                            <span className="text-gray-900">€{safeFixed((item.quantity ?? 0) * (item.unit_cost ?? 0))}</span>
                           </div>
                         ))}
                       </div>
@@ -813,8 +822,11 @@ function QuoteHistory({
                       <div className="bg-white p-3 rounded border border-gray-200 space-y-2">
                         {quote.labor_items.map((item: any, index: number) => (
                           <div key={index} className="flex justify-between text-sm">
-                            <span className="text-gray-600">{item.description || "N/A"}</span>
-                            <span className="text-gray-900">€{safeFixed(item.cost)}</span>
+                            {/* Labor items are stored as {id, action, hours, hourly_cost} (no description/cost keys),
+                                so read `action` and compute the line cost as hours * hourly_cost to mirror the
+                                calculator's totals math, instead of the always-undefined item.description/item.cost. */}
+                            <span className="text-gray-600">{item.action || "N/A"}</span>
+                            <span className="text-gray-900">€{safeFixed((item.hours ?? 0) * (item.hourly_cost ?? 0))}</span>
                           </div>
                         ))}
                       </div>
@@ -827,8 +839,11 @@ function QuoteHistory({
                       <div className="bg-white p-3 rounded border border-gray-200 space-y-2">
                         {quote.packaging_items.map((item: any, index: number) => (
                           <div key={index} className="flex justify-between text-sm">
-                            <span className="text-gray-600">{item.description || "N/A"}</span>
-                            <span className="text-gray-900">€{safeFixed(item.cost)}</span>
+                            {/* Packaging items are stored as {id, name, quantity, unit_cost} (no description/cost keys),
+                                so read `name` and compute the line cost as quantity * unit_cost to mirror the
+                                calculator's totals math, instead of the always-undefined item.description/item.cost. */}
+                            <span className="text-gray-600">{item.name || "N/A"}</span>
+                            <span className="text-gray-900">€{safeFixed((item.quantity ?? 0) * (item.unit_cost ?? 0))}</span>
                           </div>
                         ))}
                       </div>
@@ -1021,7 +1036,10 @@ function QuoteHistory({
                   </div>
                 </div>
 
-                {quote.quote_type === "business" && (quote.owner_a_receives || quote.owner_b_receives) && (
+                {/* Wrap the owner-share check in Boolean(): when both shares are the number 0,
+                    `(0 || 0)` is 0 and React would render a stray literal "0" under the card.
+                    Coercing to a boolean makes the all-zero case render nothing instead. */}
+                {quote.quote_type === "business" && Boolean(quote.owner_a_receives || quote.owner_b_receives) && (
                   <div className="mt-6 pt-4 border-t-2 border-gray-200">
                     <h3 className="text-sm font-semibold text-blue-900 mb-3">Profit Split</h3>
                     <div className="grid md:grid-cols-2 gap-4">
