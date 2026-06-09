@@ -220,8 +220,6 @@ export function ExcelCalculator({
     return true
   })
 
-  const h2sPrinter = printers.find((p) => p.name.toLowerCase().includes("h2s"))
-
   // ADDED STATE FOR REAL-TIME UPDATES
   useEffect(() => {
     // Subscribe to global settings changes
@@ -1287,16 +1285,7 @@ export function ExcelCalculator({
                                     <SelectValue placeholder="Select printer" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {printers
-                                      .filter((printer) => {
-                                        if (
-                                          calculatorType === "3d-print" &&
-                                          printer.name.toLowerCase().includes("carvera")
-                                        ) {
-                                          return false
-                                        }
-                                        return true
-                                      })
+                                    {[...printers]
                                       .sort((a, b) => a.name.localeCompare(b.name))
                                       .map((printer) => (
                                         <SelectItem key={printer.id} value={printer.id}>
@@ -1460,9 +1449,6 @@ export function ExcelCalculator({
                                                   filament_id: filament.id,
                                                   grams: 0,
                                                 })
-                                                if (calculatorType !== "3d-print" && h2sPrinter) {
-                                                  updated[index].printer_id = h2sPrinter.id
-                                                }
                                               }
                                               // Note: Removal is now done via the X button, not by clicking again
                                               setPrintedParts(updated)

@@ -85,18 +85,6 @@ Rename the owners or change the split ratio there.
 - [Supabase](https://supabase.com) (Postgres) via `@supabase/ssr`
 - Tailwind CSS v4 + [shadcn/ui](https://ui.shadcn.com)
 
-## Known issues
-
-The schema evolved through many incremental migrations and a couple of places in
-the app have drifted from it. If you build on this, be aware:
-
-- `cost-calculator.tsx` reads `global_settings.electricity_rate` and
-  `global_settings.vat_rate`, but the settings UI persists
-  `electricity_cost_per_kwh` (and there is no VAT column). Until reconciled the
-  per-job calculator falls back to defaults (electricity `0.15`, VAT `0.23`).
-- The bulk "Excel" calculator contains a few hard-coded printer-name special
-  cases; generalising it is a good first contribution.
-
 ## License
 
 [MIT](LICENSE) © Jozkah

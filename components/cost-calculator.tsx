@@ -95,8 +95,11 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
     const { data } = await supabase.from("global_settings").select("*").single()
     if (data) {
       setGlobalSettings({
-        electricity_rate: data.electricity_rate || 0.15,
-        vat_rate: data.vat_rate || 0.23,
+        // global_settings stores electricity_cost_per_kwh; earlier code read a
+        // non-existent `electricity_rate` column and always used the fallback.
+        electricity_rate: data.electricity_cost_per_kwh ?? 0.15,
+        // VAT is a flat 23% across the app (there is no settings column for it).
+        vat_rate: 0.23,
       })
     }
   }
