@@ -147,7 +147,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         <Input
           value={data.name}
           onChange={(e) => onChange({ ...data, name: e.target.value })}
-          placeholder="e.g., Bambulab P1S"
+          placeholder="e.g. your printer model"
           className="bg-white border-blue-200"
         />
       </div>

@@ -70,8 +70,8 @@ type Quote = {
   margin_60: number
   selected_margin: string // Updated to string
   selected_margin_percentage: number | null // Updated to number | null
-  ownerA_receives: number
-  ownerB_receives: number
+  owner_a_receives: number
+  owner_b_receives: number
   created_at: string
   is_draft?: boolean
   status?: string // Added status field
@@ -1021,17 +1021,17 @@ function QuoteHistory({
                   </div>
                 </div>
 
-                {quote.quote_type === "business" && (quote.ownerA_receives || quote.ownerB_receives) && (
+                {quote.quote_type === "business" && (quote.owner_a_receives || quote.owner_b_receives) && (
                   <div className="mt-6 pt-4 border-t-2 border-gray-200">
                     <h3 className="text-sm font-semibold text-blue-900 mb-3">Profit Split</h3>
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="bg-white p-4 rounded-lg border-2 border-gray-300">
                         <div className="text-sm text-gray-600 mb-1">Owner A Receives</div>
-                        <div className="text-2xl font-bold text-gray-900">€{safeFixed(quote.ownerA_receives)}</div>
+                        <div className="text-2xl font-bold text-gray-900">€{safeFixed(quote.owner_a_receives)}</div>
                       </div>
                       <div className="bg-white p-4 rounded-lg border-2 border-gray-300">
                         <div className="text-sm text-gray-600 mb-1">Owner B Receives</div>
-                        <div className="text-2xl font-bold text-gray-900">€{safeFixed(quote.ownerB_receives)}</div>
+                        <div className="text-2xl font-bold text-gray-900">€{safeFixed(quote.owner_b_receives)}</div>
                       </div>
                     </div>
                   </div>

@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS quotes (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Insert default printers with Bambulab P1S as example
+-- Insert example printers
 INSERT INTO printers (
   name, 
   printer_cost, 
@@ -140,12 +140,12 @@ INSERT INTO printers (
   average_power_consumption_watts,
   fixed_emergency_fee
 ) VALUES
-  ('Bambulab P1S', 500.00, 90.00, 100.00, 75.00, 3.0, 0.50, 0.10, 150.00, 10.00),
+  ('Printer A', 500.00, 90.00, 100.00, 75.00, 3.0, 0.50, 0.10, 150.00, 10.00),
   ('Printer B', 800.00, 80.00, 50.00, 60.00, 4.0, 0.40, 0.08, 120.00, 8.00),
   ('Printer C', 600.00, 70.00, 30.00, 50.00, 3.5, 0.35, 0.07, 100.00, 5.00)
 ON CONFLICT DO NOTHING;
 
--- Insert default filaments matching your Excel
+-- Insert example filaments
 INSERT INTO filaments (name, price_per_kg) VALUES
   ('ABS', 11.55),
   ('PETG', 15.28),

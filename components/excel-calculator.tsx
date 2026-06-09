@@ -309,7 +309,7 @@ export function ExcelCalculator({
         const { data: quote, error } = await supabase.from("quotes").select("*").eq("id", editingQuoteId).single()
 
         if (error) {
-          console.error("[v0] Error loading quote:", error)
+          console.error("Error loading quote:", error)
           toast({
             title: "Error",
             description: "Failed to load quote for editing",
@@ -319,7 +319,7 @@ export function ExcelCalculator({
         }
 
         if (!quote) {
-          console.error("[v0] Quote not found")
+          console.error("Quote not found")
           toast({
             title: "Error",
             description: "Quote not found",
@@ -367,7 +367,7 @@ export function ExcelCalculator({
           description: `Editing ${quote.is_draft ? "draft" : "quote"}: ${quote.quote_name}`,
         })
       } catch (err) {
-        console.error("[v0] Unexpected error loading quote:", err)
+        console.error("Unexpected error loading quote:", err)
         toast({
           title: "Error",
           description: "An unexpected error occurred",
@@ -507,8 +507,8 @@ export function ExcelCalculator({
       totalMachineCost += partMachineCost
 
       // Distribute machine cost based on printer owner
-      const ownerLower = printer.owner?.toLowerCase() || "ownerB"
-      if (ownerLower === "ownerA") {
+      const ownerLower = printer.owner?.toLowerCase() || "owner b"
+      if (ownerLower === "owner a") {
         ownerAMachine += partMachineCost
       } else {
         ownerBMachine += partMachineCost
@@ -555,8 +555,8 @@ export function ExcelCalculator({
       totalElectricity += partElectricityCost
 
       // Distribute electricity cost based on printer owner
-      const ownerLower = printer.owner?.toLowerCase() || "ownerB"
-      if (ownerLower === "ownerA") {
+      const ownerLower = printer.owner?.toLowerCase() || "owner b"
+      if (ownerLower === "owner a") {
         ownerAElectricity += partElectricityCost
       } else {
         ownerBElectricity += partElectricityCost
@@ -654,9 +654,9 @@ export function ExcelCalculator({
       }
     }
   }
-  // Default to 'ownerB' if no owner is found or no printed parts
+  // Default to 'owner b' if no owner is found or no printed parts
   if (!selectedPrinterOwner) {
-    selectedPrinterOwner = "ownerB"
+    selectedPrinterOwner = "owner b"
   }
 
   const totalProfit = selectedMarginValue - totalLandedCost
@@ -786,8 +786,8 @@ export function ExcelCalculator({
         selected_margin_percentage: selectedMargin, // This stores the percentage (30, 40, 50, or 60)
         selected_margin: selectedMargin?.toString() || "0", // Store as string for consistency with quote page
         final_price: marginInputMode === "targetPrice" && targetPrice > 0 ? targetPrice : null, // Store the actual target price if in targetPrice mode
-        ownerA_receives: mode === "business" ? ownerAReceives : null,
-        ownerB_receives: mode === "business" ? ownerBReceives : null,
+        owner_a_receives: mode === "business" ? ownerAReceives : null,
+        owner_b_receives: mode === "business" ? ownerBReceives : null,
         is_draft: false, // Mark as finalized when saved
         vat_enabled: vatEnabled, // Save VAT enabled state
       }
@@ -816,7 +816,7 @@ export function ExcelCalculator({
       setIsEditingQuote(false)
       setCurrentQuoteId(null)
     } catch (error: any) {
-      console.error("[v0] Error saving quote:", error)
+      console.error("Error saving quote:", error)
       toast({
         title: "Error",
         description: `Error saving quote: ${error.message}`,
@@ -911,8 +911,8 @@ export function ExcelCalculator({
         selected_margin_percentage: selectedMargin,
         selected_margin: selectedMargin?.toString() || "0", // Store as string for consistency
         final_price: marginInputMode === "targetPrice" && targetPrice > 0 ? targetPrice : null, // Store the actual target price if in targetPrice mode
-        ownerA_receives: mode === "business" ? ownerAReceives : null,
-        ownerB_receives: mode === "business" ? ownerBReceives : null,
+        owner_a_receives: mode === "business" ? ownerAReceives : null,
+        owner_b_receives: mode === "business" ? ownerBReceives : null,
         is_draft: true, // Mark as draft
         vat_enabled: vatEnabled, // Save VAT enabled state
       }
@@ -937,7 +937,7 @@ export function ExcelCalculator({
         })
       }
     } catch (error: any) {
-      console.error("[v0] Error saving draft:", error)
+      console.error("Error saving draft:", error)
       toast({
         title: "Error",
         description: `Error saving draft: ${error.message}`,

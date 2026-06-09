@@ -417,7 +417,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       // </CHANGE>
 
       if (insertError) {
-        console.error("[v0] Error importing filaments:", insertError)
+        console.error("Error importing filaments:", insertError)
         setCsvErrorDialog({
           isOpen: true,
           message: "Error importing filaments. Please try again.",
@@ -437,7 +437,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       router.refresh()
       event.target.value = ""
     } catch (error) {
-      console.error("[v0] Error processing CSV:", error)
+      console.error("Error processing CSV:", error)
       setCsvErrorDialog({
         isOpen: true,
         message: "Error processing CSV file. Please check the format.",
@@ -509,7 +509,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       setBulkUpdateMode(false)
       router.refresh()
     } catch (error: any) {
-      console.error("[v0] Error bulk updating prices:", error)
+      console.error("Error bulk updating prices:", error)
       setCsvErrorDialog({
         isOpen: true,
         message: `Failed to update prices: ${error.message}`,

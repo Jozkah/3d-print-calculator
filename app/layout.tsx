@@ -11,9 +11,8 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "v0 App",
-  description: "Created with v0",
-  generator: "v0.app",
+  title: "3D Print Cost Calculator",
+  description: "Self-hostable cost & quote calculator for 3D printing, laser cutting and engraving",
   icons: {
     icon: [
       {

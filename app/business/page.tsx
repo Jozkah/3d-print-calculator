@@ -39,7 +39,7 @@ export default async function BusinessPage({
     }
   } catch (e) {
     error = e
-    console.error("[v0] Database connection error:", e)
+    console.error("Database connection error:", e)
   }
 
   return (
