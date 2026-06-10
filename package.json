@@ -1,12 +1,12 @@
 {
-  "name": "my-v0-project",
+  "name": "3d-print-calculator",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start -p 3001"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
