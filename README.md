@@ -4,6 +4,12 @@ A self-hostable web app for pricing **3D prints, laser cutting and laser engravi
 
 Built with Next.js (App Router) and Supabase (Postgres). Bring your own Supabase project and it runs entirely on infrastructure you control.
 
+## Screenshot
+
+![PrintCalc — landing](docs/screenshot.png)
+
+> The calculator, catalogue and history screens populate once you connect your own Supabase project (see **Getting started** below).
+
 ## Features
 
 - **Personal & Business modes** — quick personal cost estimates, or full business quotes with margin, VAT and a configurable two-owner profit split.
