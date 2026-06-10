@@ -450,32 +450,32 @@ export function ExcelCalculator({
     })
   }, [printedParts, filaments])
 
-  const totalPrintingCost = printedParts.reduce((sum, part) => {
-    if (!part.filaments || part.filaments.length === 0 || !globalSettings) return sum
+  // Per-part printing/material cost. Single source of truth so the live total, the
+  // per-row display, AND the value persisted on each saved part (read back by the
+  // detailed quote view) all agree. Laser/sticker: (material + electricity) * 11;
+  // 3D-print: price_per_kg * grams / 1000.
+  const computePartPrintingCost = (part: (typeof printedParts)[number]): number => {
+    if (!part.filaments || part.filaments.length === 0 || !globalSettings) return 0
 
     let partFilamentCost = 0
-
     part.filaments.forEach((filamentEntry) => {
       const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
       if (!filament) return
 
       if (calculatorType !== "3d-print") {
-        // Assuming filament.price_per_kg is used for material cost in non-3D print scenarios
-        // This might need adjustment based on actual use case for non-3D print materials
-        const materialCost = filament.price_per_kg // Placeholder, might need adjustment
-        // Compute electricity per filament (fresh local, NOT accumulated) so the
-        // summary total matches the per-row table cell; accumulating across
-        // filaments made cost grow super-linearly for multi-material parts.
+        const materialCost = filament.price_per_kg
+        // Electricity computed fresh per filament (not accumulated) so the summary
+        // total matches the per-row table cell.
         const electricityCost = part.printing_time_hr * globalSettings.electricity_cost_per_kwh
-        // Assuming the '11' is a factor for non-3D print material cost calculation
         partFilamentCost += (materialCost + electricityCost) * 11
       } else {
-        // For 3D print, calculate cost based on grams
         partFilamentCost += (filament.price_per_kg * filamentEntry.grams) / 1000
       }
     })
-    return sum + partFilamentCost
-  }, 0)
+    return partFilamentCost
+  }
+
+  const totalPrintingCost = printedParts.reduce((sum, part) => sum + computePartPrintingCost(part), 0)
 
   const totalDryingCost = driedBatches.reduce((sum, batch) => {
     if (!batch.drying_time_hr || !globalSettings) return sum
@@ -774,25 +774,23 @@ export function ExcelCalculator({
       const preparedPrintedParts = printedParts.map((part) => {
         // If the new 'filaments' array is empty or missing, and legacy fields exist, populate 'filaments'
         if ((!part.filaments || part.filaments.length === 0) && part.filament_id && part.filament_grams !== undefined) {
-          return {
+          const normalized = {
             ...part,
             filaments: [{ id: Date.now().toString(), filament_id: part.filament_id, grams: part.filament_grams }],
-            // Optionally clear legacy fields after migration for cleaner data, but keep them if needed for schema
-            // filament_id: undefined,
-            // filament_grams: undefined,
           }
+          // Persist the computed per-part cost so the detailed view can show it
+          // directly (esp. laser/sticker quotes, whose weight is 0 and so cannot
+          // be reconstructed from grams afterwards).
+          return { ...normalized, part_cost: computePartPrintingCost(normalized) }
         }
         // Ensure legacy fields are undefined if the new structure is primary and complete
         // This might depend on your backend schema handling. If schema expects them, keep them or map appropriately.
         const { filament_id, filament_grams, ...restOfPart } = part
         return {
           ...restOfPart,
-          // Make sure to explicitly set filament_id and filament_grams to undefined if they are not meant to be persisted
-          // or if your schema has been updated to only use 'filaments' array.
-          // For now, we'll keep them in case the backend schema hasn't been fully updated.
-          // If they are truly legacy and unused, they should be removed.
-          // filament_id: undefined,
-          // filament_grams: undefined,
+          // Persist the computed per-part cost (see note above) so the detailed
+          // quote view reads an authoritative value instead of recomputing it.
+          part_cost: computePartPrintingCost(part),
         }
       })
 

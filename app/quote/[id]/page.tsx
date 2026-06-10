@@ -81,25 +81,36 @@ export default function QuotePage() {
   const marginPercentage = Number.parseFloat(quote.selected_margin || "0") / 100
   const marginMultiplier = marginPercentage > 0 ? 1 / (1 - marginPercentage) : 1
 
+  const totalLandedCost = quote.landed_cost || 0
+  const emergencyFeeCost = quote.is_emergency ? quote.emergency_fee || 0 : 0
+  const isBusinessQuote = quote.quote_type === "business"
+
+  // For target-price quotes the Total is the stored (authoritative) final_price.
+  // Scale the breakdown by an effective multiplier derived from that total so the
+  // lines reconcile to it (the rounded selected_margin drifts by a rounding cent).
+  // Margin-mode quotes keep marginMultiplier exactly.
+  const targetExVat =
+    quote.final_price != null ? (isBusinessQuote ? quote.final_price / 1.23 : quote.final_price) : null
+  const displayMultiplier =
+    targetExVat != null && totalLandedCost > 0
+      ? (targetExVat - emergencyFeeCost) / totalLandedCost
+      : marginMultiplier
+
   // Calculate Labor and Packaging with margin
   const laborCost = quote.labor_cost || 0
   const packagingShippingCost = (quote.packaging_cost || 0) + (quote.fuel_cost || 0)
 
-  const laborWithMargin = laborCost * marginMultiplier
-  const packagingWithMargin = packagingShippingCost * marginMultiplier
+  const laborWithMargin = laborCost * displayMultiplier
+  const packagingWithMargin = packagingShippingCost * displayMultiplier
 
   // Get the total with margin (without emergency fee)
-  const totalLandedCost = quote.landed_cost || 0
-  const priceWithMargin = totalLandedCost * marginMultiplier
+  const priceWithMargin = totalLandedCost * displayMultiplier
 
   const printingAndMaterialsWithMargin = priceWithMargin - laborWithMargin - packagingWithMargin
 
-  // Add emergency fee AFTER margin calculation
-  const emergencyFeeCost = quote.is_emergency ? quote.emergency_fee || 0 : 0
   const priceWithMarginAndEmergency = priceWithMargin + emergencyFeeCost
 
   // Add VAT for business quotes (23%)
-  const isBusinessQuote = quote.quote_type === "business"
   const recomputedVat = isBusinessQuote ? priceWithMarginAndEmergency * 0.23 : 0
   const recomputedFinal = priceWithMarginAndEmergency + recomputedVat
 

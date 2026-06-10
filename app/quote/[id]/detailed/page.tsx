@@ -174,11 +174,19 @@ export default function DetailedQuotePage() {
           )
         }
 
-        const finalPartCost = is3dPrint
-          ? partCost
-          : totalGrams > 0
-            ? (data.total_printing_cost * partGrams) / totalGrams
-            : 0
+        // Prefer the authoritative per-part cost persisted at save time. Fall back
+        // to a computed value for older quotes saved before that field existed:
+        // the price-based cost for 3D-print, or a weight split of the stored total
+        // for laser/sticker quotes (which is 0 when no weight was recorded).
+        const storedCost = typeof part.part_cost === "number" ? part.part_cost : null
+        const finalPartCost =
+          storedCost != null
+            ? storedCost
+            : is3dPrint
+              ? partCost
+              : totalGrams > 0
+                ? (data.total_printing_cost * partGrams) / totalGrams
+                : 0
 
         return {
           ...part,
@@ -234,6 +242,17 @@ export default function DetailedQuotePage() {
   const priceWithMarginAndEmergency = priceWithMargin + emergencyFeeCost
 
   const isBusinessQuote = quote.quote_type === "business"
+  // For target-price quotes the Total is the stored (authoritative) final_price.
+  // Scale the breakdown rows by an effective multiplier derived from that total so
+  // the lines reconcile to it, instead of the rounded selected_margin (which drifts
+  // by a rounding cent). targetExVat backs the 23% VAT out of the stored
+  // VAT-inclusive business price. Margin-mode quotes keep marginMultiplier exactly.
+  const targetExVat =
+    quote.final_price != null ? (isBusinessQuote ? quote.final_price / 1.23 : quote.final_price) : null
+  const displayMultiplier =
+    targetExVat != null && totalLandedCost > 0
+      ? (targetExVat - emergencyFeeCost) / totalLandedCost
+      : marginMultiplier
   const recomputedVat = isBusinessQuote ? priceWithMarginAndEmergency * 0.23 : 0
   const recomputedFinal = priceWithMarginAndEmergency + recomputedVat
 
@@ -302,7 +321,7 @@ export default function DetailedQuotePage() {
                       </td>
                       <td className="py-2 px-4 text-right text-gray-700">{part.part_cost?.toFixed(2) || "0.00"}</td>
                       <td className="py-2 px-4 text-right font-medium text-gray-900">
-                        {((part.part_cost || 0) * marginMultiplier).toFixed(2)}
+                        {((part.part_cost || 0) * displayMultiplier).toFixed(2)}
                       </td>
                     </tr>
                   ))}
@@ -311,7 +330,7 @@ export default function DetailedQuotePage() {
                       Subtotal:
                     </td>
                     <td className="py-2 px-4 text-right text-gray-900">
-                      {(quote.total_printing_cost * marginMultiplier).toFixed(2)} €
+                      {(quote.total_printing_cost * displayMultiplier).toFixed(2)} €
                     </td>
                   </tr>
                 </tbody>
@@ -338,14 +357,14 @@ export default function DetailedQuotePage() {
                   <td className="py-2 px-4 text-gray-900">Machine depreciation and maintenance cost</td>
                   <td className="py-2 px-4 text-right text-gray-700">{quote.machine_cost?.toFixed(2) || "0.00"}</td>
                   <td className="py-2 px-4 text-right font-medium text-gray-900">
-                    {((quote.machine_cost || 0) * marginMultiplier).toFixed(2)}
+                    {((quote.machine_cost || 0) * displayMultiplier).toFixed(2)}
                   </td>
                 </tr>
                 <tr className="bg-white">
                   <td className="py-2 px-4 text-gray-900">Electricity cost</td>
                   <td className="py-2 px-4 text-right text-gray-700">{quote.electricity_cost?.toFixed(2) || "0.00"}</td>
                   <td className="py-2 px-4 text-right font-medium text-gray-900">
-                    {((quote.electricity_cost || 0) * marginMultiplier).toFixed(2)}
+                    {((quote.electricity_cost || 0) * displayMultiplier).toFixed(2)}
                   </td>
                 </tr>
                 <tr className="bg-gray-100 font-semibold">
@@ -354,7 +373,7 @@ export default function DetailedQuotePage() {
                     {((quote.machine_cost || 0) + (quote.electricity_cost || 0)).toFixed(2)}
                   </td>
                   <td className="py-2 px-4 text-right text-gray-900">
-                    {(((quote.machine_cost || 0) + (quote.electricity_cost || 0)) * marginMultiplier).toFixed(2)} €
+                    {(((quote.machine_cost || 0) + (quote.electricity_cost || 0)) * displayMultiplier).toFixed(2)} €
                   </td>
                 </tr>
               </tbody>
@@ -386,7 +405,7 @@ export default function DetailedQuotePage() {
                       </td>
                       <td className="py-2 px-4 text-right text-gray-700">{batch.cost?.toFixed(2) || "0.00"}</td>
                       <td className="py-2 px-4 text-right font-medium text-gray-900">
-                        {((batch.cost || 0) * marginMultiplier).toFixed(2)}
+                        {((batch.cost || 0) * displayMultiplier).toFixed(2)}
                       </td>
                     </tr>
                   ))}
@@ -395,7 +414,7 @@ export default function DetailedQuotePage() {
                       Subtotal:
                     </td>
                     <td className="py-2 px-4 text-right text-gray-900">
-                      {(quote.drying_cost * marginMultiplier).toFixed(2)} €
+                      {(quote.drying_cost * displayMultiplier).toFixed(2)} €
                     </td>
                   </tr>
                 </tbody>
@@ -434,7 +453,7 @@ export default function DetailedQuotePage() {
                         {lineTotal.toFixed(2)}
                       </td>
                       <td className="py-2 px-4 text-right font-medium text-gray-900">
-                        {(lineTotal * marginMultiplier).toFixed(2)}
+                        {(lineTotal * displayMultiplier).toFixed(2)}
                       </td>
                     </tr>
                     )
@@ -444,7 +463,7 @@ export default function DetailedQuotePage() {
                       Subtotal:
                     </td>
                     <td className="py-2 px-4 text-right text-gray-900">
-                      {(quote.materials_cost * marginMultiplier).toFixed(2)} €
+                      {(quote.materials_cost * displayMultiplier).toFixed(2)} €
                     </td>
                   </tr>
                 </tbody>
@@ -481,7 +500,7 @@ export default function DetailedQuotePage() {
                       <td className="py-2 px-4 text-right text-gray-700">{labor.hourly_cost?.toFixed(2) || "0.00"}</td>
                       <td className="py-2 px-4 text-right text-gray-700">{lineTotal.toFixed(2)}</td>
                       <td className="py-2 px-4 text-right font-medium text-gray-900">
-                        {(lineTotal * marginMultiplier).toFixed(2)}
+                        {(lineTotal * displayMultiplier).toFixed(2)}
                       </td>
                     </tr>
                     )
@@ -491,7 +510,7 @@ export default function DetailedQuotePage() {
                       Subtotal:
                     </td>
                     <td className="py-2 px-4 text-right text-gray-900">
-                      {(quote.labor_cost * marginMultiplier).toFixed(2)} €
+                      {(quote.labor_cost * displayMultiplier).toFixed(2)} €
                     </td>
                   </tr>
                 </tbody>
@@ -528,7 +547,7 @@ export default function DetailedQuotePage() {
                       <td className="py-2 px-4 text-right text-gray-700">{pkg.unit_cost?.toFixed(2) || "0.00"}</td>
                       <td className="py-2 px-4 text-right text-gray-700">{lineTotal.toFixed(2)}</td>
                       <td className="py-2 px-4 text-right font-medium text-gray-900">
-                        {(lineTotal * marginMultiplier).toFixed(2)}
+                        {(lineTotal * displayMultiplier).toFixed(2)}
                       </td>
                     </tr>
                     )
@@ -540,7 +559,7 @@ export default function DetailedQuotePage() {
                       <td className="py-2 px-4 text-right text-gray-700">-</td>
                       <td className="py-2 px-4 text-right text-gray-700">{quote.fuel_cost?.toFixed(2) || "0.00"}</td>
                       <td className="py-2 px-4 text-right font-medium text-gray-900">
-                        {((quote.fuel_cost || 0) * marginMultiplier).toFixed(2)}
+                        {((quote.fuel_cost || 0) * displayMultiplier).toFixed(2)}
                       </td>
                     </tr>
                   )}
@@ -549,7 +568,7 @@ export default function DetailedQuotePage() {
                       Subtotal:
                     </td>
                     <td className="py-2 px-4 text-right text-gray-900">
-                      {((quote.packaging_cost + quote.fuel_cost) * marginMultiplier).toFixed(2)} €
+                      {((quote.packaging_cost + quote.fuel_cost) * displayMultiplier).toFixed(2)} €
                     </td>
                   </tr>
                 </tbody>
