@@ -1,23 +1,36 @@
 # 3D Print Cost Calculator
 
-A self-hostable web app for pricing **3D prints, laser cutting and laser engraving** jobs. It turns your real costs — filament, machine depreciation, electricity, labour, packaging, VAT and profit margin — into consistent quotes, and keeps a history of everything you've quoted.
+A self-hostable web app for pricing **3D printing, laser cutting and laser engraving** jobs. It turns your real costs — filament, machine depreciation, electricity, labour, packaging, VAT and profit margin — into consistent quotes, keeps a searchable history of everything you've quoted, and can split the books between two business owners.
 
-Built with Next.js (App Router) and Supabase (Postgres). Bring your own Supabase project and it runs entirely on infrastructure you control.
+> Bring your own **Supabase** project and the whole thing runs on infrastructure *you* control — there's no shared backend and no data ever flows to me. It's a plain Next.js app you can deploy to Vercel or any Node host. *(Heads-up: it ships with no login screen and talks to Supabase with the public anon key, so turning on **Row-Level Security** is mandatory before you put it on the public internet — see [Security](#3-security--read-this-before-going-public).)*
+
+## Why I built this
+
+I do a fair amount of 3D printing and laser work, and *pricing* it was always the messy part. Every quote meant re-deriving the same numbers by hand — filament by the gram, machine wear, electricity, labour, packaging, then margin and VAT on top — usually in a throwaway spreadsheet that never quite matched the last one. And with two of us sharing the machines, working out who was owed what at the end of the month was its own headache.
+
+This is the tool that replaced all of that: enter the parts, and it produces a consistent quote from costs I only configure once — then splits the profit between two owners automatically, so the books reconcile on their own. It keeps every quote, so I can look back at what a job *actually* cost to make.
 
 ## Screenshot
 
-![PrintCalc — landing](docs/screenshot.png)
+![3D Print Cost Calculator](docs/screenshot.png)
 
-> The calculator, catalogue and history screens populate once you connect your own Supabase project (see **Getting started** below).
+> The calculator, catalogue and history screens fill in once you connect your own Supabase project (see [Getting started](#getting-started)).
 
 ## Features
 
-- **Personal & Business modes** — quick personal cost estimates, or full business quotes with margin, VAT and a configurable two-owner profit split.
-- **Multi-part quotes** — combine several parts (different printers/filaments) into one quote.
-- **Specialised calculators** — a per-job cost calculator, a spreadsheet-style bulk calculator, and a laser cutting/engraving calculator.
-- **Catalogues** — manage your **printers** (purchase cost, life, power draw, uptime), **filaments** (price per kg), **clients**, and **global settings** (electricity rate, labour rate, …).
-- **Quote history** — searchable list with detailed per-quote breakdowns.
-- **Light/dark theme.**
+- **Personal & Business modes** — a quick personal cost estimate, or a full business quote with profit margin, VAT and a two-owner profit split.
+- **Multi-part quotes** — combine several parts (different printers and filaments) into one quote.
+- **Three calculators:**
+  - **Cost calculator** — the main per-job pricing tool.
+  - **Spreadsheet calculator** — Excel-style entry for many rows at once.
+  - **Laser calculator** — cutting / engraving jobs priced by material and time.
+- **Catalogues you manage once:**
+  - **Printers** — purchase cost, expected life hours, power draw, uptime.
+  - **Filaments / materials** — price per kg, type, thickness (for laser stock).
+  - **Clients** — attach a customer to a quote.
+  - **Global settings** — electricity rate, labour rate, emergency surcharge, …
+- **Searchable quote history** with a full per-quote cost breakdown.
+- **Light / dark theme**, built with Tailwind CSS and shadcn/ui.
 
 ## Cost model (in brief)
 
@@ -26,9 +39,9 @@ For each part the app computes:
 - **Machine cost** = print hours × (printer purchase cost ÷ estimated life hours)
 - **Electricity** = (printer watts ÷ 1000) × hours × electricity rate
 - **Filament cost** = grams used × price-per-kg
-- plus labour, packaging, materials and an optional emergency surcharge
+- plus **labour**, **packaging**, **materials** and an optional **emergency surcharge**
 
-Business quotes then add a profit margin and VAT, and (optionally) split the revenue/cost between two owners — e.g. one who owns the machine and one who runs the work. The two owners are generic ("Owner A" / "Owner B"); rename them to suit your setup.
+Business quotes then add your **profit margin** and **VAT**, and split the profit (and emergency fees) between two owners. By default Owner A fronts labour, electricity and shipping while Owner B carries filament, materials, packaging and VAT, with profit divided 50/50 — all of which is [configurable](#configuration).
 
 ## Getting started
 
@@ -45,22 +58,20 @@ NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ```
 
-### 2. Database setup
+### 2. Create the database
 
-Run [`scripts/schema.sql`](scripts/schema.sql) once against your Supabase database (paste it into the Supabase SQL editor) to create all tables and seed a few example printers/filaments. It is the consolidated equivalent of the step-by-step files kept in [`scripts/migrations/`](scripts/migrations) for history.
+Run [`scripts/schema.sql`](scripts/schema.sql) once against your Supabase database (paste it into the Supabase SQL editor). It creates every table and seeds a couple of example printers/filaments. It's the consolidated equivalent of the step-by-step files in [`scripts/migrations/`](scripts/migrations), which are kept only for history.
 
-Then apply the security policies — see below.
+### 3. Security — read this before going public
 
-### 3. Security (read this before going public)
-
-This app talks to Supabase with the **public anon key** and ships with **no login screen**. That key is embedded in the browser bundle, so **without Row-Level Security anyone who opens the site can read and write every table.**
+This app talks to Supabase with the **public anon key** and ships with **no login screen**. That key is embedded in the browser bundle, so **without Row-Level Security, anyone who opens the site can read and write every table.**
 
 Run [`scripts/rls_policies.sql`](scripts/rls_policies.sql) to enable RLS. It offers two models:
 
-- **Model A (recommended):** access for logged-in users only. You'll need to add [Supabase Auth](https://supabase.com/docs/guides/auth) (e.g. email magic-link) to your deployment, after which the policies lock out the public.
-- **Model B (danger):** allow the anon role — only acceptable on a trusted/private network. The file documents the trade-off.
+- **Model A (recommended)** — access for logged-in users only. Add [Supabase Auth](https://supabase.com/docs/guides/auth) (e.g. email magic-link) to your deployment; the policies then lock out the public.
+- **Model B (use with care)** — allow the anon role; only acceptable on a trusted/private network. The file documents the trade-off.
 
-If you do nothing here, **do not expose the deployment to the public internet.**
+If you skip this step, **do not expose the deployment to the public internet.**
 
 ### 4. Run
 
@@ -69,27 +80,55 @@ pnpm install
 pnpm dev
 ```
 
-Open <http://localhost:3000>.
+Open <http://localhost:3001>. *(The dev/start port is set to **3001** in `package.json` — change it there if you prefer another.)*
 
-### Production build
+#### Production build
 
 ```bash
 pnpm build && pnpm start
 ```
 
-Deploys cleanly to Vercel or any Node host. Set the two `NEXT_PUBLIC_SUPABASE_*` variables in your host's environment.
+Deploys cleanly to Vercel or any Node host — just set the two `NEXT_PUBLIC_SUPABASE_*` variables in your host's environment.
 
 ## Configuration
 
-The two-owner business model (owner names + how profit and emergency fees are
-split) lives in one file: [`lib/business-config.ts`](lib/business-config.ts).
-Rename the owners or change the split ratio there.
+The whole two-owner business model — owner labels and how profit and emergency fees are split — lives in one file: [`lib/business-config.ts`](lib/business-config.ts). Rename the owners (`OWNER_A_LABEL` / `OWNER_B_LABEL`) or change `PROFIT_SPLIT_RATIO` / `EMERGENCY_SPLIT_RATIO` there.
+
+> The `OWNER_A_KEY` / `OWNER_B_KEY` identifiers are stored in the database. They're safe to *relabel*, but don't change the keys themselves once you have data, or existing rows stop matching.
 
 ## Tech stack
 
 - [Next.js 16](https://nextjs.org) (App Router) + React 19 + TypeScript
 - [Supabase](https://supabase.com) (Postgres) via `@supabase/ssr`
-- Tailwind CSS v4 + [shadcn/ui](https://ui.shadcn.com)
+- Tailwind CSS v4 + [shadcn/ui](https://ui.shadcn.com) (Radix primitives)
+
+## Project layout
+
+```
+app/
+  page.tsx            # landing
+  personal/           # personal cost estimate
+  business/           # full business quote
+  quote/              # quote builder
+  history/            # searchable quote history
+  settings/           # printers, filaments, clients, global settings
+components/
+  cost-calculator.tsx     # main per-job pricing
+  excel-calculator.tsx    # spreadsheet-style bulk entry
+  laser-calculator.tsx    # laser cutting / engraving
+  printers-list.tsx · filaments-list.tsx · clients-list.tsx
+  quote-history.tsx · global-settings-form.tsx
+  ui/                     # shadcn/ui primitives
+lib/
+  business-config.ts  # two-owner model: labels + split ratios (edit me)
+  supabase/           # browser + server Supabase clients
+scripts/
+  schema.sql          # one-shot DB setup (run this)
+  rls_policies.sql    # Row-Level Security (run before going public)
+  migrations/         # historical step-by-step migrations
+docs/screenshot.png
+.env.example          # Supabase env vars
+```
 
 ## License
 
