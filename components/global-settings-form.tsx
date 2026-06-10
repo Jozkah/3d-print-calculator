@@ -68,14 +68,14 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
   return (
     <div className="space-y-6">
       {/* Cost Settings */}
-      <Card className="border-2 border-blue-300 bg-white">
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-blue-900">Cost Settings</CardTitle>
+          <CardTitle>Cost Settings</CardTitle>
           <CardDescription>Base costs for calculations</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="electricity" className="text-blue-900">
+            <Label htmlFor="electricity">
               Electricity Cost (€/kWh)
             </Label>
             <Input
@@ -85,13 +85,13 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
               step="0.01"
               value={electricityCost}
               onChange={(e) => setElectricityCost(e.target.value)}
-              className="border-blue-200"
+              className="bg-card"
             />
-            <p className="text-xs text-blue-600 mt-1">Cost per kilowatt-hour for electricity</p>
+            <p className="text-xs text-muted-foreground mt-1.5">Cost per kilowatt-hour for electricity</p>
           </div>
 
           <div>
-            <Label htmlFor="emergency" className="text-blue-900">
+            <Label htmlFor="emergency">
               Emergency Fee (€)
             </Label>
             <Input
@@ -101,13 +101,13 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
               step="0.01"
               value={emergencyFee}
               onChange={(e) => setEmergencyFee(e.target.value)}
-              className="border-blue-200"
+              className="bg-card"
             />
-            <p className="text-xs text-blue-600 mt-1">Fixed fee for emergency/rush orders</p>
+            <p className="text-xs text-muted-foreground mt-1.5">Fixed fee for emergency/rush orders</p>
           </div>
 
           <div>
-            <Label htmlFor="labor" className="text-blue-900">
+            <Label htmlFor="labor">
               Labor Hourly Rate (€/hr)
             </Label>
             <Input
@@ -117,21 +117,21 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
               step="0.01"
               value={laborRate}
               onChange={(e) => setLaborRate(e.target.value)}
-              className="border-blue-200"
+              className="bg-card"
             />
           </div>
         </CardContent>
       </Card>
 
       {/* Transportation Settings */}
-      <Card className="border-2 border-blue-300 bg-white">
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-blue-900">Transportation Settings</CardTitle>
+          <CardTitle>Transportation Settings</CardTitle>
           <CardDescription>Fuel and vehicle costs</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="fuel" className="text-blue-900">
+            <Label htmlFor="fuel">
               Fuel Cost (€/liter)
             </Label>
             <Input
@@ -141,12 +141,12 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
               step="0.01"
               value={fuelCost}
               onChange={(e) => setFuelCost(e.target.value)}
-              className="border-blue-200"
+              className="bg-card"
             />
           </div>
 
           <div>
-            <Label htmlFor="consumption" className="text-blue-900">
+            <Label htmlFor="consumption">
               Car Fuel Consumption (liters/100km)
             </Label>
             <Input
@@ -156,21 +156,21 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
               step="0.1"
               value={fuelConsumption}
               onChange={(e) => setFuelConsumption(e.target.value)}
-              className="border-blue-200"
+              className="bg-card"
             />
           </div>
         </CardContent>
       </Card>
 
       {/* Advanced Settings */}
-      <Card className="border-2 border-blue-300 bg-white">
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-blue-900">Advanced Settings</CardTitle>
+          <CardTitle>Advanced Settings</CardTitle>
           <CardDescription>Adjustment factors for calculations</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="efficiency" className="text-blue-900">
+            <Label htmlFor="efficiency">
               Material Efficiency Factor
             </Label>
             <Input
@@ -180,13 +180,13 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
               step="0.01"
               value={efficiencyFactor}
               onChange={(e) => setEfficiencyFactor(e.target.value)}
-              className="border-blue-200"
+              className="bg-card"
             />
-            <p className="text-xs text-blue-600 mt-1">Multiplier for printing inefficiencies (default: 1.1 = 110%)</p>
+            <p className="text-xs text-muted-foreground mt-1.5">Multiplier for printing inefficiencies (default: 1.1 = 110%)</p>
           </div>
 
           <div>
-            <Label htmlFor="buffer" className="text-blue-900">
+            <Label htmlFor="buffer">
               Cost Buffer Factor
             </Label>
             <Input
@@ -196,9 +196,9 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
               step="0.01"
               value={bufferFactor}
               onChange={(e) => setBufferFactor(e.target.value)}
-              className="border-blue-200"
+              className="bg-card"
             />
-            <p className="text-xs text-blue-600 mt-1">Buffer for unforeseen expenses (default: 1.3)</p>
+            <p className="text-xs text-muted-foreground mt-1.5">Buffer for unforeseen expenses (default: 1.3)</p>
           </div>
 
           <div className="flex items-start space-x-3 pt-2">
@@ -209,18 +209,19 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
               className="mt-1"
             />
             <div className="flex-1">
-              <Label htmlFor="doubleHeating" className="text-blue-900 cursor-pointer">
+              <Label htmlFor="doubleHeating" className="cursor-pointer">
                 Double Heating Cost for Filaments Requiring Heating
               </Label>
-              <p className="text-xs text-blue-600 mt-1">
-                When enabled, heating cost = Drying Hours × (Total Dryer Cost Per Hour × 2). When disabled, heating cost = Drying Hours × Total Dryer Cost Per Hour
+              <p className="text-xs text-muted-foreground mt-1.5">
+                When enabled, heating cost = Drying Hours × (Total Dryer Cost Per Hour × 2). When disabled, heating
+                cost = Drying Hours × Total Dryer Cost Per Hour
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Button onClick={handleSave} className="w-full bg-blue-600 hover:bg-blue-700" disabled={isSaving}>
+      <Button onClick={handleSave} size="lg" className="w-full shadow-sm" disabled={isSaving}>
         <Save className="w-4 h-4 mr-2" />
         {isSaving ? "Saving..." : "Save Settings"}
       </Button>

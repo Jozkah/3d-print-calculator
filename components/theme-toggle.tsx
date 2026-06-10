@@ -17,7 +17,7 @@ export function ThemeToggle() {
     <Button
       variant="outline"
       size="icon"
-      className="fixed bottom-4 right-4 z-[9999] rounded-full w-12 h-12 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 shadow-xl print:hidden hover:scale-110 transition-transform"
+      className="fixed bottom-4 right-4 z-[9999] rounded-full w-11 h-11 bg-card border border-border shadow-lg print:hidden hover:scale-110 hover:border-primary/40 transition-transform"
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
       title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
     >

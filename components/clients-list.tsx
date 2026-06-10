@@ -141,15 +141,15 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search clients..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 border-blue-200"
+            className="pl-10 bg-card"
           />
         </div>
-        <Button onClick={() => setIsAdding(true)} className="bg-blue-600 hover:bg-blue-700">
+        <Button onClick={() => setIsAdding(true)} className="shadow-sm">
           <Plus className="w-4 h-4 mr-2" />
           Add Client
         </Button>
@@ -170,18 +170,18 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
       >
         <div className="space-y-4">
           <div>
-            <Label htmlFor="name" className="text-blue-900">
+            <Label htmlFor="name">
               Name *
             </Label>
             <Input
               id="name"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="border-blue-200"
+              className="bg-card"
             />
           </div>
           <div>
-            <Label htmlFor="email" className="text-blue-900">
+            <Label htmlFor="email">
               Email
             </Label>
             <Input
@@ -189,41 +189,41 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="border-blue-200"
+              className="bg-card"
             />
           </div>
           <div>
-            <Label htmlFor="phone" className="text-blue-900">
+            <Label htmlFor="phone">
               Phone
             </Label>
             <Input
               id="phone"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="border-blue-200"
+              className="bg-card"
             />
           </div>
           <div>
-            <Label htmlFor="address" className="text-blue-900">
+            <Label htmlFor="address">
               Address (Optional)
             </Label>
             <Textarea
               id="address"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="border-blue-200"
+              className="bg-card"
               rows={2}
             />
           </div>
           <div>
-            <Label htmlFor="notes" className="text-blue-900">
+            <Label htmlFor="notes">
               Notes
             </Label>
             <Textarea
               id="notes"
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="border-blue-200"
+              className="bg-card"
               rows={3}
             />
           </div>
@@ -245,18 +245,18 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
       >
         <div className="space-y-4">
           <div>
-            <Label htmlFor="edit-name" className="text-blue-900">
+            <Label htmlFor="edit-name">
               Name *
             </Label>
             <Input
               id="edit-name"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="border-blue-200"
+              className="bg-card"
             />
           </div>
           <div>
-            <Label htmlFor="edit-email" className="text-blue-900">
+            <Label htmlFor="edit-email">
               Email
             </Label>
             <Input
@@ -264,41 +264,41 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="border-blue-200"
+              className="bg-card"
             />
           </div>
           <div>
-            <Label htmlFor="edit-phone" className="text-blue-900">
+            <Label htmlFor="edit-phone">
               Phone
             </Label>
             <Input
               id="edit-phone"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="border-blue-200"
+              className="bg-card"
             />
           </div>
           <div>
-            <Label htmlFor="edit-address" className="text-blue-900">
+            <Label htmlFor="edit-address">
               Address (Optional)
             </Label>
             <Textarea
               id="edit-address"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="border-blue-200"
+              className="bg-card"
               rows={2}
             />
           </div>
           <div>
-            <Label htmlFor="edit-notes" className="text-blue-900">
+            <Label htmlFor="edit-notes">
               Notes
             </Label>
             <Textarea
               id="edit-notes"
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="border-blue-200"
+              className="bg-card"
               rows={3}
             />
           </div>
@@ -320,18 +320,18 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
       {/* Clients List */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filteredClients.map((client) => (
-          <Card key={client.id} className="border-blue-200">
-            <CardContent className="p-4">
+          <Card key={client.id} className="shadow-sm transition-shadow hover:shadow-md">
+            <CardContent className="p-5">
               <div className="flex justify-between items-start mb-3">
-                <h3 className="font-semibold text-lg text-blue-900">{client.name}</h3>
+                <h3 className="font-semibold text-lg tracking-tight text-foreground">{client.name}</h3>
                 <div className="flex gap-1">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => startEdit(client)}
-                    className="h-8 w-8 p-0 hover:bg-blue-50"
+                    className="h-8 w-8 p-0 hover:bg-accent"
                   >
-                    <Pencil className="w-4 h-4 text-blue-600" />
+                    <Pencil className="w-4 h-4 text-primary" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -345,25 +345,25 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
               </div>
               <div className="space-y-2 text-sm">
                 {client.email && (
-                  <div className="flex items-center gap-2 text-gray-600">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <Mail className="w-4 h-4 shrink-0" />
                     <span className="truncate">{client.email}</span>
                   </div>
                 )}
                 {client.phone && (
-                  <div className="flex items-center gap-2 text-gray-600">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <Phone className="w-4 h-4 shrink-0" />
                     <span>{client.phone}</span>
                   </div>
                 )}
                 {client.address && (
-                  <div className="flex items-start gap-2 text-gray-600">
+                  <div className="flex items-start gap-2 text-muted-foreground">
                     <MapPin className="w-4 h-4 shrink-0 mt-0.5" />
                     <span className="line-clamp-2">{client.address}</span>
                   </div>
                 )}
                 {client.notes && (
-                  <div className="text-gray-500 text-xs mt-2 line-clamp-2 italic">{client.notes}</div>
+                  <div className="text-muted-foreground/80 text-xs mt-2 line-clamp-2 italic">{client.notes}</div>
                 )}
               </div>
             </CardContent>
@@ -372,7 +372,7 @@ export function ClientsList({ clients: initialClients }: ClientsListProps) {
       </div>
 
       {filteredClients.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
+        <div className="rounded-2xl border border-dashed border-border bg-card/50 text-center py-12 text-muted-foreground">
           <p>No clients found.</p>
           {searchQuery && <p className="text-sm mt-2">Try adjusting your search.</p>}
         </div>

@@ -188,14 +188,14 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
           value={data.name}
           onChange={(e) => onChange({ ...data, name: e.target.value })}
           placeholder="e.g. your printer model"
-          className="bg-white border-blue-200"
+          className="bg-card"
         />
       </div>
 
       <div>
         <Label>Owner</Label>
         <Select value={data.owner} onValueChange={(value) => onChange({ ...data, owner: value })}>
-          <SelectTrigger className="bg-white border-blue-200">
+          <SelectTrigger className="bg-card">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -216,7 +216,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
           step="0.01"
           value={data.printer_cost}
           onChange={(e) => onChange({ ...data, printer_cost: e.target.value })}
-          className="bg-white border-blue-200"
+          className="bg-card"
         />
       </div>
 
@@ -228,7 +228,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
           step="0.01"
           value={data.additional_upfront_cost}
           onChange={(e) => onChange({ ...data, additional_upfront_cost: e.target.value })}
-          className="bg-white border-blue-200"
+          className="bg-card"
         />
       </div>
 
@@ -240,7 +240,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
           step="0.01"
           value={data.estimated_annual_maintenance}
           onChange={(e) => onChange({ ...data, estimated_annual_maintenance: e.target.value })}
-          className="bg-white border-blue-200"
+          className="bg-card"
         />
       </div>
 
@@ -252,7 +252,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
           step="0.1"
           value={data.estimated_life_years}
           onChange={(e) => onChange({ ...data, estimated_life_years: e.target.value })}
-          className="bg-white border-blue-200"
+          className="bg-card"
         />
       </div>
 
@@ -265,7 +265,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
           value={data.estimated_printer_uptime_percent}
           onChange={(e) => onChange({ ...data, estimated_printer_uptime_percent: e.target.value })}
           placeholder="0.50 = 50%"
-          className="bg-white border-blue-200"
+          className="bg-card"
         />
       </div>
 
@@ -277,7 +277,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
           step="1"
           value={data.average_power_consumption_watts}
           onChange={(e) => onChange({ ...data, average_power_consumption_watts: e.target.value })}
-          className="bg-white border-blue-200"
+          className="bg-card"
         />
       </div>
 
@@ -297,23 +297,23 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-0 mb-6">
-        <h2 className="text-xl font-semibold text-blue-900 dark:text-blue-100">3D Printers</h2>
-        <Button onClick={() => setIsAdding(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">3D Printers</h2>
+        <Button onClick={() => setIsAdding(true)} className="w-full sm:w-auto shadow-sm">
           <Plus className="w-4 h-4 mr-2" />
           Add Printer
         </Button>
       </div>
 
       {isAdding && (
-        <Card className="mb-6 border-blue-200">
+        <Card className="mb-6 border-primary/30 shadow-md">
           <CardHeader>
-            <CardTitle className="text-blue-900">New Printer</CardTitle>
+            <CardTitle>New Printer</CardTitle>
             <CardDescription>Add a new printer with advanced settings</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {renderPrinterForm(newPrinter, setNewPrinter)}
             <div className="flex flex-col sm:flex-row gap-2 pt-4">
-              <Button onClick={handleAdd} className="bg-green-600 hover:bg-green-700 w-full sm:w-auto">
+              <Button onClick={handleAdd} className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto">
                 <Check className="w-4 h-4 mr-2" />
                 Save
               </Button>
@@ -328,7 +328,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
 
       <div className="grid gap-4">
         {printers.map((printer) => (
-          <Card key={printer.id} className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900">
+          <Card key={printer.id} className="shadow-sm transition-shadow hover:shadow-md">
             <CardContent className="p-6">
               {editingId === printer.id ? (
                 <div className="space-y-4">
@@ -337,7 +337,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
                     <Button
                       onClick={() => handleEdit(printer.id)}
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-emerald-600 hover:bg-emerald-700"
                     >
                       <Check className="w-4 h-4 mr-2" />
                       Save
@@ -353,19 +353,19 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100">{printer.name}</h3>
+                        <h3 className="text-lg font-semibold tracking-tight text-foreground">{printer.name}</h3>
                         <span
-                          className={`px-2 py-1 rounded text-xs font-semibold ${printer.owner === OWNER_A_KEY ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${printer.owner === OWNER_A_KEY ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" : "bg-primary/10 text-primary"}`}
                         >
                           {printer.owner}
                         </span>
                         {printer.has_enclosure && (
-                          <span className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-700">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                             Enclosed
                           </span>
                         )}
                       </div>
-                      <p className="text-blue-600 text-sm">
+                      <p className="text-muted-foreground text-sm">
                         Cost: €{printer.printer_cost.toFixed(2)} | Life: {printer.estimated_life_years}yrs | Power:{" "}
                         {printer.average_power_consumption_watts}W
                       </p>
@@ -397,28 +397,28 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
                   </div>
 
                   {expandedId === printer.id && (
-                    <div className="mt-4 pt-4 border-t border-blue-200 grid md:grid-cols-2 gap-3 text-sm">
+                    <div className="mt-4 pt-4 border-t border-border grid md:grid-cols-2 gap-3 text-sm">
                       <div>
-                        <span className="text-blue-600">Additional Cost:</span>
-                        <span className="text-blue-900 ml-2 font-semibold">
+                        <span className="text-muted-foreground">Additional Cost:</span>
+                        <span className="text-foreground ml-2 font-medium tabular-nums">
                           €{printer.additional_upfront_cost.toFixed(2)}
                         </span>
                       </div>
                       <div>
-                        <span className="text-blue-600">Annual Maintenance:</span>
-                        <span className="text-blue-900 ml-2 font-semibold">
+                        <span className="text-muted-foreground">Annual Maintenance:</span>
+                        <span className="text-foreground ml-2 font-medium tabular-nums">
                           €{printer.estimated_annual_maintenance.toFixed(2)}
                         </span>
                       </div>
                       <div>
-                        <span className="text-blue-600">Printer Uptime:</span>
-                        <span className="text-blue-900 ml-2 font-semibold">
+                        <span className="text-muted-foreground">Printer Uptime:</span>
+                        <span className="text-foreground ml-2 font-medium tabular-nums">
                           {(printer.estimated_printer_uptime_percent * 100).toFixed(0)}%
                         </span>
                       </div>
                       <div>
-                        <span className="text-blue-600">Has Enclosure:</span>
-                        <span className="text-blue-900 ml-2 font-semibold">
+                        <span className="text-muted-foreground">Has Enclosure:</span>
+                        <span className="text-foreground ml-2 font-medium tabular-nums">
                           {printer.has_enclosure ? "Yes" : "No"}
                         </span>
                       </div>

@@ -584,7 +584,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         <Button
           onClick={() => document.getElementById("csv-import")?.click()}
           variant="outline"
-          className="bg-white border-blue-300 text-blue-900 text-sm sm:text-base"
+          className="bg-card text-sm sm:text-base"
         >
           <Upload className="w-4 h-4 mr-2" />
           <span className="hidden sm:inline">Import CSV</span>
@@ -607,7 +607,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               size: "",
             })
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-sm sm:text-base"
+          className="shadow-sm text-sm sm:text-base"
         >
           <Plus className="w-4 h-4 mr-2" />
           <span className="hidden sm:inline">Add Filament</span>
@@ -629,7 +629,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               size: "", // Initialize size
             })
           }}
-          className="bg-green-600 hover:bg-green-700 text-sm sm:text-base"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm text-sm sm:text-base"
         >
           <Plus className="w-4 h-4 mr-2" />
           <span className="hidden sm:inline">Add Material</span>
@@ -638,23 +638,23 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       </div>
       {/* </CHANGE> */}
 
-      <Card className="mb-6 bg-white border-2 border-blue-300">
+      <Card className="mb-6 shadow-sm">
         <CardContent className="p-4">
           <div className="flex flex-col gap-4">
             {/* Search and Filter Toggle */}
             <div className="flex gap-2">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search filaments..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 border-blue-200"
+                  className="pl-9 bg-background"
                 />
               </div>
               <Button
                 variant="outline"
-                className="border-blue-300 text-blue-900 bg-transparent shrink-0"
+                className="bg-card shrink-0"
                 onClick={() => setShowFilters(!showFilters)}
               >
                 <SlidersHorizontal className="w-4 h-4 sm:mr-2" />
@@ -665,11 +665,11 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
 
             {/* Filter Controls */}
             {showFilters && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-blue-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-border">
                 <div>
-                  <Label className="text-blue-900 text-sm mb-2">Type</Label>
+                  <Label className="text-sm mb-2">Type</Label>
                   <Select value={filterType} onValueChange={setFilterType}>
-                    <SelectTrigger className="border-blue-200">
+                    <SelectTrigger className="bg-card">
                       <SelectValue placeholder="All Types" />
                     </SelectTrigger>
                     <SelectContent>
@@ -684,9 +684,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                 </div>
 
                 <div>
-                  <Label className="text-blue-900 text-sm mb-2">Brand</Label>
+                  <Label className="text-sm mb-2">Brand</Label>
                   <Select value={filterBrand} onValueChange={setFilterBrand}>
-                    <SelectTrigger className="border-blue-200">
+                    <SelectTrigger className="bg-card">
                       <SelectValue placeholder="All Brands" />
                     </SelectTrigger>
                     <SelectContent>
@@ -701,9 +701,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                 </div>
 
                 <div>
-                  <Label className="text-blue-900 text-sm mb-2">Color</Label>
+                  <Label className="text-sm mb-2">Color</Label>
                   <Select value={filterColor} onValueChange={setFilterColor}>
-                    <SelectTrigger className="border-blue-200">
+                    <SelectTrigger className="bg-card">
                       <SelectValue placeholder="All Colors" />
                     </SelectTrigger>
                     <SelectContent>
@@ -718,9 +718,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                 </div>
 
                 <div>
-                  <Label className="text-blue-900 text-sm mb-2">Heating Required</Label>
+                  <Label className="text-sm mb-2">Heating Required</Label>
                   <Select value={filterHeating} onValueChange={setFilterHeating}>
-                    <SelectTrigger className="border-blue-200">
+                    <SelectTrigger className="bg-card">
                       <SelectValue placeholder="All" />
                     </SelectTrigger>
                     <SelectContent>
@@ -732,9 +732,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                 </div>
 
                 <div>
-                  <Label className="text-blue-900 text-sm mb-2">Sort By</Label>
+                  <Label className="text-sm mb-2">Sort By</Label>
                   <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
-                    <SelectTrigger className="border-blue-200">
+                    <SelectTrigger className="bg-card">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -746,9 +746,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                 </div>
 
                 <div>
-                  <Label className="text-blue-900 text-sm mb-2">Order</Label>
+                  <Label className="text-sm mb-2">Order</Label>
                   <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as any)}>
-                    <SelectTrigger className="border-blue-200">
+                    <SelectTrigger className="bg-card">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -764,9 +764,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                     id="show-duplicates"
                     checked={showDuplicatesOnly}
                     onChange={(e) => setShowDuplicatesOnly(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-blue-300 rounded focus:ring-blue-500"
+                    className="w-4 h-4 accent-primary rounded"
                   />
-                  <Label htmlFor="show-duplicates" className="text-blue-900 text-sm cursor-pointer">
+                  <Label htmlFor="show-duplicates" className="text-sm cursor-pointer">
                     Show Duplicates Only
                   </Label>
                 </div>
@@ -775,7 +775,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                 <div className="flex items-end">
                   <Button
                     variant="outline"
-                    className="w-full border-blue-300 text-blue-900 bg-transparent"
+                    className="w-full bg-card"
                     onClick={resetFilters}
                   >
                     Reset Filters
@@ -787,14 +787,14 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         </CardContent>
       </Card>
 
-      <h2 className="text-xl font-semibold text-blue-900 dark:text-blue-100 mb-4">3D Printing Filaments</h2>
+      <h2 className="text-xl font-semibold tracking-tight text-foreground mb-4">3D Printing Filaments</h2>
 
-      <div className="mb-4 text-sm text-blue-600">Showing {displayFilaments.length} filament(s)</div>
+      <div className="mb-4 text-sm text-muted-foreground">Showing {displayFilaments.length} filament(s)</div>
 
       {(isAdding || isAddingMaterial) && (
-        <Card className="mb-4 border-2 border-blue-300">
+        <Card className="mb-4 border-primary/30 shadow-md">
           <CardContent className="p-4">
-            <h3 className="text-lg font-semibold mb-4 text-blue-600">
+            <h3 className="text-lg font-semibold tracking-tight mb-4 text-foreground">
               {newFilament.material_type === "material" ? "Add New Material" : "Add New Filament"}
             </h3>
             <div className="space-y-4">
@@ -888,7 +888,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                           value={newFilament.color_hex}
                           onChange={(e) => setNewFilament({ ...newFilament, color_hex: e.target.value })}
                           placeholder="#FF5733"
-                          className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                          className="bg-card"
                         />
                         {newFilament.color_hex && (
                           <div
@@ -914,7 +914,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               )}
 
               <div>
-                <Label htmlFor="newPrice" className="text-blue-900">
+                <Label htmlFor="newPrice">
                   Price per kg (€)
                 </Label>
                 <Input
@@ -924,11 +924,11 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                   step="0.01"
                   value={newFilament.price_per_kg}
                   onChange={(e) => setNewFilament({ ...newFilament, price_per_kg: e.target.value })}
-                  className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                  className="bg-card"
                 />
               </div>
               <div className="flex gap-2">
-                <Button onClick={handleAdd} className="bg-green-600 hover:bg-green-700">
+                <Button onClick={handleAdd} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                   <Check className="w-4 h-4 mr-2" />
                   Save
                 </Button>
@@ -950,7 +950,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                     })
                   }}
                   variant="outline"
-                  className="border-blue-300 text-blue-900"
+                  className="bg-card"
                 >
                   <X className="w-4 h-4 mr-2" />
                   Cancel
@@ -965,9 +965,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         {displayFilaments.map((filament) => (
           <Card
             key={filament.id}
-            className={`border-2 hover:border-blue-400 transition-colors ${
-              filament.price_per_kg === null ? "border-red-500" : "border-blue-200"
-            } ${bulkUpdateMode && selectedFilaments.has(filament.id) ? "bg-blue-50" : ""}`}
+            className={`shadow-sm transition-all hover:border-primary/40 hover:shadow-md ${
+              filament.price_per_kg === null ? "border-red-400" : "border-border"
+            } ${bulkUpdateMode && selectedFilaments.has(filament.id) ? "bg-primary/5 border-primary/40" : ""}`}
           >
             <CardContent className="p-4">
               {editingId === filament.id ? (
@@ -1059,7 +1059,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                               value={editData.color_hex}
                               onChange={(e) => setEditData({ ...editData, color_hex: e.target.value })}
                               placeholder="#FF5733"
-                              className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                              className="bg-card"
                             />
                             {editData.color_hex && (
                               <div
@@ -1085,7 +1085,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                   )}
 
                   <div>
-                    <Label htmlFor="editPrice" className="text-blue-900">
+                    <Label htmlFor="editPrice">
                       Price per kg (€)
                     </Label>
                     <Input
@@ -1095,14 +1095,14 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       step="0.01"
                       value={editData.price_per_kg}
                       onChange={(e) => setEditData({ ...editData, price_per_kg: e.target.value })}
-                      className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                      className="bg-card"
                     />
                   </div>
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleEdit(filament.id)}
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
                     >
                       <Check className="w-4 h-4 mr-2" />
                       Save
@@ -1111,7 +1111,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       onClick={() => setEditingId(null)}
                       size="sm"
                       variant="outline"
-                      className="border-blue-300 text-blue-900"
+                      className="bg-card"
                     >
                       <X className="w-4 h-4 mr-2" />
                       Cancel
@@ -1130,7 +1130,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                   )}
                   <div className="flex-1">
                     <h3 className="font-semibold text-lg">{filament.name}</h3>
-                    <div className="text-sm text-gray-600 mt-1 flex flex-wrap items-center gap-1">
+                    <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
                       <span className={filament.price_per_kg === null ? "text-red-600 font-semibold" : ""}>
                         {filament.price_per_kg !== null
                           ? `€${filament.price_per_kg.toFixed(2)}/${filament.material_type === "material" ? "sheet" : "kg"}`
@@ -1138,19 +1138,19 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       </span>
                       {filament.type && (
                         <>
-                          <span className="text-blue-500">•</span>
+                          <span className="text-muted-foreground/50">•</span>
                           <span>{filament.type}</span>
                         </>
                       )}
                       {filament.brand && (
                         <>
-                          <span className="text-blue-500">•</span>
+                          <span className="text-muted-foreground/50">•</span>
                           <span>{filament.brand}</span>
                         </>
                       )}
                       {filament.material_type === "filament" && filament.color && (
                         <>
-                          <span className="text-blue-500">•</span>
+                          <span className="text-muted-foreground/50">•</span>
                           <span className="flex items-center gap-1">
                             {filament.color}
                             {filament.color_hex && (
@@ -1165,19 +1165,19 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       )}
                       {filament.material_type === "material" && filament.thickness && (
                         <>
-                          <span className="text-blue-500">•</span>
+                          <span className="text-muted-foreground/50">•</span>
                           <span>{filament.thickness}</span>
                         </>
                       )}
                       {filament.material_type === "material" && filament.size && (
                         <>
-                          <span className="text-blue-500">•</span>
+                          <span className="text-muted-foreground/50">•</span>
                           <span>{filament.size}</span>
                         </>
                       )}
                       {filament.material_type === "filament" && filament.requires_heating && (
                         <>
-                          <span className="text-blue-500">•</span>
+                          <span className="text-muted-foreground/50">•</span>
                           <span className="text-orange-600">Requires Heating</span>
                         </>
                       )}
@@ -1202,7 +1202,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                           size: filament.size || "",
                         })
                       }}
-                      className="text-blue-600 hover:text-blue-900"
+                      className="text-primary hover:text-primary/80"
                       disabled={isAdding || isAddingMaterial}
                     >
                       <Pencil className="w-4 h-4" />
@@ -1225,17 +1225,17 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       </div>
 
       <div className="mt-12">
-        <h2 className="text-xl font-semibold text-blue-900 dark:text-blue-100 mb-6">Laser Materials</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-foreground mb-6">Laser Materials</h2>
 
-        <div className="mb-4 text-sm text-blue-600">Showing {displayMaterials.length} material(s)</div>
+        <div className="mb-4 text-sm text-muted-foreground">Showing {displayMaterials.length} material(s)</div>
 
         <div className="grid gap-4">
           {displayMaterials.map((filament) => (
             <Card
               key={filament.id}
-              className={`border-2 hover:border-green-400 transition-colors ${
-                filament.price_per_kg === null ? "border-red-500" : "border-green-200"
-              } ${bulkUpdateMode && selectedFilaments.has(filament.id) ? "bg-green-50" : ""}`}
+              className={`shadow-sm transition-all hover:border-emerald-400/70 hover:shadow-md ${
+                filament.price_per_kg === null ? "border-red-400" : "border-emerald-200/80 dark:border-emerald-900"
+              } ${bulkUpdateMode && selectedFilaments.has(filament.id) ? "bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-400/70" : ""}`}
             >
               <CardContent className="p-4">
                 {editingId === filament.id ? (
@@ -1336,7 +1336,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                     )}
 
                     <div>
-                      <Label htmlFor="editPrice" className="text-blue-900">
+                      <Label htmlFor="editPrice">
                         Price per kg (€)
                       </Label>
                       <Input
@@ -1346,14 +1346,14 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                         step="0.01"
                         value={editData.price_per_kg}
                         onChange={(e) => setEditData({ ...editData, price_per_kg: e.target.value })}
-                        className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                        className="bg-card"
                       />
                     </div>
                     <div className="flex gap-2">
                       <Button
                         onClick={() => handleEdit(filament.id)}
                         size="sm"
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
                         <Check className="w-4 h-4 mr-2" />
                         Save
@@ -1362,7 +1362,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                         onClick={() => setEditingId(null)}
                         size="sm"
                         variant="outline"
-                        className="border-blue-300 text-blue-900"
+                        className="bg-card"
                       >
                         <X className="w-4 h-4 mr-2" />
                         Cancel
@@ -1381,7 +1381,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                     )}
                     <div className="flex-1">
                       <h3 className="font-semibold text-lg">{filament.name}</h3>
-                      <div className="text-sm text-gray-600 mt-1 flex flex-wrap items-center gap-1">
+                      <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
                         <span className={filament.price_per_kg === null ? "text-red-600 font-semibold" : ""}>
                           {filament.price_per_kg !== null
                             ? `€${filament.price_per_kg.toFixed(2)}/${filament.material_type === "material" ? "sheet" : "kg"}`
@@ -1389,25 +1389,25 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                         </span>
                         {filament.type && (
                           <>
-                            <span className="text-green-500">•</span>
+                            <span className="text-muted-foreground/50">•</span>
                             <span>{filament.type}</span>
                           </>
                         )}
                         {filament.brand && (
                           <>
-                            <span className="text-green-500">•</span>
+                            <span className="text-muted-foreground/50">•</span>
                             <span>{filament.brand}</span>
                           </>
                         )}
                         {filament.material_type === "material" && filament.thickness && (
                           <>
-                            <span className="text-green-500">•</span>
+                            <span className="text-muted-foreground/50">•</span>
                             <span>{filament.thickness}</span>
                           </>
                         )}
                         {filament.material_type === "material" && filament.size && (
                           <>
-                            <span className="text-green-500">•</span>
+                            <span className="text-muted-foreground/50">•</span>
                             <span>{filament.size}</span>
                           </>
                         )}
@@ -1432,7 +1432,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                             size: filament.size || "",
                           })
                         }}
-                        className="text-green-600 hover:text-green-900"
+                        className="text-emerald-600 hover:text-emerald-700"
                         disabled={isAdding || isAddingMaterial}
                       >
                         <Pencil className="w-4 h-4" />
@@ -1460,7 +1460,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
           variant={bulkUpdateMode ? "default" : "outline"}
           className={cn(
             "w-full sm:w-auto",
-            bulkUpdateMode ? "bg-blue-600 text-white" : "border-blue-300 text-blue-900 bg-transparent",
+            bulkUpdateMode ? "bg-primary text-primary-foreground" : "bg-card",
           )}
           onClick={() => {
             setBulkUpdateMode(!bulkUpdateMode)
@@ -1476,12 +1476,12 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
           {bulkUpdateMode && (
             <>
               <div className="flex gap-2 items-center justify-between sm:justify-start">
-                <span className="text-sm text-gray-600">{selectedFilaments.size} selected</span>
+                <span className="text-sm text-muted-foreground">{selectedFilaments.size} selected</span>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-blue-300 text-blue-900 bg-transparent"
+                    className="bg-card"
                     onClick={selectAllFiltered}
                   >
                     Select All
@@ -1489,7 +1489,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-blue-300 text-blue-900 bg-transparent"
+                    className="bg-card"
                     onClick={deselectAll}
                   >
                     Deselect All
@@ -1499,7 +1499,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               <Button
                 variant="default"
                 size="sm"
-                className="bg-blue-600 text-white w-full sm:w-auto"
+                className="w-full sm:w-auto shadow-sm"
                 onClick={() => setBulkUpdateDialog({ isOpen: true, newPrice: "" })}
                 disabled={selectedFilaments.size === 0}
               >
@@ -1509,7 +1509,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
           )}
           <Button
             variant="outline"
-            className="border-blue-300 text-blue-900 bg-transparent w-full sm:w-auto"
+            className="bg-card w-full sm:w-auto"
             onClick={handleExportCSV}
           >
             <Download className="w-4 h-4 mr-2" />
@@ -1527,7 +1527,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       {/* Export Section */}
       {/* Removed duplicate Export to CSV button */}
       {/* <div className="mt-8 flex justify-end">
-        <Button variant="outline" className="border-blue-300 text-blue-900 bg-transparent" onClick={handleExportCSV}>
+        <Button variant="outline" className="bg-card" onClick={handleExportCSV}>
           <Download className="w-4 h-4 mr-2" />
           Export to CSV (
           {bulkUpdateMode && selectedFilaments.size > 0
@@ -1546,7 +1546,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         variant="default"
       >
         <div className="mt-4">
-          <Label htmlFor="bulkPrice" className="text-blue-900 dark:text-blue-100 font-semibold">
+          <Label htmlFor="bulkPrice" className="font-medium">
             New Price per kg (€)
           </Label>
           <Input
@@ -1556,7 +1556,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
             step="0.01"
             value={bulkUpdateDialog.newPrice}
             onChange={(e) => setBulkUpdateDialog({ ...bulkUpdateDialog, newPrice: e.target.value })}
-            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+            className="bg-card"
             placeholder="Enter new price"
             autoFocus
           />
@@ -1565,12 +1565,12 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
 
       {(filteredAndSortedFilaments.length === 0 || (displayFilaments.length === 0 && displayMaterials.length === 0)) &&
         filaments.length > 0 && (
-          <Card className="bg-blue-50 border-2 border-blue-200">
+          <Card className="border-dashed shadow-none bg-card/50">
             <CardContent className="p-8 text-center">
-              <p className="text-blue-600">No filaments match your current filters.</p>
+              <p className="text-muted-foreground">No filaments match your current filters.</p>
               <Button
                 variant="outline"
-                className="mt-4 border-blue-300 text-blue-900 bg-transparent"
+                className="mt-4 bg-card"
                 onClick={resetFilters}
               >
                 Reset Filters

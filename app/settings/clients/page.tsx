@@ -1,8 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { ClientsList } from "@/components/clients-list"
-import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { SiteHeader, PageHeader } from "@/components/site-header"
 
 export default async function ClientsPage() {
   const supabase = await createClient()
@@ -14,18 +12,14 @@ export default async function ClientsPage() {
   
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b-2 border-blue-200 dark:border-blue-800 bg-background">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Link href="/settings">
-            <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold text-blue-900 dark:text-blue-100">Client Management</h1>
-        </div>
-      </header>
+      <SiteHeader active="/settings" />
+      <PageHeader
+        backHref="/settings"
+        title="Clients"
+        description="Customer details and notes for your quotes"
+      />
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <ClientsList clients={clients || []} />
       </main>
     </div>

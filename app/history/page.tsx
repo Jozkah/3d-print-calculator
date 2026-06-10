@@ -1,9 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { QuoteHistory } from "@/components/quote-history"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft, AlertCircle } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { SiteHeader, PageHeader } from "@/components/site-header"
 
 export default async function HistoryPage() {
   const supabase = await createClient()
@@ -21,18 +20,14 @@ export default async function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b-2 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-gray-900">
-        <div className="container mx-auto px-4 py-3 sm:py-4 flex items-center gap-2 sm:gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700 shrink-0">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <h1 className="text-xl sm:text-2xl font-bold text-blue-900 dark:text-blue-100">Quote History</h1>
-        </div>
-      </header>
+      <SiteHeader active="/history" />
+      <PageHeader
+        backHref="/"
+        title="Quote History"
+        description="Every saved quote — filter, track status, share or edit"
+      />
 
-      <main className="container mx-auto px-4 py-6 sm:py-8">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         {error ? (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />

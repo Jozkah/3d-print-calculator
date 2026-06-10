@@ -995,8 +995,8 @@ export function ExcelCalculator({
 
   if (!globalSettings) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
-        <div className="text-blue-600">Loading calculator...</div>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-muted-foreground animate-pulse">Loading calculator...</div>
       </div>
     )
   }
@@ -1115,7 +1115,7 @@ export function ExcelCalculator({
   return (
     // Wrap the entire component in TooltipProvider
     <TooltipProvider>
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-background">
         {/* ADDED: Error dialog for validation failures */}
         <DialogCustom
           isOpen={showErrorDialog}
@@ -1146,28 +1146,28 @@ export function ExcelCalculator({
                 <Button
                   variant={calculatorType === "3d-print" ? "default" : "outline"}
                   onClick={() => setCalculatorType("3d-print")}
-                  className="whitespace-nowrap min-w-[120px]"
+                  className="whitespace-nowrap min-w-[120px] rounded-full"
                 >
                   3D Printing
                 </Button>
                 <Button
                   variant={calculatorType === "laser-engraving" ? "default" : "outline"}
                   onClick={() => setCalculatorType("laser-engraving")}
-                  className="whitespace-nowrap min-w-[120px]"
+                  className="whitespace-nowrap min-w-[120px] rounded-full"
                 >
                   Laser Engraving
                 </Button>
                 <Button
                   variant={calculatorType === "laser-cutting" ? "default" : "outline"}
                   onClick={() => setCalculatorType("laser-cutting")}
-                  className="whitespace-nowrap min-w-[120px]"
+                  className="whitespace-nowrap min-w-[120px] rounded-full"
                 >
                   Laser Cutting
                 </Button>
                 <Button
                   variant={calculatorType === "stickers" ? "default" : "outline"}
                   onClick={() => setCalculatorType("stickers")}
-                  className="whitespace-nowrap min-w-[120px]"
+                  className="whitespace-nowrap min-w-[120px] rounded-full"
                 >
                   Stickers
                 </Button>
@@ -1176,12 +1176,12 @@ export function ExcelCalculator({
           )}
 
           {/* Quote Details */}
-          <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
-            <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-2">Quote Details</h2>
+          <Card className="p-5 sm:p-6 shadow-sm">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground mb-2">Quote Details</h2>
             {/* Changed to stack on mobile for better readability */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="clientName" className="text-blue-900">
+                <Label htmlFor="clientName">
                   Client Name
                 </Label>
                 <ClientSelector
@@ -1198,11 +1198,11 @@ export function ExcelCalculator({
                     }
                   }}
                   placeholder="Select or add client..."
-                  className="bg-white"
+                  className="bg-card"
                 />
               </div>
               <div>
-                <Label htmlFor="distance" className="text-blue-900">
+                <Label htmlFor="distance">
                   Distance Traveled (km)
                 </Label>
                 <Input
@@ -1216,7 +1216,7 @@ export function ExcelCalculator({
                     const value = e.target.value
                     setDistanceTraveledKm(value === "" ? 0 : Number.parseFloat(value) || 0)
                   }}
-                  className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                  className="bg-card"
                 />
               </div>
             </div>
@@ -1227,7 +1227,7 @@ export function ExcelCalculator({
                   checked={isEmergency}
                   onCheckedChange={(checked) => setIsEmergency(checked as boolean)}
                 />
-                <Label htmlFor="emergency" className="font-semibold text-blue-900">
+                <Label htmlFor="emergency" className="font-medium">
                   Emergency Order (+€{globalSettings.emergency_fee_fixed.toFixed(2)})
                 </Label>
               </div>
@@ -1238,7 +1238,7 @@ export function ExcelCalculator({
                     checked={vatEnabled}
                     onCheckedChange={(checked) => setVatEnabled(checked as boolean)}
                   />
-                  <Label htmlFor="vatEnabled" className="font-semibold text-blue-900">
+                  <Label htmlFor="vatEnabled" className="font-medium">
                     Include VAT (23%)
                   </Label>
                 </div>
@@ -1247,11 +1247,11 @@ export function ExcelCalculator({
           </Card>
 
           {/* Printed Parts Table */}
-          <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
+          <Card className="p-5 sm:p-6 shadow-sm">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-blue-900">{partsLabel}</h3>
+              <h3 className="text-lg font-semibold tracking-tight text-foreground">{partsLabel}</h3>
               <div className="flex gap-2">
-                <Button onClick={addPrintedPart} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={addPrintedPart} className="shadow-sm">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Part
                 </Button>
@@ -1261,18 +1261,18 @@ export function ExcelCalculator({
             <div className="overflow-x-auto -mx-6 px-6">
               <table className="w-full border-collapse min-w-[600px]">
                 <thead>
-                  <tr className="bg-blue-100 dark:bg-blue-950 border-b-2 border-blue-300 dark:border-blue-700">
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold min-w-[120px]">Part Name</th>
+                  <tr className="bg-muted/60 border-b border-border">
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[120px]">Part Name</th>
                     {calculatorType === "3d-print" && (
-                      <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold min-w-[120px]">Printer</th>
+                      <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[120px]">Printer</th>
                     )}
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold min-w-[120px]">
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[120px]">
                       {calculatorType === "3d-print" ? "Filament" : "Material"}
                     </th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold min-w-[100px]">Print Time (hr)</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold min-w-[100px]">Cost (€)</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[100px]">Print Time (hr)</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[100px]">Cost (€)</th>
                     {/* Line 1214: Center the Actions header */}
-                    <th className="p-3 text-center text-blue-900 dark:text-blue-100 font-semibold min-w-[80px]">Actions</th>
+                    <th className="p-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[80px]">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1304,7 +1304,7 @@ export function ExcelCalculator({
                       : availableFilaments
 
                     return (
-                      <tr key={part.id} className="border-b border-blue-200 dark:border-blue-800">
+                      <tr key={part.id} className="border-b border-border/60 transition-colors hover:bg-muted/30">
                         <td className="p-2">
                           <Input
                             value={part.name}
@@ -1312,7 +1312,7 @@ export function ExcelCalculator({
                               // Immutable update via helper instead of mutating state in place.
                               updatePartField(index, "name", e.target.value)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                             placeholder="Part name"
                           />
                         </td>
@@ -1337,7 +1337,7 @@ export function ExcelCalculator({
                                     updatePartField(index, "printer_id", value)
                                   }}
                                 >
-                                  <SelectTrigger className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900">
+                                  <SelectTrigger className="bg-card">
                                     <SelectValue placeholder="Select printer" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1388,12 +1388,12 @@ export function ExcelCalculator({
                                     return (
                                       <div
                                         key={filamentEntry.id}
-                                        className="flex items-center gap-1 text-xs bg-blue-50 dark:bg-blue-950 rounded p-1"
+                                        className="flex items-center gap-1 text-xs bg-muted/70 rounded-md p-1"
                                       >
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
-                                              <span className="flex-1 truncate text-blue-800 dark:text-blue-200 cursor-help">
+                                              <span className="flex-1 truncate text-foreground/85 cursor-help">
                                                 {filament?.name || "Unknown"}
                                               </span>
                                             </TooltipTrigger>
@@ -1446,7 +1446,7 @@ export function ExcelCalculator({
                                                 value === "" ? 0 : Number.parseFloat(value) || 0,
                                               )
                                             }}
-                                            className="w-16 h-6 text-xs border-blue-200 bg-white px-1"
+                                            className="w-16 h-6 text-xs bg-card px-1"
                                             placeholder="g"
                                           />
                                         )}
@@ -1471,7 +1471,7 @@ export function ExcelCalculator({
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="w-full h-7 text-xs justify-between border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                                  className="w-full h-7 text-xs justify-between bg-card"
                                 >
                                   <span className="flex items-center gap-1">
                                     <Plus className="h-3 w-3" />
@@ -1543,10 +1543,10 @@ export function ExcelCalculator({
                               const value = e.target.value
                               updatePartField(index, "printing_time_hr", value === "" ? 0 : Number.parseFloat(value) || 0)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                           />
                         </td>
-                        <td className="p-2 text-blue-900 dark:text-blue-100 font-semibold">€{partCost.toFixed(2)}</td>
+                        <td className="p-2 font-semibold tabular-nums text-foreground">€{partCost.toFixed(2)}</td>
                         {/* CHANGE: Added duplicate button next to delete button */}
                         <td className="p-2">
                           {/* Line 1438: Center the action buttons */}
@@ -1555,7 +1555,7 @@ export function ExcelCalculator({
                               onClick={() => duplicatePrintedPart(index)}
                               size="sm"
                               variant="ghost"
-                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              className="text-primary hover:text-primary hover:bg-accent"
                               title="Duplicate part"
                             >
                               <Copy className="w-4 h-4" />
@@ -1578,7 +1578,7 @@ export function ExcelCalculator({
               </table>
             </div>
             <div className="mt-4 text-right">
-              <span className="text-blue-900 dark:text-blue-100 font-bold">Total Printing Cost: €{totalPrintingCost.toFixed(2)}</span>
+              <span className="font-semibold tabular-nums text-foreground">Total Printing Cost: €{totalPrintingCost.toFixed(2)}</span>
             </div>
           </Card>
 
@@ -1587,9 +1587,9 @@ export function ExcelCalculator({
           {calculatorType !== "laser-engraving" &&
             calculatorType !== "laser-cutting" &&
             calculatorType !== "stickers" && (
-              <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
+              <Card className="p-5 sm:p-6 shadow-sm">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100">{batchesLabel}</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">{batchesLabel}</h2>
               <Button
                 onClick={() =>
                   setDriedBatches([
@@ -1598,7 +1598,7 @@ export function ExcelCalculator({
                   ])
                 }
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700"
+                className="shadow-sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Batch
@@ -1607,10 +1607,10 @@ export function ExcelCalculator({
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-blue-100 dark:bg-blue-950 border-b-2 border-blue-300 dark:border-blue-700">
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Material</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Drying Time (hr)</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Cost (€)</th>
+                  <tr className="bg-muted/60 border-b border-border">
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Material</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Drying Time (hr)</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cost (€)</th>
                     <th className="p-3"></th>
                   </tr>
                 </thead>
@@ -1641,14 +1641,14 @@ export function ExcelCalculator({
                     }
 
                     return (
-                      <tr key={batch.id} className="border-b border-blue-200 dark:border-blue-800">
+                      <tr key={batch.id} className="border-b border-border/60 transition-colors hover:bg-muted/30">
                         <td className="p-2">
                             <Popover>
                               <PopoverTrigger asChild>
                                 <Button
                                   variant="outline"
                                   role="combobox"
-                                  className="w-full justify-between border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                                  className="w-full justify-between bg-card"
                                 >
                                   {batch.material || "Select material"}
                                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1713,10 +1713,10 @@ export function ExcelCalculator({
                               updated[index].drying_time_hr = Number.parseFloat(e.target.value) || 0
                               setDriedBatches(updated)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                           />
                         </td>
-                        <td className="p-2 text-blue-900 dark:text-blue-100 font-semibold">€{cost.toFixed(2)}</td>
+                        <td className="p-2 font-semibold tabular-nums text-foreground">€{cost.toFixed(2)}</td>
                         <td className="p-2">
                             <Button
                               onClick={() => setDriedBatches(driedBatches.filter((_, i) => i !== index))}
@@ -1734,21 +1734,21 @@ export function ExcelCalculator({
               </table>
             </div>
             <div className="mt-4 text-right">
-              <span className="text-blue-900 dark:text-blue-100 font-bold">Total Drying Cost: €{totalDryingCost.toFixed(2)}</span>
+              <span className="font-semibold tabular-nums text-foreground">Total Drying Cost: €{totalDryingCost.toFixed(2)}</span>
             </div>
           </Card>
             )}
 
           {/* Materials Table */}
-          <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
+          <Card className="p-5 sm:p-6 shadow-sm">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100">Materials (Hardware, etc.)</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">Materials (Hardware, etc.)</h2>
               <Button
                 onClick={() =>
                   setMaterials([...materials, { id: Date.now().toString(), name: "", quantity: 0, unit_cost: 0 }])
                 }
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700"
+                className="shadow-sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Material
@@ -1757,11 +1757,11 @@ export function ExcelCalculator({
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-blue-100 dark:bg-blue-950 border-b-2 border-blue-300 dark:border-blue-700">
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Name</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Quantity</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Unit Cost (€)</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Total Cost (€)</th>
+                  <tr className="bg-muted/60 border-b border-border">
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Name</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quantity</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Unit Cost (€)</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Cost (€)</th>
                     <th className="p-3"></th>
                   </tr>
                 </thead>
@@ -1769,7 +1769,7 @@ export function ExcelCalculator({
                   {materials.map((material, index) => {
                     const cost = material.quantity * material.unit_cost
                     return (
-                      <tr key={material.id} className="border-b border-blue-200 dark:border-blue-800">
+                      <tr key={material.id} className="border-b border-border/60 transition-colors hover:bg-muted/30">
                         <td className="p-2">
                           <Input
                             value={material.name}
@@ -1778,7 +1778,7 @@ export function ExcelCalculator({
                               updated[index].name = e.target.value
                               setMaterials(updated)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                             placeholder="Material name"
                           />
                         </td>
@@ -1795,7 +1795,7 @@ export function ExcelCalculator({
                               updated[index].quantity = value === "" ? 0 : Number.parseFloat(value) || 0
                               setMaterials(updated)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                           />
                         </td>
                         <td className="p-2">
@@ -1811,10 +1811,10 @@ export function ExcelCalculator({
                               updated[index].unit_cost = value === "" ? 0 : Number.parseFloat(value) || 0
                               setMaterials(updated)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                           />
                         </td>
-                        <td className="p-2 text-blue-900 dark:text-blue-100 font-semibold">€{cost.toFixed(2)}</td>
+                        <td className="p-2 font-semibold tabular-nums text-foreground">€{cost.toFixed(2)}</td>
                         <td className="p-2">
                           <Button
                             onClick={() => setMaterials(materials.filter((_, i) => i !== index))}
@@ -1832,20 +1832,20 @@ export function ExcelCalculator({
               </table>
             </div>
             <div className="mt-4 text-right">
-              <span className="text-blue-900 dark:text-blue-100 font-bold">Total Materials Cost: €{totalMaterialsCost.toFixed(2)}</span>
+              <span className="font-semibold tabular-nums text-foreground">Total Materials Cost: €{totalMaterialsCost.toFixed(2)}</span>
             </div>
           </Card>
 
           {/* Labor Table */}
-          <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
+          <Card className="p-5 sm:p-6 shadow-sm">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100">Labor</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">Labor</h2>
               <Button
                 onClick={() =>
                   setLabor([...labor, { id: Date.now().toString(), action: "", hours: 0, hourly_cost: 0 }])
                 }
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700"
+                className="shadow-sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Labor
@@ -1854,11 +1854,11 @@ export function ExcelCalculator({
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-blue-100 dark:bg-blue-950 border-b-2 border-blue-300 dark:border-blue-700">
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Action</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Hours</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Hourly Cost (€)</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Total Cost (€)</th>
+                  <tr className="bg-muted/60 border-b border-border">
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Action</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Hours</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Hourly Cost (€)</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Cost (€)</th>
                     <th className="p-3"></th>
                   </tr>
                 </thead>
@@ -1866,7 +1866,7 @@ export function ExcelCalculator({
                   {labor.map((laborItem, index) => {
                     const cost = laborItem.hours * laborItem.hourly_cost
                     return (
-                      <tr key={laborItem.id} className="border-b border-blue-200 dark:border-blue-800">
+                      <tr key={laborItem.id} className="border-b border-border/60 transition-colors hover:bg-muted/30">
                         <td className="p-2">
                           <Input
                             value={laborItem.action}
@@ -1875,7 +1875,7 @@ export function ExcelCalculator({
                               updated[index].action = e.target.value
                               setLabor(updated)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                             placeholder="Labor action"
                           />
                         </td>
@@ -1892,7 +1892,7 @@ export function ExcelCalculator({
                               updated[index].hours = value === "" ? 0 : Number.parseFloat(value) || 0
                               setLabor(updated)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                           />
                         </td>
                         <td className="p-2">
@@ -1908,10 +1908,10 @@ export function ExcelCalculator({
                               updated[index].hourly_cost = value === "" ? 0 : Number.parseFloat(value) || 0
                               setLabor(updated)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                           />
                         </td>
-                        <td className="p-2 text-blue-900 dark:text-blue-100 font-semibold">€{cost.toFixed(2)}</td>
+                        <td className="p-2 font-semibold tabular-nums text-foreground">€{cost.toFixed(2)}</td>
                         <td className="p-2">
                           <Button
                             onClick={() => setLabor(labor.filter((_, i) => i !== index))}
@@ -1929,20 +1929,20 @@ export function ExcelCalculator({
               </table>
             </div>
             <div className="mt-4 text-right">
-              <span className="text-blue-900 dark:text-blue-100 font-bold">Total Labor Cost: €{totalLaborCost.toFixed(2)}</span>
+              <span className="font-semibold tabular-nums text-foreground">Total Labor Cost: €{totalLaborCost.toFixed(2)}</span>
             </div>
           </Card>
 
           {/* Packaging & Shipping Table */}
-          <Card className="p-6 bg-white dark:bg-gray-900 border-2 border-blue-300 dark:border-blue-700">
+          <Card className="p-5 sm:p-6 shadow-sm">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-blue-900 dark:text-blue-100">Packaging & Shipping</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">Packaging & Shipping</h2>
               <Button
                 onClick={() =>
                   setPackaging([...packaging, { id: Date.now().toString(), name: "", quantity: 0, unit_cost: 0 }])
                 }
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700"
+                className="shadow-sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Item
@@ -1951,11 +1951,11 @@ export function ExcelCalculator({
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-blue-100 dark:bg-blue-950 border-b-2 border-blue-300 dark:border-blue-700">
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Name</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Quantity</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Unit Cost (€)</th>
-                    <th className="p-3 text-left text-blue-900 dark:text-blue-100 font-semibold">Total Cost (€)</th>
+                  <tr className="bg-muted/60 border-b border-border">
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Name</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quantity</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Unit Cost (€)</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Cost (€)</th>
                     <th className="p-3"></th>
                   </tr>
                 </thead>
@@ -1963,7 +1963,7 @@ export function ExcelCalculator({
                   {packaging.map((item, index) => {
                     const cost = item.quantity * item.unit_cost
                     return (
-                      <tr key={item.id} className="border-b border-blue-200 dark:border-blue-800">
+                      <tr key={item.id} className="border-b border-border/60 transition-colors hover:bg-muted/30">
                         <td className="p-2">
                           <Input
                             value={item.name}
@@ -1972,7 +1972,7 @@ export function ExcelCalculator({
                               updated[index].name = e.target.value
                               setPackaging(updated)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                             placeholder="Item name"
                           />
                         </td>
@@ -1989,7 +1989,7 @@ export function ExcelCalculator({
                               updated[index].quantity = value === "" ? 0 : Number.parseFloat(value) || 0
                               setPackaging(updated)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                           />
                         </td>
                         <td className="p-2">
@@ -2005,10 +2005,10 @@ export function ExcelCalculator({
                               updated[index].unit_cost = value === "" ? 0 : Number.parseFloat(value) || 0
                               setPackaging(updated)
                             }}
-                            className="border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900"
+                            className="bg-card"
                           />
                         </td>
-                        <td className="p-2 text-blue-900 dark:text-blue-100 font-semibold">€{cost.toFixed(2)}</td>
+                        <td className="p-2 font-semibold tabular-nums text-foreground">€{cost.toFixed(2)}</td>
                         <td className="p-2">
                           <Button
                             onClick={() => setPackaging(packaging.filter((_, i) => i !== index))}
@@ -2026,79 +2026,79 @@ export function ExcelCalculator({
               </table>
             </div>
             <div className="mt-4 text-right">
-              <span className="text-blue-900 dark:text-blue-100 font-bold">
+              <span className="font-semibold tabular-nums text-foreground">
                 Total Packaging & Shipping Cost: €{totalPackagingCost.toFixed(2)}
               </span>
             </div>
           </Card>
 
           {/* Cost Summary */}
-          <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-gray-900 dark:to-gray-800 border-2 border-blue-400 dark:border-blue-700">
-            <h2 className="text-2xl font-bold text-blue-900 dark:text-blue-100 mb-6">Quote Summary</h2>
+          <Card className="p-5 sm:p-6 border-primary/25 bg-gradient-to-br from-card to-primary/5 shadow-md">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground mb-6">Quote Summary</h2>
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-3">
-                <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 dark:text-blue-300 font-medium">Total Printing Cost:</span>
-                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{totalPrintingCost.toFixed(2)}</span>
+                <div className="flex justify-between items-center pb-2 border-b border-border/70">
+                  <span className="text-muted-foreground">Total Printing Cost:</span>
+                  <span className="font-semibold tabular-nums text-foreground">€{totalPrintingCost.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 dark:text-blue-300 font-medium">Added Machine Cost:</span>
+                <div className="flex justify-between items-center pb-2 border-b border-border/70">
+                  <span className="text-muted-foreground">Added Machine Cost:</span>
                   {/* Adjusted to show only printer capital and electricity, excluding drying cost from this line */}
-                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{machineCost.toFixed(2)}</span>
+                  <span className="font-semibold tabular-nums text-foreground">€{machineCost.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 dark:text-blue-300 font-medium">Electricity &amp; Drying Cost:</span>
+                <div className="flex justify-between items-center pb-2 border-b border-border/70">
+                  <span className="text-muted-foreground">Electricity &amp; Drying Cost:</span>
                   {/* Printer electricity + full drying cost (dryer capital + electricity + buffer). Relabeled so the label matches what is summed; the dryer capital was previously mislabeled as "Electricity". */}
-                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{(electricityCost + totalDryingCost).toFixed(2)}</span>
+                  <span className="font-semibold tabular-nums text-foreground">€{(electricityCost + totalDryingCost).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 dark:text-blue-300 font-medium">Total Materials Cost:</span>
-                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{totalMaterialsCost.toFixed(2)}</span>
+                <div className="flex justify-between items-center pb-2 border-b border-border/70">
+                  <span className="text-muted-foreground">Total Materials Cost:</span>
+                  <span className="font-semibold tabular-nums text-foreground">€{totalMaterialsCost.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 dark:text-blue-300 font-medium">Total Labor Cost:</span>
-                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{totalLaborCost.toFixed(2)}</span>
+                <div className="flex justify-between items-center pb-2 border-b border-border/70">
+                  <span className="text-muted-foreground">Total Labor Cost:</span>
+                  <span className="font-semibold tabular-nums text-foreground">€{totalLaborCost.toFixed(2)}</span>
                 </div>
               </div>
               <div className="space-y-3">
-                <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 dark:text-blue-300 font-medium">Total Packaging & Shipping Cost:</span>
-                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{totalPackagingCost.toFixed(2)}</span>
+                <div className="flex justify-between items-center pb-2 border-b border-border/70">
+                  <span className="text-muted-foreground">Total Packaging & Shipping Cost:</span>
+                  <span className="font-semibold tabular-nums text-foreground">€{totalPackagingCost.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                  <span className="text-blue-700 dark:text-blue-300 font-medium">Additional Transportation Cost:</span>
-                  <span className="text-blue-900 dark:text-blue-100 font-bold">€{fuelCost.toFixed(2)}</span>
+                <div className="flex justify-between items-center pb-2 border-b border-border/70">
+                  <span className="text-muted-foreground">Additional Transportation Cost:</span>
+                  <span className="font-semibold tabular-nums text-foreground">€{fuelCost.toFixed(2)}</span>
                 </div>
                 {isEmergency && emergencyFee > 0 && (
-                  <div className="flex justify-between items-center pb-2 border-b border-blue-300">
-                    <span className="text-blue-700 dark:text-blue-300 font-medium">Emergency Fee:</span>
-                    <span className="text-blue-900 dark:text-blue-100 font-bold">€{emergencyFee.toFixed(2)}</span>
+                  <div className="flex justify-between items-center pb-2 border-b border-border/70">
+                    <span className="text-muted-foreground">Emergency Fee:</span>
+                    <span className="font-semibold tabular-nums text-foreground">€{emergencyFee.toFixed(2)}</span>
                   </div>
                 )}
                 {/* CHANGE: Update VAT display to show only when enabled */}
                 {mode === "business" && (
-                  <div className="text-blue-700 text-sm mb-4">
+                  <div className="text-muted-foreground text-sm mb-4">
                     {vatEnabled
                       ? `VAT (23% of Selling Price): €${vatAmountFromSellingPrice.toFixed(2)}`
                       : "VAT: Disabled"}
                   </div>
                 )}
-                <div className="flex justify-between items-center pb-2 pt-2 border-t-2 border-blue-400">
-                  <span className="text-blue-900 dark:text-blue-100 font-bold text-lg">Total Landed Cost:</span>
-                  <span className="text-blue-900 dark:text-blue-100 font-bold text-xl">€{totalLandedCost.toFixed(2)}</span>
+                <div className="flex justify-between items-center pb-2 pt-2 border-t-2 border-primary/30">
+                  <span className="font-semibold text-foreground text-lg">Total Landed Cost:</span>
+                  <span className="font-bold tabular-nums text-primary text-xl">€{totalLandedCost.toFixed(2)}</span>
                 </div>
               </div>
             </div>
 
-            <div className="mt-8 pt-6 border-t-2 border-blue-400">
-              <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-4">Profit Margins (Click to Select)</h3>
+            <div className="mt-8 pt-6 border-t border-border">
+              <h3 className="text-lg font-semibold tracking-tight text-foreground mb-4">Profit Margins (Click to Select)</h3>
               {/* Improved mobile grid layout for profit margins */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div
                   className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                     selectedMargin === 30
-                      ? "bg-blue-100 dark:bg-blue-900 border-blue-500 ring-2 ring-blue-500"
-                      : "bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600"
+                      ? "bg-primary/10 border-primary ring-2 ring-primary/25"
+                      : "bg-card border-border hover:border-primary/40"
                   }`}
                   onClick={() => {
                     setSelectedMargin(30)
@@ -2106,14 +2106,14 @@ export function ExcelCalculator({
                     setTargetPrice(0) // Reset target price when switching modes
                   }}
                 >
-                  <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">30% Margin</div>
-                  <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin30WithVAT.toFixed(2)}</div>
+                  <div className="text-muted-foreground text-xs sm:text-sm font-medium mb-1">30% Margin</div>
+                  <div className="text-foreground text-lg sm:text-xl font-bold tabular-nums">€{margin30WithVAT.toFixed(2)}</div>
                 </div>
                 <div
                   className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                     selectedMargin === 40
-                      ? "bg-blue-100 dark:bg-blue-900 border-blue-500 ring-2 ring-blue-500"
-                      : "bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600"
+                      ? "bg-primary/10 border-primary ring-2 ring-primary/25"
+                      : "bg-card border-border hover:border-primary/40"
                   }`}
                   onClick={() => {
                     setSelectedMargin(40)
@@ -2121,14 +2121,14 @@ export function ExcelCalculator({
                     setTargetPrice(0) // Reset target price when switching modes
                   }}
                 >
-                  <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">40% Margin</div>
-                  <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin40WithVAT.toFixed(2)}</div>
+                  <div className="text-muted-foreground text-xs sm:text-sm font-medium mb-1">40% Margin</div>
+                  <div className="text-foreground text-lg sm:text-xl font-bold tabular-nums">€{margin40WithVAT.toFixed(2)}</div>
                 </div>
                 <div
                   className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                     selectedMargin === 50
-                      ? "bg-blue-100 dark:bg-blue-900 border-blue-500 ring-2 ring-blue-500"
-                      : "bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600"
+                      ? "bg-primary/10 border-primary ring-2 ring-primary/25"
+                      : "bg-card border-border hover:border-primary/40"
                   }`}
                   onClick={() => {
                     setSelectedMargin(50)
@@ -2136,15 +2136,15 @@ export function ExcelCalculator({
                     setTargetPrice(0) // Reset target price when switching modes
                   }}
                 >
-                  <div className="text-blue-700 text-xs sm:text-sm font-medium mb-1">50% Margin</div>
-                  <div className="text-blue-900 text-lg sm:text-xl font-bold">€{margin50WithVAT.toFixed(2)}</div>
+                  <div className="text-muted-foreground text-xs sm:text-sm font-medium mb-1">50% Margin</div>
+                  <div className="text-foreground text-lg sm:text-xl font-bold tabular-nums">€{margin50WithVAT.toFixed(2)}</div>
                 </div>
                 {/* START UPDATED CODE for custom margin input */}
                 <div
                   className={`p-3 sm:p-4 rounded-lg border-2 hover:shadow-lg transition-shadow ${
                     selectedMargin === customMargin || marginInputMode === "targetPrice"
-                      ? "bg-blue-100 dark:bg-blue-900 border-blue-500 ring-2 ring-blue-500"
-                      : "bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600"
+                      ? "bg-primary/10 border-primary ring-2 ring-primary/25"
+                      : "bg-card border-border hover:border-primary/40"
                   }`}
                 >
                   {/* Toggle between % and € mode */}
@@ -2157,8 +2157,8 @@ export function ExcelCalculator({
                       }}
                       className={`px-2 py-0.5 text-xs rounded transition-colors ${
                         marginInputMode === "percentage"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-muted/70"
                       }`}
                     >
                       %
@@ -2170,8 +2170,8 @@ export function ExcelCalculator({
                       }}
                       className={`px-2 py-0.5 text-xs rounded transition-colors ${
                         marginInputMode === "targetPrice"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-muted/70"
                       }`}
                     >
                       €
@@ -2197,18 +2197,18 @@ export function ExcelCalculator({
                             setMarginInputMode("percentage") // Ensure we are in percentage mode
                             setTargetPrice(0) // Reset target price when manual percentage input changes
                           }}
-                          className="w-12 text-center border border-blue-300 rounded px-1 py-0.5 text-blue-700 dark:text-blue-300 font-medium"
+                          className="w-12 text-center border border-input bg-card rounded-md px-1 py-0.5 text-foreground font-medium"
                         />
-                        <span className="text-blue-700 text-xs sm:text-sm font-medium">% Margin</span>
+                        <span className="text-muted-foreground text-xs sm:text-sm font-medium">% Margin</span>
                       </div>
-                      <div className="text-blue-900 text-lg sm:text-xl font-bold mt-1">
+                      <div className="text-foreground text-lg sm:text-xl font-bold tabular-nums mt-1">
                         €{customMarginWithVAT.toFixed(2)}
                       </div>
                     </>
                   ) : (
                     <>
                       <div className="flex items-center justify-center gap-1">
-                        <span className="text-blue-700 text-xs sm:text-sm font-medium">Target</span>
+                        <span className="text-muted-foreground text-xs sm:text-sm font-medium">Target</span>
                         <input
                           type="number"
                           min="0"
@@ -2226,11 +2226,11 @@ export function ExcelCalculator({
                             // could set margin >= 100; deriving it in one place fixes all three.
                           }}
                           placeholder={`> ${totalLandedCost.toFixed(2)}`}
-                          className="w-20 text-center border border-blue-300 rounded px-1 py-0.5 text-blue-700 dark:text-blue-300 font-medium"
+                          className="w-20 text-center border border-input bg-card rounded-md px-1 py-0.5 text-foreground font-medium"
                         />
-                        <span className="text-blue-700 text-xs sm:text-sm font-medium">€</span>
+                        <span className="text-muted-foreground text-xs sm:text-sm font-medium">€</span>
                       </div>
-                      <div className="text-blue-900 text-xs sm:text-sm font-medium mt-1">
+                      <div className="text-muted-foreground text-xs sm:text-sm font-medium mt-1">
                         = {customMargin.toFixed(2)}% margin
                       </div>
                     </>
@@ -2239,18 +2239,18 @@ export function ExcelCalculator({
                 {/* END UPDATED CODE */}
               </div>
 
-              <div className="mt-6 p-4 sm:p-6 bg-blue-50 rounded-lg border-2 border-blue-400">
+              <div className="mt-6 p-4 sm:p-6 bg-primary rounded-xl shadow-md shadow-primary/25">
                 {/* Final Price Section */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <div className="text-blue-700 font-semibold text-sm sm:text-base">
+                  <div className="text-primary-foreground/85 font-semibold text-sm sm:text-base">
                     Final Client Price ({selectedMargin}% Margin)
                   </div>
-                  <div className="text-blue-900 text-2xl sm:text-3xl font-bold">€{finalClientPrice.toFixed(2)}</div>
+                  <div className="text-primary-foreground text-2xl sm:text-3xl font-bold tabular-nums">€{finalClientPrice.toFixed(2)}</div>
                 </div>
               </div>
 
               {isEmergency && emergencyFee > 0 && (
-                <div className="mt-4 p-3 sm:p-4 bg-red-50 rounded-lg border-2 border-red-300">
+                <div className="mt-4 p-3 sm:p-4 bg-red-50 dark:bg-red-950/40 rounded-xl border border-red-200 dark:border-red-900">
                   <div className="flex items-center gap-2 text-red-700">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path
@@ -2267,17 +2267,17 @@ export function ExcelCalculator({
               )}
 
               {mode === "business" && (
-                <div className="mt-8 pt-6 border-t-2 border-blue-400">
-                  <h3 className="text-xl font-bold text-blue-900 dark:text-blue-100 mb-4">
+                <div className="mt-8 pt-6 border-t border-border">
+                  <h3 className="text-lg font-semibold tracking-tight text-foreground mb-4">
                     Business Profit Split ({selectedMargin}% Margin)
                   </h3>
-                  <div className="mb-4 bg-blue-50 dark:bg-gray-800 p-3 rounded border-2 border-blue-300 dark:border-blue-700">
+                  <div className="mb-4 grid gap-3 sm:grid-cols-2">
                     {/* Updated Business Profit Split section with Tooltips */}
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="bg-purple-50 dark:bg-purple-950 p-4 rounded-lg border-2 border-purple-300 dark:border-purple-700 cursor-help">
-                          <div className="text-purple-900 dark:text-purple-200 font-semibold mb-2">Owner A Receives:</div>
-                          <div className="text-purple-900 dark:text-purple-100 text-2xl font-bold">€{ownerAReceives.toFixed(2)}</div>
+                        <div className="bg-purple-50/70 dark:bg-purple-950/40 p-4 rounded-xl border border-purple-200 dark:border-purple-800 cursor-help transition-shadow hover:shadow-md">
+                          <div className="text-purple-700 dark:text-purple-300 text-sm font-medium mb-1">Owner A Receives</div>
+                          <div className="text-purple-950 dark:text-purple-100 text-2xl font-bold tabular-nums">€{ownerAReceives.toFixed(2)}</div>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="bg-purple-900 text-white p-3 max-w-xs">
@@ -2320,11 +2320,11 @@ export function ExcelCalculator({
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border-2 border-blue-300 dark:border-blue-700 cursor-help">
-                          <div className="text-blue-900 dark:text-blue-100 font-semibold mb-2">
-                            Owner B Receives{vatEnabled ? " (includes VAT)" : ""}:
+                        <div className="bg-primary/5 p-4 rounded-xl border border-primary/25 cursor-help transition-shadow hover:shadow-md">
+                          <div className="text-primary text-sm font-medium mb-1">
+                            Owner B Receives{vatEnabled ? " (includes VAT)" : ""}
                           </div>
-                          <div className="text-blue-900 text-2xl font-bold">€{ownerBReceives.toFixed(2)}</div>
+                          <div className="text-foreground text-2xl font-bold tabular-nums">€{ownerBReceives.toFixed(2)}</div>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="bg-blue-900 text-white p-3 max-w-xs">
@@ -2371,13 +2371,13 @@ export function ExcelCalculator({
             </div>
 
             <div className="mt-8 flex justify-center gap-2 sm:gap-4">
-              <Button onClick={handleSaveQuote} className="flex-1 bg-green-600 hover:bg-green-700 text-white" size="lg">
+              <Button onClick={handleSaveQuote} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" size="lg">
                 {isEditingQuote ? "Update Quote" : "Save Quote"}
               </Button>
               <Button
                 onClick={handleSaveAsDraft}
-                variant="default"
-                className="flex-1"
+                variant="outline"
+                className="flex-1 bg-card"
                 size="lg"
                 disabled={isSavingDraft}
               >

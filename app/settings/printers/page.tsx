@@ -1,8 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { PrintersList } from "@/components/printers-list"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
+import { SiteHeader, PageHeader } from "@/components/site-header"
 
 export default async function PrintersPage() {
   const supabase = await createClient()
@@ -10,17 +8,13 @@ export default async function PrintersPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b-2 border-blue-200 dark:border-blue-800 bg-background">
-        <div className="container mx-auto px-4 py-3 sm:py-4 flex items-center gap-2 sm:gap-4">
-          <Link href="/settings">
-            <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950 shrink-0">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <h1 className="text-xl sm:text-2xl font-bold text-blue-900 dark:text-blue-100 truncate">Manage Printers & Machines</h1>
-        </div>
-      </header>
-      <main className="container mx-auto px-4 py-6 sm:py-8">
+      <SiteHeader active="/settings" />
+      <PageHeader
+        backHref="/settings"
+        title="Printers & Machines"
+        description="Machine costs, lifetime, power draw and uptime"
+      />
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <PrintersList printers={printers || []} />
       </main>
     </div>
