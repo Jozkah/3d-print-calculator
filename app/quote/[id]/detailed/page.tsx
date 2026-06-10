@@ -133,6 +133,18 @@ export default function DetailedQuotePage() {
       const filamentMap = new Map(filaments?.map((f) => [f.id, f.name]) || [])
       const priceMap = new Map(filaments?.map((f) => [f.id, f.price_per_kg]) || [])
 
+      // The price-based per-part cost below matches how 3D-PRINT quotes build
+      // total_printing_cost. Laser cutting/engraving/sticker quotes compute
+      // total_printing_cost a different way, so for those we fall back to splitting
+      // the stored total by weight; totalGrams is that split's denominator.
+      const is3dPrint = data.quote_type_mode === "3d-print"
+      const totalGrams = data.printed_parts.reduce((sum: number, part: any) => {
+        if (part.filament_id) return sum + (part.filament_grams || 0)
+        if (Array.isArray(part.filaments))
+          return sum + part.filaments.reduce((s: number, f: any) => s + (f.grams || 0), 0)
+        return sum
+      }, 0)
+
       data.printed_parts = data.printed_parts.map((part: any) => {
         let materialName = "Unknown"
         let partGrams = 0
@@ -162,11 +174,17 @@ export default function DetailedQuotePage() {
           )
         }
 
+        const finalPartCost = is3dPrint
+          ? partCost
+          : totalGrams > 0
+            ? (data.total_printing_cost * partGrams) / totalGrams
+            : 0
+
         return {
           ...part,
           material: materialName,
           filament_grams: partGrams,
-          part_cost: partCost,
+          part_cost: finalPartCost,
         }
       })
     }

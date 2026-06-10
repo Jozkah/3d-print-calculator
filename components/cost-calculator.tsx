@@ -422,15 +422,15 @@ export function CostCalculator({ quoteType, printers, filaments }: CalculatorPro
 
     // Insert quote parts - updated to handle multiple filaments.
     // This filter uses the SAME predicate as the calculate() loop guard, so the
-    // qualifying parts here line up index-for-index with results.partResults.
-    // We reuse the already-computed machine/electricity/filament costs from
-    // results.partResults instead of recomputing them, guaranteeing the saved
-    // numbers equal the numbers the user saw (and avoiding duplicated, drifting
-    // cost math between the two paths).
+    // qualifying parts here line up index-for-index with results.parts (the
+    // per-part results array stored by setResults). We reuse the already-computed
+    // machine/electricity/filament costs from results.parts instead of recomputing
+    // them, guaranteeing the saved numbers equal the numbers the user saw (and
+    // avoiding duplicated, drifting cost math between the two paths).
     const partInserts = parts
       .filter((p) => p.printer && p.printTime && p.filaments.some((f) => f.filament && f.weight))
       .map((part, i) => {
-        const pr = results.partResults?.[i]
+        const pr = results.parts?.[i]
         const hours = safeNum(part.printTime)
         const emergency = safeNum(part.emergencyFee)
 
