@@ -288,7 +288,7 @@ export default function DetailedQuotePage() {
       : recomputedVat
 
   return (
-    <div className="min-h-screen bg-white font-sans text-slate-900">
+    <div className="min-h-screen print:min-h-0 bg-white font-sans text-slate-900">
       <div className="print:hidden fixed top-4 right-4 z-50">
         <Button onClick={handlePrint} className="bg-slate-900 hover:bg-slate-700 text-white">
           <Download className="h-4 w-4 mr-2" />
@@ -604,7 +604,7 @@ export default function DetailedQuotePage() {
           </div>
 
           <div
-            className="mt-6 bg-slate-900 text-white rounded-md px-6 py-5 flex items-baseline justify-between"
+            className="pdf-keep mt-6 bg-slate-900 text-white rounded-md px-6 py-5 flex items-baseline justify-between"
             style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
           >
             <span className="text-xs uppercase tracking-[0.2em] text-slate-300">Total</span>
@@ -643,39 +643,49 @@ export default function DetailedQuotePage() {
 
       <style jsx global>{`
         @media print {
+          html,
           body {
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
+            background: #fff;
           }
 
           @page {
-            margin: 0.5cm;
             size: A4;
+            margin: 14mm;
           }
 
-          /* Prevent page breaks */
-          * {
-            page-break-inside: avoid;
+          /* Let tall content flow onto additional pages instead of being clipped. */
+          table,
+          tbody,
+          section,
+          div {
+            break-inside: auto;
+            page-break-inside: auto;
+          }
+
+          /* But never split an individual row, list item, heading or the
+             total bar across a page boundary. */
+          tr,
+          thead,
+          li,
+          header,
+          .pdf-keep,
+          .divide-y > * {
             break-inside: avoid;
-          }
-
-          /* Keep sections together */
-          div, table, tr, td, th {
             page-break-inside: avoid;
-            break-inside: avoid;
           }
 
-          /* Remove default browser headers and footers */
-          @page {
-            margin-top: 0.5cm;
-            margin-bottom: 0.5cm;
+          /* Repeat table column headers at the top of each printed page. */
+          thead {
+            display: table-header-group;
           }
-        }
 
-        /* Hide default browser print headers/footers (limited browser support) */
-        @media print {
-          html, body {
-            height: 100%;
+          h1,
+          h2,
+          h3 {
+            break-after: avoid;
+            page-break-after: avoid;
           }
         }
       `}</style>
