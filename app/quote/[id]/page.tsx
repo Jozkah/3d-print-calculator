@@ -22,6 +22,7 @@ interface Quote {
   selected_margin: string
   is_emergency: boolean
   created_at: string
+  client_id?: string | null
   // Authoritative total stored for target-price quotes (operator's exact entered total,
   // already inclusive of emergency fee and VAT). null when the quote used margin mode.
   final_price?: number | null
@@ -30,6 +31,7 @@ interface Quote {
 export default function QuotePage() {
   const params = useParams()
   const [quote, setQuote] = useState<Quote | null>(null)
+  const [client, setClient] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -53,6 +55,12 @@ export default function QuotePage() {
       console.error("Error loading quote:", error)
     } else {
       setQuote(data)
+      if (data.client_id) {
+        const { data: clientData } = await supabase.from("clients").select("*").eq("id", data.client_id).single()
+        if (clientData) {
+          setClient(clientData)
+        }
+      }
     }
     setLoading(false)
   }
@@ -64,7 +72,7 @@ export default function QuotePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
       </div>
     )
   }
@@ -72,7 +80,7 @@ export default function QuotePage() {
   if (!quote) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
-        <p className="text-gray-600">Quote not found</p>
+        <p className="text-slate-500">Quote not found</p>
       </div>
     )
   }
@@ -130,105 +138,117 @@ export default function QuotePage() {
       : recomputedVat
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white font-sans text-slate-900">
       {/* Print button - hidden when printing */}
       <div className="print:hidden fixed top-4 right-4 z-50">
-        <Button onClick={handlePrint} className="bg-blue-600 hover:bg-blue-700">
+        <Button onClick={handlePrint} className="bg-slate-900 hover:bg-slate-700 text-white">
           <Download className="h-4 w-4 mr-2" />
           Download PDF
         </Button>
       </div>
 
       {/* Quotation Document */}
-      <div className="max-w-4xl mx-auto p-8 print:p-12">
+      <div className="max-w-3xl mx-auto px-8 py-16 print:py-10 print:px-0">
         {/* Header */}
-        <div className="border-b-2 border-gray-900 pb-4 mb-4">
-          <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">Quotation for 3D Printed Parts</h1>
-          <div className="text-center space-y-1">
-            <p className="text-sm text-gray-600">
-              Quote: <span className="font-semibold">{quote.quote_name}</span>
-            </p>
-            <p className="text-sm text-gray-600">Date: {new Date(quote.created_at).toLocaleDateString()}</p>
+        <header className="mb-14">
+          <div className="flex items-baseline justify-between gap-6">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-3">Quotation</p>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{quote.quote_name}</h1>
+            </div>
             {quote.is_emergency && (
-              <p className="text-sm text-red-600 font-semibold">(EMERGENCY ORDER)</p>
+              <span className="shrink-0 text-[11px] uppercase tracking-widest text-red-600 border border-red-200 rounded-full px-3 py-1">
+                Emergency order
+              </span>
             )}
           </div>
-        </div>
-
-        {/* Cost Breakdown Table */}
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-3 pb-2 border-b border-gray-300">Cost Breakdown</h2>
-          <table className="w-full border-collapse mb-4">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="text-left py-2 px-4 font-semibold text-gray-900 border-b">Category</th>
-                <th className="text-left py-2 px-4 font-semibold text-gray-900 border-b">Description</th>
-                <th className="text-right py-2 px-4 font-semibold text-gray-900 border-b">Total (€)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="bg-blue-50">
-                <td className="py-2 px-4 font-medium text-gray-900">3D Printing & Materials</td>
-                <td className="py-2 px-4 text-gray-700">Printing time, machine cost and material usage</td>
-                <td className="py-2 px-4 text-right font-medium text-gray-900">
-                  {printingAndMaterialsWithMargin.toFixed(2)} €
-                </td>
-              </tr>
-
-              <tr className="bg-white">
-                <td className="py-2 px-4 font-medium text-gray-900">Labor</td>
-                <td className="py-2 px-4 text-gray-700">Assembly, post-processing, or design work</td>
-                <td className="py-2 px-4 text-right font-medium text-gray-900">{laborWithMargin.toFixed(2)} €</td>
-              </tr>
-
-              <tr className="bg-blue-50">
-                <td className="py-2 px-4 font-medium text-gray-900">Packaging, Shipping & Transport</td>
-                <td className="py-2 px-4 text-gray-700">Packaging materials, courier, and transportation</td>
-                <td className="py-2 px-4 text-right font-medium text-gray-900">{packagingWithMargin.toFixed(2)} €</td>
-              </tr>
-
-              {quote.is_emergency && emergencyFeeCost > 0 && (
-                <tr className="bg-white">
-                  <td className="py-2 px-4 font-medium text-gray-900">Emergency Fee</td>
-                  <td className="py-2 px-4 text-gray-700">Urgent order surcharge</td>
-                  <td className="py-2 px-4 text-right font-medium text-gray-900">{emergencyFeeCost.toFixed(2)} €</td>
-                </tr>
-              )}
-
-              {/* VAT - Only for business quotes */}
-              {isBusinessQuote && (
-                <tr className="bg-blue-50">
-                  <td className="py-2 px-4 font-medium text-gray-900">VAT (23%)</td>
-                  <td className="py-2 px-4 text-gray-700"></td>
-                  <td className="py-2 px-4 text-right font-medium text-gray-900">{vatAmount.toFixed(2)} €</td>
-                </tr>
-              )}
-
-              {/* Total */}
-              <tr className="bg-blue-200 border-t-2 border-gray-300 font-semibold">
-                <td className="py-2 px-4 text-gray-900 text-lg">Total:</td>
-                <td className="py-2 px-4 text-gray-700"></td>
-                <td className="py-2 px-4 text-right text-gray-900 text-lg">{finalPrice.toFixed(2)} €</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* Quote Summary */}
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-3 pb-2 border-b border-gray-300">Quote Summary</h2>
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="flex justify-between text-gray-900 text-2xl font-bold">
-              <span>Total:</span>
-              <span>{finalPrice.toFixed(2)} €</span>
-            </div>
+          <div className="mt-4 flex gap-6 text-sm text-slate-400">
+            <p>Issued {new Date(quote.created_at).toLocaleDateString()}</p>
+            <p>Valid 30 days</p>
           </div>
-        </div>
+        </header>
 
-        {/* Order Contents & Details Section */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <h3 className="font-semibold text-gray-900 mb-2">Notes:</h3>
-          <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
+        {/* Bill To */}
+        {client && (
+          <section className="mb-14">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-3">Bill To</p>
+            <p className="font-semibold text-slate-900">{client.name}</p>
+            <div className="mt-1 text-sm text-slate-500 space-y-0.5">
+              {client.email && <p>{client.email}</p>}
+              {client.phone && <p>{client.phone}</p>}
+              {client.address && <p className="whitespace-pre-line">{client.address}</p>}
+            </div>
+          </section>
+        )}
+
+        {/* Cost Breakdown */}
+        <section className="mb-12">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-4 pb-3 border-b border-slate-200">
+            Cost Breakdown
+          </p>
+
+          <div className="divide-y divide-slate-100">
+            <div className="flex items-baseline justify-between gap-8 py-4">
+              <div>
+                <p className="text-slate-900">3D Printing &amp; Materials</p>
+                <p className="text-sm text-slate-400 mt-0.5">Printing time, machine cost and material usage</p>
+              </div>
+              <p className="tabular-nums text-slate-900 whitespace-nowrap">
+                € {printingAndMaterialsWithMargin.toFixed(2)}
+              </p>
+            </div>
+
+            <div className="flex items-baseline justify-between gap-8 py-4">
+              <div>
+                <p className="text-slate-900">Labor</p>
+                <p className="text-sm text-slate-400 mt-0.5">Assembly, post-processing, or design work</p>
+              </div>
+              <p className="tabular-nums text-slate-900 whitespace-nowrap">€ {laborWithMargin.toFixed(2)}</p>
+            </div>
+
+            <div className="flex items-baseline justify-between gap-8 py-4">
+              <div>
+                <p className="text-slate-900">Packaging, Shipping &amp; Transport</p>
+                <p className="text-sm text-slate-400 mt-0.5">Packaging materials, courier, and transportation</p>
+              </div>
+              <p className="tabular-nums text-slate-900 whitespace-nowrap">€ {packagingWithMargin.toFixed(2)}</p>
+            </div>
+
+            {quote.is_emergency && emergencyFeeCost > 0 && (
+              <div className="flex items-baseline justify-between gap-8 py-4">
+                <div>
+                  <p className="text-slate-900">Emergency Fee</p>
+                  <p className="text-sm text-slate-400 mt-0.5">Urgent order surcharge</p>
+                </div>
+                <p className="tabular-nums text-slate-900 whitespace-nowrap">€ {emergencyFeeCost.toFixed(2)}</p>
+              </div>
+            )}
+
+            {/* VAT - Only for business quotes */}
+            {isBusinessQuote && (
+              <div className="flex items-baseline justify-between gap-8 py-4">
+                <p className="text-slate-900">VAT (23%)</p>
+                <p className="tabular-nums text-slate-900 whitespace-nowrap">€ {vatAmount.toFixed(2)}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Total */}
+          <div
+            className="mt-6 bg-slate-900 text-white rounded-md px-6 py-5 flex items-baseline justify-between"
+            style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
+          >
+            <span className="text-xs uppercase tracking-[0.2em] text-slate-300">Total</span>
+            <span className="tabular-nums text-3xl font-semibold whitespace-nowrap">€ {finalPrice.toFixed(2)}</span>
+          </div>
+        </section>
+
+        {/* Notes */}
+        <section className="mb-12">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-4 pb-3 border-b border-slate-200">
+            Notes
+          </p>
+          <ul className="text-sm text-slate-500 space-y-2 list-disc list-outside pl-4">
             <li>
               This quotation includes all costs associated with the 3D printing service, including materials, machine
               time, labor, packaging, and delivery.
@@ -240,21 +260,19 @@ export default function QuotePage() {
               <li>VAT at 23% is included in the final price as per legal requirements for business transactions.</li>
             )}
             {quote.is_emergency && (
-              <li className="text-red-700 font-semibold">
+              <li className="text-red-600">
                 Emergency order surcharge applied for expedited processing and priority handling.
               </li>
             )}
             <li>This quotation is valid for 30 days from the date of issue.</li>
           </ul>
-        </div>
+        </section>
 
         {/* Footer */}
-        <div className="mt-6 pt-4 border-t border-gray-300 text-center text-xs text-gray-600">
-          <p className="font-semibold">Thank you for your business</p>
-          <p className="mt-2">
-            For questions about this quotation, please contact us with reference: {quote.quote_name}
-          </p>
-        </div>
+        <footer className="pt-6 border-t border-slate-100 text-center text-xs text-slate-400">
+          <p className="text-slate-500">Thank you for your business</p>
+          <p className="mt-2">For questions about this quotation, please contact us with reference: {quote.quote_name}</p>
+        </footer>
       </div>
 
       {/* Print styles */}
@@ -264,31 +282,31 @@ export default function QuotePage() {
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
           }
-          
+
           @page {
             margin: 0.5cm;
             size: A4;
           }
-          
+
           /* Prevent page breaks */
           * {
             page-break-inside: avoid;
             break-inside: avoid;
           }
-          
+
           /* Keep sections together */
           div, table, tr, td, th {
             page-break-inside: avoid;
             break-inside: avoid;
           }
-          
+
           /* Remove default browser headers and footers */
           @page {
             margin-top: 0.5cm;
             margin-bottom: 0.5cm;
           }
         }
-        
+
         /* Hide default browser print headers/footers (limited browser support) */
         @media print {
           html, body {
