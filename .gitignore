@@ -20,6 +20,12 @@ yarn-error.log*
 .env*
 !.env.example
 
+# private data — never commit real database content
+/public/seed-data.json
+/private-data/
+*_rows.sql
+seed-data.json
+
 # vercel
 .vercel
 

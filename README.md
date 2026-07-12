@@ -2,7 +2,7 @@
 
 A self-hostable web app for pricing **3D printing, laser cutting and laser engraving** jobs. It turns your real costs — filament, machine depreciation, electricity, labour, packaging, VAT and profit margin — into consistent quotes, keeps a searchable history of everything you've quoted, and can split the books between two business owners.
 
-> Bring your own **Supabase** project and the whole thing runs on infrastructure *you* control — there's no shared backend and no data ever flows to me. It's a plain Next.js app you can deploy to Vercel or any Node host. *(Heads-up: it ships with no login screen and talks to Supabase with the public anon key, so turning on **Row-Level Security** is mandatory before you put it on the public internet — see [Security](#3-security--read-this-before-going-public).)*
+> **Runs fully locally — no database, no accounts, no cloud.** All your data (printers, filaments, clients, quotes, settings) is stored in your **browser's `localStorage`**. There's no backend to configure and nothing ever leaves your machine. It's a plain Next.js app you can run on your laptop or self-host on any Node host.
 
 ## Why I built this
 
@@ -13,8 +13,6 @@ This is the tool that replaced all of that: enter the parts, and it produces a c
 ## Screenshot
 
 ![3D Print Cost Calculator](docs/screenshot.png)
-
-> The calculator, catalogue and history screens fill in once you connect your own Supabase project (see [Getting started](#getting-started)).
 
 ## Features
 
@@ -45,61 +43,45 @@ Business quotes then add your **profit margin** and **VAT**, and split the profi
 
 ## Getting started
 
-### 1. Configure Supabase
+No database, no environment variables, no account. Just install and run:
 
 ```bash
-cp .env.example .env.local
-```
-
-Fill in your project URL and anon key from **Supabase → Project Settings → API**:
-
-```
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-```
-
-### 2. Create the database
-
-Run [`scripts/schema.sql`](scripts/schema.sql) once against your Supabase database (paste it into the Supabase SQL editor). It creates every table and seeds a couple of example printers/filaments. It's the consolidated equivalent of the step-by-step files in [`scripts/migrations/`](scripts/migrations), which are kept only for history.
-
-### 3. Security — read this before going public
-
-This app talks to Supabase with the **public anon key** and ships with **no login screen**. That key is embedded in the browser bundle, so **without Row-Level Security, anyone who opens the site can read and write every table.**
-
-Run [`scripts/rls_policies.sql`](scripts/rls_policies.sql) to enable RLS. It offers two models:
-
-- **Model A (recommended)** — access for logged-in users only. Add [Supabase Auth](https://supabase.com/docs/guides/auth) (e.g. email magic-link) to your deployment; the policies then lock out the public.
-- **Model B (use with care)** — allow the anon role; only acceptable on a trusted/private network. The file documents the trade-off.
-
-If you skip this step, **do not expose the deployment to the public internet.**
-
-### 4. Run
-
-```bash
-pnpm install
-pnpm dev
+npm install    # or: pnpm install
+npm run dev    # or: pnpm dev
 ```
 
 Open <http://localhost:3001>. *(The dev/start port is set to **3001** in `package.json` — change it there if you prefer another.)*
 
+The first time a page loads, sensible default **Global Settings** are seeded automatically. Add your printers, filaments and clients from the **Settings** screens and start quoting.
+
 #### Production build
 
 ```bash
-pnpm build && pnpm start
+npm run build && npm run start
 ```
 
-Deploys cleanly to Vercel or any Node host — just set the two `NEXT_PUBLIC_SUPABASE_*` variables in your host's environment.
+Deploys cleanly to Vercel or any Node/static host — there's nothing to configure.
+
+## Where your data lives
+
+Everything is kept in your browser's `localStorage` under keys prefixed with `3dpc:` (one key per table — `3dpc:printers`, `3dpc:quotes`, `3dpc:global_settings`, …). Consequences worth knowing:
+
+- **It's per-browser and per-device.** Data entered in Chrome on your laptop won't appear in Firefox or on another machine.
+- **Clearing browser data / site storage wipes it.** There's no server copy.
+- **It's private.** Nothing is ever sent to a server.
+
+The data layer lives in [`lib/local-db.ts`](lib/local-db.ts) — a small shim that mimics the query API the app was originally written against, so components didn't have to change.
 
 ## Configuration
 
 The whole two-owner business model — owner labels and how profit and emergency fees are split — lives in one file: [`lib/business-config.ts`](lib/business-config.ts). Rename the owners (`OWNER_A_LABEL` / `OWNER_B_LABEL`) or change `PROFIT_SPLIT_RATIO` / `EMERGENCY_SPLIT_RATIO` there.
 
-> The `OWNER_A_KEY` / `OWNER_B_KEY` identifiers are stored in the database. They're safe to *relabel*, but don't change the keys themselves once you have data, or existing rows stop matching.
+> The `OWNER_A_KEY` / `OWNER_B_KEY` identifiers are stored with each printer record. They're safe to *relabel*, but don't change the keys themselves once you have data, or existing rows stop matching.
 
 ## Tech stack
 
 - [Next.js 16](https://nextjs.org) (App Router) + React 19 + TypeScript
-- [Supabase](https://supabase.com) (Postgres) via `@supabase/ssr`
+- Browser `localStorage` for persistence (no backend) — see [`lib/local-db.ts`](lib/local-db.ts)
 - Tailwind CSS v4 + [shadcn/ui](https://ui.shadcn.com) (Radix primitives)
 
 ## Project layout
@@ -121,14 +103,15 @@ components/
   ui/                     # shadcn/ui primitives
 lib/
   business-config.ts  # two-owner model: labels + split ratios (edit me)
-  supabase/           # browser + server Supabase clients
+  local-db.ts         # local (localStorage) data layer — replaces the DB
+  supabase/           # thin shims re-exporting local-db (kept for compatibility)
 scripts/
-  schema.sql          # one-shot DB setup (run this)
-  rls_policies.sql    # Row-Level Security (run before going public)
-  migrations/         # historical step-by-step migrations
+  schema.sql          # legacy Postgres schema (unused — kept for reference)
+  migrations/         # historical step-by-step migrations (unused)
 docs/screenshot.png
-.env.example          # Supabase env vars
 ```
+
+> **Note:** The `scripts/*.sql` files describe the old Postgres/Supabase schema and are no longer used by the app. They're kept only as documentation of the data model.
 
 ## License
 
