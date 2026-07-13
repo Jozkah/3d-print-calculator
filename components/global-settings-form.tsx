@@ -1,15 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Save } from "lucide-react"
+import { Save, Upload, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+
+// Logos are stored inline as data URIs in localStorage, so keep them small.
+const MAX_LOGO_BYTES = 200 * 1024
 
 type GlobalSettings = {
   id: string
@@ -24,6 +28,12 @@ type GlobalSettings = {
   vat_rate?: number
   currency_symbol?: string
   validity_days?: number
+  company_name?: string
+  company_address?: string
+  company_email?: string
+  company_phone?: string
+  company_tax_id?: string
+  company_logo?: string
 }
 
 export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | null }) {
@@ -42,9 +52,36 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
   )
   const [currencySymbol, setCurrencySymbol] = useState(settings?.currency_symbol || "€")
   const [validityDays, setValidityDays] = useState(settings?.validity_days?.toString() || "30")
+  const [companyName, setCompanyName] = useState(settings?.company_name || "")
+  const [companyAddress, setCompanyAddress] = useState(settings?.company_address || "")
+  const [companyEmail, setCompanyEmail] = useState(settings?.company_email || "")
+  const [companyPhone, setCompanyPhone] = useState(settings?.company_phone || "")
+  const [companyTaxId, setCompanyTaxId] = useState(settings?.company_tax_id || "")
+  const [companyLogo, setCompanyLogo] = useState(settings?.company_logo || "")
+  const logoInputRef = useRef<HTMLInputElement>(null)
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // Allow re-selecting the same file after a remove.
+    e.target.value = ""
+    if (!file) return
+    if (file.size > MAX_LOGO_BYTES) {
+      toast({
+        title: "Logo too large",
+        description: `The logo must be under ${Math.round(MAX_LOGO_BYTES / 1024)}KB. Please use a smaller image.`,
+        variant: "destructive",
+      })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === "string") setCompanyLogo(reader.result)
+    }
+    reader.readAsDataURL(file)
+  }
 
   const handleSave = async () => {
     // Validate before writing: an empty/garbage field parses to NaN, which
@@ -103,6 +140,12 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
         vat_rate: vatPercentValue / 100,
         currency_symbol: currencySymbol.trim() || "€",
         validity_days: Number.parseFloat(validityDays),
+        company_name: companyName.trim(),
+        company_address: companyAddress.trim(),
+        company_email: companyEmail.trim(),
+        company_phone: companyPhone.trim(),
+        company_tax_id: companyTaxId.trim(),
+        company_logo: companyLogo,
         updated_at: new Date().toISOString(),
       })
       .eq("id", settings?.id)
@@ -269,6 +312,120 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
                 cost = Drying Hours × Total Dryer Cost Per Hour
               </p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Business Identity */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Business Identity</CardTitle>
+          <CardDescription>Shown as a letterhead on quotes and invoices (optional)</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="companyName">Company Name</Label>
+            <Input
+              id="companyName"
+              type="text"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              className="bg-card"
+              placeholder="e.g. Acme 3D Prints"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="companyAddress">Address</Label>
+            <Textarea
+              id="companyAddress"
+              value={companyAddress}
+              onChange={(e) => setCompanyAddress(e.target.value)}
+              className="bg-card"
+              rows={2}
+              placeholder={"Street, number\nPostal code, City"}
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="companyEmail">Email</Label>
+              <Input
+                id="companyEmail"
+                type="email"
+                value={companyEmail}
+                onChange={(e) => setCompanyEmail(e.target.value)}
+                className="bg-card"
+              />
+            </div>
+            <div>
+              <Label htmlFor="companyPhone">Phone</Label>
+              <Input
+                id="companyPhone"
+                type="tel"
+                value={companyPhone}
+                onChange={(e) => setCompanyPhone(e.target.value)}
+                className="bg-card"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="companyTaxId">Tax ID / VAT Number</Label>
+            <Input
+              id="companyTaxId"
+              type="text"
+              value={companyTaxId}
+              onChange={(e) => setCompanyTaxId(e.target.value)}
+              className="bg-card"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="companyLogo">Logo</Label>
+            <input
+              ref={logoInputRef}
+              id="companyLogo"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleLogoUpload}
+            />
+            {companyLogo ? (
+              <div className="mt-2 flex items-center gap-4">
+                {/* Data-URI preview; next/image adds nothing for inline data. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={companyLogo}
+                  alt="Company logo preview"
+                  className="h-16 max-w-[200px] rounded-md border border-border bg-white object-contain p-1"
+                />
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()}>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Replace
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCompanyLogo("")}
+                    aria-label="Remove logo"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload logo
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground mt-1.5">PNG/JPG/SVG up to 200KB, stored locally with your settings</p>
           </div>
         </CardContent>
       </Card>

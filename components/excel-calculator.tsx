@@ -1,5 +1,6 @@
 "use client"
 
+import type React from "react"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { OWNER_A_KEY, OWNER_B_KEY, PROFIT_SPLIT_RATIO, EMERGENCY_SPLIT_RATIO } from "@/lib/business-config"
@@ -9,7 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, ChevronsUpDown, Check, X, Copy } from "lucide-react"
+import { Plus, Trash2, ChevronsUpDown, Check, X, Copy, Upload } from "lucide-react"
+import { parseGcode } from "@/lib/gcode"
 import { useToast } from "@/hooks/use-toast" // Must match the copy <Toaster /> subscribes to
 import { DialogCustom } from "@/components/ui/dialog-custom" // Import DialogCustom
 import { cn } from "@/lib/utils" // Assuming cn utility is available
@@ -74,6 +76,9 @@ type ExcelCalculatorProps = {
   mode: "personal" | "business"
   selectedMargin?: number
   editingQuoteId?: string
+  // Start a NEW quote pre-filled from a saved template (quote_templates row).
+  // Unlike editingQuoteId, this never enters edit mode.
+  templateId?: string
   clients?: Client[]
 }
 
@@ -88,6 +93,7 @@ export function ExcelCalculator({
   mode = "business", // Default to business mode
   selectedMargin: propSelectedMargin, // Renamed to avoid conflict with state
   editingQuoteId, // New prop for loading existing quote
+  templateId, // Start a new quote from a saved template
   clients: initialClients = [],
 }: ExcelCalculatorProps) {
   const { toast } = useToast() // Initialize toast
@@ -336,6 +342,77 @@ export function ExcelCalculator({
 
     loadQuoteForEditing()
   }, [editingQuoteId, supabase, toast])
+
+  // Start-from-template: apply a stored quote structure to state, but stay in
+  // "new quote" mode — no quote id, no client, blank name. Costs recompute
+  // from current rates because only structure is stored on templates.
+  useEffect(() => {
+    const loadTemplate = async () => {
+      if (!templateId || editingQuoteId) return
+
+      const { data: template, error } = await supabase
+        .from("quote_templates")
+        .select("*")
+        .eq("id", templateId)
+        .single()
+
+      if (error || !template) {
+        toast({
+          title: "Error",
+          description: "Failed to load template",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const payload: any = template.payload || {}
+      setCalculatorType(payload.quote_type_mode || "3d-print")
+      setClientName("")
+      setClientId(null)
+      setIsEmergency(payload.is_emergency || false)
+      setDistanceTraveledKm(payload.distance_traveled_km || 0)
+      setSelectedMargin(Math.min(99, Number(payload.selected_margin_percentage || payload.selected_margin || 50)))
+      if (payload.custom_margin_value !== undefined && payload.custom_margin_value !== null) {
+        setCustomMargin(Math.min(99, Number(payload.custom_margin_value)))
+      }
+      // Templates strip final_price, so always start in percentage mode.
+      setMarginInputMode("percentage")
+      setTargetPrice(0)
+      setVatEnabled(payload.vat_enabled !== undefined ? payload.vat_enabled : true)
+
+      const restoredPrintedParts: PrintedPart[] = (Array.isArray(payload.printed_parts) ? payload.printed_parts : []).map(
+        (part: any) => {
+          if (part.filament_id && part.filament_grams !== undefined) {
+            return {
+              ...part,
+              filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
+              filament_id: undefined,
+              filament_grams: undefined,
+            }
+          }
+          return part as PrintedPart
+        },
+      )
+      // Same hydration guard as quote editing: keep the template's HEATING
+      // drying_time_hr through the first recompute pass.
+      isHydratingRef.current = true
+      setPrintedParts(restoredPrintedParts)
+      setDriedBatches(Array.isArray(payload.dried_batches) ? payload.dried_batches : [])
+      setMaterials(Array.isArray(payload.materials) ? payload.materials : [])
+      setLabor(Array.isArray(payload.labor_items) ? payload.labor_items : [])
+      setPackaging(Array.isArray(payload.packaging_items) ? payload.packaging_items : [])
+
+      setIsEditingQuote(false)
+      setCurrentQuoteId(null)
+
+      toast({
+        title: "Template loaded",
+        description: `New quote started from template "${template.name}"`,
+      })
+    }
+
+    loadTemplate()
+  }, [templateId, editingQuoteId, supabase, toast])
 
   useEffect(() => {
     // Skip the single recompute triggered by loading a saved quote so the
@@ -1057,6 +1134,75 @@ export function ExcelCalculator({
     setPrintedParts((prevParts) => prevParts.map((part, i) => (i === index ? { ...part, [field]: value } : part)))
   }
 
+  // Slicer metadata lives in the G-code header/footer, so reading the first
+  // and last 512KB is enough even for very large files.
+  const GCODE_SLICE_BYTES = 512 * 1024
+
+  const handleGcodeFile = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // Allow re-importing the same file.
+    e.target.value = ""
+    if (!file) return
+
+    try {
+      let text: string
+      if (file.size <= GCODE_SLICE_BYTES * 2) {
+        text = await file.text()
+      } else {
+        const head = await file.slice(0, GCODE_SLICE_BYTES).text()
+        const tail = await file.slice(file.size - GCODE_SLICE_BYTES).text()
+        text = `${head}\n${tail}`
+      }
+
+      const { hours, grams } = parseGcode(text)
+      if (hours === undefined && grams === undefined) {
+        toast({
+          title: "Nothing detected",
+          description: "No print time or filament usage metadata was found in this file.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const roundedHours = hours !== undefined ? Math.round(hours * 100) / 100 : undefined
+      const roundedGrams = grams !== undefined ? Math.round(grams * 100) / 100 : undefined
+
+      setPrintedParts((prev) =>
+        prev.map((p, i) => {
+          if (i !== index) return p
+          const next = { ...p }
+          if (roundedHours !== undefined) next.printing_time_hr = roundedHours
+          if (roundedGrams !== undefined) {
+            // Fill the part's first filament entry; create one (with the
+            // filament left unselected) when the part has none yet.
+            next.filaments =
+              next.filaments && next.filaments.length > 0
+                ? next.filaments.map((f, fi) => (fi === 0 ? { ...f, grams: roundedGrams } : f))
+                : [{ id: crypto.randomUUID(), filament_id: "", grams: roundedGrams }]
+          }
+          return next
+        }),
+      )
+
+      const detected = [
+        roundedHours !== undefined ? `print time ${roundedHours} h` : null,
+        roundedGrams !== undefined ? `filament ${roundedGrams} g` : null,
+      ]
+        .filter(Boolean)
+        .join(" and ")
+      toast({
+        title: "G-code imported",
+        description: `Detected ${detected} from ${file.name}.`,
+      })
+    } catch {
+      toast({
+        title: "Error",
+        description: "Could not read the G-code file.",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     // Wrap the entire component in TooltipProvider
     <TooltipProvider>
@@ -1493,6 +1639,23 @@ export function ExcelCalculator({
                         <td className="p-2">
                           {/* Line 1438: Center the action buttons */}
                           <div className="flex justify-center gap-1">
+                            <input
+                              id={`gcode-import-${part.id}`}
+                              type="file"
+                              accept=".gcode,.gco,.g,.txt"
+                              className="hidden"
+                              onChange={(e) => handleGcodeFile(index, e)}
+                            />
+                            <Button
+                              onClick={() => document.getElementById(`gcode-import-${part.id}`)?.click()}
+                              size="sm"
+                              variant="ghost"
+                              className="text-primary hover:text-primary hover:bg-accent"
+                              title="Import from G-code"
+                              aria-label="Import print time and filament usage from G-code"
+                            >
+                              <Upload className="w-4 h-4" />
+                            </Button>
                             <Button
                               onClick={() => duplicatePrintedPart(index)}
                               size="sm"
