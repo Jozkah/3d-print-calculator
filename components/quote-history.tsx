@@ -112,6 +112,12 @@ function QuoteHistory({
   // this list on every data change, and expiry granularity is a whole day.
   const [now] = useState(() => Date.now())
 
+  // Laser/stickers quotes save quote_type_mode "laser" (legacy rows may still
+  // carry "laser-engraving", "laser-cutting", or "stickers"), with item names
+  // in a laser_items array instead of printed_parts.
+  const isLaserQuote = (q: any) =>
+    q.quote_type_mode === "laser" || ["laser-engraving", "laser-cutting", "stickers"].includes(q.quote_type_mode)
+
   const handleDownload = (id: string) => {
     // The quote document page opens the browser's print dialog when ?print=1
     // is present, so "download" = navigate there and let it print to PDF.
@@ -513,7 +519,10 @@ function QuoteHistory({
       const partNames = (quote.printed_parts || [])
         .map((part: any) => part?.name || "")
         .join(" ")
-      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames}`.toLowerCase()
+      const laserNames = (quote.laser_items || [])
+        .map((it: any) => it.name || "")
+        .join(" ")
+      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames}`.toLowerCase()
       if (!haystack.includes(query)) return false
     }
 
@@ -864,6 +873,11 @@ function QuoteHistory({
                 <div className="min-w-0 flex-1">
                   <CardTitle className="text-lg sm:text-xl flex flex-wrap items-center gap-2">
                     <span className="break-words">{quote.quote_name}</span>
+                    {isLaserQuote(quote) && (
+                      <span className="ml-2 inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        Laser
+                      </span>
+                    )}
                     {quote.is_draft && <Badge variant="secondary">Draft</Badge>}
                     <Badge variant={quote.quote_type === "business" ? "default" : "secondary"}>
                       {quote.quote_type}
