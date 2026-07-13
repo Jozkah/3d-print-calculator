@@ -378,6 +378,12 @@ export function ExcelCalculator({
       setClientId(null)
       setIsEmergency(payload.is_emergency || false)
       setDistanceTraveledKm(payload.distance_traveled_km || 0)
+      // Templates carry structure only — a route belongs to the original
+      // quote's client, so a template-started quote begins with no route.
+      setRouteOrigin(null)
+      setRouteDestination(null)
+      setRouteIsRoundTrip(true)
+      setRouteOneWayKm(null)
       setSelectedMargin(Math.min(99, Number(payload.selected_margin_percentage || payload.selected_margin || 50)))
       if (payload.custom_margin_value !== undefined && payload.custom_margin_value !== null) {
         setCustomMargin(Math.min(99, Number(payload.custom_margin_value)))
