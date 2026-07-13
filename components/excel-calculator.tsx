@@ -1297,9 +1297,12 @@ export function ExcelCalculator({
                       })
                     }
 
-                    // Filter filaments based on printer enclosure
+                    // Filter filaments based on printer enclosure. An enclosure is
+                    // what ENABLES high-temp / heating filaments (ASA, ABS, ...), so
+                    // only hide those when a printer is selected AND it has no
+                    // enclosure. Enclosed printers (or no printer yet) show everything.
                     const selectedPartPrinter = printers.find((p) => p.id === part.printer_id)
-                    const partAvailableFilaments = selectedPartPrinter?.has_enclosure
+                    const partAvailableFilaments = selectedPartPrinter && !selectedPartPrinter.has_enclosure
                       ? availableFilaments.filter((f) => !f.requires_heating)
                       : availableFilaments
 
