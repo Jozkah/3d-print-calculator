@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ComboboxCreatable } from "@/components/ui/combobox-creatable"
 import { DialogCustom } from "@/components/ui/dialog-custom"
 import { cn } from "@/lib/utils" // Import cn for conditional styling
+import { SpoolWithStock } from "@/components/visual/filament-spool"
 
 type Filament = {
   id: string
@@ -1231,78 +1232,77 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       className="mt-1 mr-3"
                     />
                   )}
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg">{filament.name}</h3>
-                    <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
-                      <span className={filament.price_per_kg === null ? "text-red-600 font-semibold" : ""}>
-                        {filament.price_per_kg !== null
-                          ? `€${filament.price_per_kg.toFixed(2)}/${filament.material_type === "material" ? "sheet" : "kg"}`
-                          : "No Price"}
-                      </span>
-                      {filament.type && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span>{filament.type}</span>
-                        </>
-                      )}
-                      {filament.brand && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span>{filament.brand}</span>
-                        </>
-                      )}
-                      {filament.material_type === "filament" && filament.color && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span className="flex items-center gap-1">
-                            {filament.color}
-                            {filament.color_hex && (
-                              <div
-                                className="w-4 h-4 rounded border border-gray-300 inline-block"
-                                style={{ backgroundColor: filament.color_hex }}
-                                title={filament.color_hex}
-                              />
-                            )}
-                          </span>
-                        </>
-                      )}
-                      {filament.material_type === "material" && filament.thickness && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span>{filament.thickness}</span>
-                        </>
-                      )}
-                      {filament.material_type === "material" && filament.size && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span>{filament.size}</span>
-                        </>
-                      )}
-                      {filament.material_type === "filament" && filament.requires_heating && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span className="text-orange-600">Requires Heating</span>
-                        </>
-                      )}
-                      {filament.material_type === "filament" && typeof filament.grams_in_stock === "number" && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <Badge
-                            variant="outline"
-                            className={
-                              filament.grams_in_stock <= 0
-                                ? "bg-red-100 text-red-700 border-red-300"
-                                : filament.grams_in_stock < (filament.low_stock_threshold_g ?? 1000)
-                                  ? "bg-amber-100 text-amber-700 border-amber-300"
-                                  : "bg-muted text-muted-foreground"
-                            }
-                          >
-                            {filament.grams_in_stock <= 0
-                              ? "Out of stock"
-                              : `${Math.round(filament.grams_in_stock)}g in stock`}
-                          </Badge>
-                        </>
-                      )}
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <SpoolWithStock
+                      colorHex={filament.color_hex}
+                      stockGrams={filament.material_type === "material" ? null : filament.grams_in_stock}
+                      lowThresholdGrams={filament.low_stock_threshold_g ?? 1000}
+                      size={56}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-lg">{filament.name}</h3>
+                      <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
+                        <span className={filament.price_per_kg === null ? "text-red-600 font-semibold" : ""}>
+                          {filament.price_per_kg !== null
+                            ? `€${filament.price_per_kg.toFixed(2)}/${filament.material_type === "material" ? "sheet" : "kg"}`
+                            : "No Price"}
+                        </span>
+                        {filament.type && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <span>{filament.type}</span>
+                          </>
+                        )}
+                        {filament.brand && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <span>{filament.brand}</span>
+                          </>
+                        )}
+                        {filament.material_type === "filament" && filament.color && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <span>{filament.color}</span>
+                          </>
+                        )}
+                        {filament.material_type === "material" && filament.thickness && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <span>{filament.thickness}</span>
+                          </>
+                        )}
+                        {filament.material_type === "material" && filament.size && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <span>{filament.size}</span>
+                          </>
+                        )}
+                        {filament.material_type === "filament" && filament.requires_heating && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <span className="text-orange-600">Requires Heating</span>
+                          </>
+                        )}
+                        {filament.material_type === "filament" && typeof filament.grams_in_stock === "number" && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <Badge
+                              variant="outline"
+                              className={
+                                filament.grams_in_stock <= 0
+                                  ? "bg-red-100 text-red-700 border-red-300"
+                                  : filament.grams_in_stock < (filament.low_stock_threshold_g ?? 1000)
+                                    ? "bg-amber-100 text-amber-700 border-amber-300"
+                                    : "bg-muted text-muted-foreground"
+                              }
+                            >
+                              {filament.grams_in_stock <= 0
+                                ? "Out of stock"
+                                : `${Math.round(filament.grams_in_stock)}g in stock`}
+                            </Badge>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -1504,38 +1504,46 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                         className="mt-1 mr-3"
                       />
                     )}
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{filament.name}</h3>
-                      <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
-                        <span className={filament.price_per_kg === null ? "text-red-600 font-semibold" : ""}>
-                          {filament.price_per_kg !== null
-                            ? `€${filament.price_per_kg.toFixed(2)}/${filament.material_type === "material" ? "sheet" : "kg"}`
-                            : "No Price"}
-                        </span>
-                        {filament.type && (
-                          <>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span>{filament.type}</span>
-                          </>
-                        )}
-                        {filament.brand && (
-                          <>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span>{filament.brand}</span>
-                          </>
-                        )}
-                        {filament.material_type === "material" && filament.thickness && (
-                          <>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span>{filament.thickness}</span>
-                          </>
-                        )}
-                        {filament.material_type === "material" && filament.size && (
-                          <>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span>{filament.size}</span>
-                          </>
-                        )}
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
+                      <SpoolWithStock
+                        colorHex={filament.color_hex}
+                        stockGrams={filament.material_type === "material" ? null : filament.grams_in_stock}
+                        lowThresholdGrams={filament.low_stock_threshold_g ?? 1000}
+                        size={56}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-lg">{filament.name}</h3>
+                        <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
+                          <span className={filament.price_per_kg === null ? "text-red-600 font-semibold" : ""}>
+                            {filament.price_per_kg !== null
+                              ? `€${filament.price_per_kg.toFixed(2)}/${filament.material_type === "material" ? "sheet" : "kg"}`
+                              : "No Price"}
+                          </span>
+                          {filament.type && (
+                            <>
+                              <span className="text-muted-foreground/50">•</span>
+                              <span>{filament.type}</span>
+                            </>
+                          )}
+                          {filament.brand && (
+                            <>
+                              <span className="text-muted-foreground/50">•</span>
+                              <span>{filament.brand}</span>
+                            </>
+                          )}
+                          {filament.material_type === "material" && filament.thickness && (
+                            <>
+                              <span className="text-muted-foreground/50">•</span>
+                              <span>{filament.thickness}</span>
+                            </>
+                          )}
+                          {filament.material_type === "material" && filament.size && (
+                            <>
+                              <span className="text-muted-foreground/50">•</span>
+                              <span>{filament.size}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex gap-2">
