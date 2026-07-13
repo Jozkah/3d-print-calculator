@@ -18,6 +18,9 @@ export type Printer = {
   estimated_annual_maintenance: number
   estimated_printer_uptime_percent: number
   has_enclosure: boolean
+  // Bundled product-image key from lib/printer-images.ts ("generic" opts out
+  // of name matching). Absent on legacy rows, which auto-match by name.
+  image_key?: string | null
   material_type?: string
   [key: string]: any
 }
