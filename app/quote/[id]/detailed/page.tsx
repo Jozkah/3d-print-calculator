@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
+import type { Quote as QuoteRow } from "@/types/db"
 
 interface PrintedPart {
   id: string
@@ -48,34 +49,15 @@ interface PackagingItem {
   total_cost?: number
 }
 
-interface Quote {
-  id: string
-  quote_name: string
-  quote_type: string
-  total_printing_cost: number
-  machine_cost: number
-  drying_cost: number
-  materials_cost: number
-  labor_cost: number
-  packaging_cost: number
-  fuel_cost: number
-  emergency_fee: number
-  electricity_cost: number
-  landed_cost: number
-  selected_margin: string
-  is_emergency: boolean
-  created_at: string
+// Shared quote row, with this page's narrowed shapes for the JSONB item
+// arrays (the shared type keeps them loose because their element shape varies
+// between quote versions).
+type Quote = QuoteRow & {
   printed_parts: PrintedPart[]
   dried_batches: DriedBatch[]
   materials: Material[]
   labor_items: LaborItem[]
   packaging_items: PackagingItem[]
-  distance_traveled_km: number
-  client_id?: string | null
-  // Authoritative total stored for target-price quotes (operator's exact entered total,
-  // already inclusive of emergency fee and VAT). null when the quote used margin mode.
-  final_price?: number | null
-  vat_enabled?: boolean
 }
 
 const sectionLabel = "text-xs uppercase tracking-[0.2em] text-slate-400 mb-4 pb-3 border-b border-slate-200"

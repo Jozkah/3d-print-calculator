@@ -20,50 +20,7 @@ import {
   TooltipProvider, // Import TooltipProvider
 } from "@/components/ui/tooltip"
 
-type Printer = {
-  id: string
-  name: string
-  owner: string | null
-  printer_cost: number
-  estimated_life_years: number
-  average_power_consumption_watts: number
-  additional_upfront_cost: number
-  estimated_annual_maintenance: number
-  estimated_printer_uptime_percent: number
-  has_enclosure?: boolean
-  material_type?: string
-}
-
-type Filament = {
-  id: string
-  name: string
-  price_per_kg: number
-  requires_heating: boolean
-  heating_time_hours: number
-  material_type?: string
-  brand?: string
-  color?: string
-  color_hex?: string | null
-}
-
-type Client = {
-  id: string
-  name: string
-  email: string | null
-  phone: string | null
-  address: string | null
-  notes: string | null
-}
-
-type GlobalSettings = {
-  id: string
-  electricity_cost_per_kwh: number
-  fuel_cost_per_liter: number
-  car_fuel_consumption_per_100km: number
-  emergency_fee_fixed: number
-  labor_hourly_rate: number
-  double_heating_cost?: boolean
-}
+import type { Printer, Filament, Client, GlobalSettings } from "@/types/db"
 
 type FilamentEntry = {
   id: string
