@@ -102,6 +102,108 @@ button, a, [role="button"], input, select, textarea {
   --studio-to: oklch(0.20 0.006 260);
 }
 
+/* ---- Accent presets (default green lives in :root/.dark above).
+   data-accent is set on <html> by components/accent-toggle.tsx and the
+   boot script in app/layout.tsx. ---- */
+
+:root[data-accent="sky"] {
+  --primary: oklch(0.6 0.14 235);
+  --primary-foreground: oklch(1 0 0);
+  --ring: oklch(0.6 0.14 235);
+  --accent: oklch(0.94 0.03 235);
+  --accent-foreground: oklch(0.4 0.12 235);
+  --chart-1: oklch(0.6 0.14 235);
+}
+:root[data-accent="lavender"] {
+  --primary: oklch(0.62 0.14 295);
+  --primary-foreground: oklch(1 0 0);
+  --ring: oklch(0.62 0.14 295);
+  --accent: oklch(0.94 0.03 295);
+  --accent-foreground: oklch(0.4 0.12 295);
+  --chart-1: oklch(0.62 0.14 295);
+}
+:root[data-accent="rose"] {
+  --primary: oklch(0.64 0.15 355);
+  --primary-foreground: oklch(1 0 0);
+  --ring: oklch(0.64 0.15 355);
+  --accent: oklch(0.94 0.03 355);
+  --accent-foreground: oklch(0.42 0.13 355);
+  --chart-1: oklch(0.64 0.15 355);
+}
+:root[data-accent="orange"] {
+  --primary: oklch(0.7 0.15 55);
+  --primary-foreground: oklch(0.2 0.05 55);
+  --ring: oklch(0.7 0.15 55);
+  --accent: oklch(0.94 0.035 55);
+  --accent-foreground: oklch(0.42 0.11 55);
+  --chart-1: oklch(0.7 0.15 55);
+}
+:root[data-accent="yellow"] {
+  --primary: oklch(0.8 0.13 95);
+  --primary-foreground: oklch(0.3 0.06 95);
+  --ring: oklch(0.72 0.12 95);
+  --accent: oklch(0.95 0.04 95);
+  --accent-foreground: oklch(0.4 0.08 95);
+  --chart-1: oklch(0.75 0.13 95);
+}
+:root[data-accent="teal"] {
+  --primary: oklch(0.6 0.11 190);
+  --primary-foreground: oklch(1 0 0);
+  --ring: oklch(0.6 0.11 190);
+  --accent: oklch(0.94 0.03 190);
+  --accent-foreground: oklch(0.38 0.09 190);
+  --chart-1: oklch(0.6 0.11 190);
+}
+
+.dark[data-accent="sky"] {
+  --primary: oklch(0.7 0.14 235);
+  --primary-foreground: oklch(0.16 0.03 235);
+  --ring: oklch(0.7 0.14 235);
+  --accent: oklch(0.28 0.02 235);
+  --accent-foreground: oklch(0.9 0.05 235);
+  --chart-1: oklch(0.7 0.14 235);
+}
+.dark[data-accent="lavender"] {
+  --primary: oklch(0.72 0.14 295);
+  --primary-foreground: oklch(0.17 0.03 295);
+  --ring: oklch(0.72 0.14 295);
+  --accent: oklch(0.28 0.02 295);
+  --accent-foreground: oklch(0.9 0.05 295);
+  --chart-1: oklch(0.72 0.14 295);
+}
+.dark[data-accent="rose"] {
+  --primary: oklch(0.73 0.15 355);
+  --primary-foreground: oklch(0.17 0.03 355);
+  --ring: oklch(0.73 0.15 355);
+  --accent: oklch(0.28 0.02 355);
+  --accent-foreground: oklch(0.9 0.05 355);
+  --chart-1: oklch(0.73 0.15 355);
+}
+.dark[data-accent="orange"] {
+  --primary: oklch(0.76 0.15 55);
+  --primary-foreground: oklch(0.18 0.05 55);
+  --ring: oklch(0.76 0.15 55);
+  --accent: oklch(0.28 0.025 55);
+  --accent-foreground: oklch(0.9 0.06 55);
+  --chart-1: oklch(0.76 0.15 55);
+}
+.dark[data-accent="yellow"] {
+  --primary: oklch(0.82 0.13 95);
+  --primary-foreground: oklch(0.22 0.05 95);
+  --ring: oklch(0.82 0.13 95);
+  --accent: oklch(0.28 0.025 95);
+  --accent-foreground: oklch(0.9 0.06 95);
+  --chart-1: oklch(0.82 0.13 95);
+}
+.dark[data-accent="teal"] {
+  --primary: oklch(0.71 0.12 190);
+  --primary-foreground: oklch(0.16 0.03 190);
+  --ring: oklch(0.71 0.12 190);
+  --accent: oklch(0.28 0.02 190);
+  --accent-foreground: oklch(0.9 0.05 190);
+  --chart-1: oklch(0.71 0.12 190);
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;

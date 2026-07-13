@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { AccentToggle } from "@/components/accent-toggle"
 import "./globals.css"
 
 const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" })
@@ -31,9 +32,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground`}>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              'try{var a=localStorage.getItem("accent");if(a&&a!=="green")document.documentElement.setAttribute("data-accent",a)}catch(e){}',
+          }}
+        />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           {children}
           <ThemeToggle />
+          <AccentToggle />
           <Toaster />
         </ThemeProvider>
       </body>
