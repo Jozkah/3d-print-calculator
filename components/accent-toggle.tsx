@@ -14,6 +14,11 @@ const ACCENTS: { key: string; label: string; swatch: string }[] = [
   { key: "orange", label: "Orange", swatch: "oklch(0.7 0.15 55)" },
   { key: "yellow", label: "Yellow", swatch: "oklch(0.8 0.13 95)" },
   { key: "teal", label: "Teal", swatch: "oklch(0.6 0.11 190)" },
+  { key: "red", label: "Red", swatch: "oklch(0.6 0.18 25)" },
+  { key: "lime", label: "Lime", swatch: "oklch(0.72 0.16 125)" },
+  { key: "cyan", label: "Cyan", swatch: "oklch(0.65 0.12 210)" },
+  { key: "indigo", label: "Indigo", swatch: "oklch(0.55 0.16 270)" },
+  { key: "fuchsia", label: "Fuchsia", swatch: "oklch(0.62 0.18 330)" },
 ]
 
 const ACCENT_STORAGE_KEY = "accent"
@@ -65,7 +70,7 @@ export function AccentToggle() {
         </Button>
       </PopoverTrigger>
       <PopoverContent side="left" align="end" className="w-auto p-2 z-[10000]">
-        <div className="flex gap-1.5">
+        <div className="grid grid-cols-6 gap-1.5">
           {ACCENTS.map((a) => (
             <button
               key={a.key}
