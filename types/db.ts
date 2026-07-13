@@ -32,6 +32,10 @@ export type Filament = {
   brand?: string
   color?: string
   color_hex?: string | null
+  // Spool inventory (filament rows only). null/absent = stock not tracked.
+  grams_in_stock?: number | null
+  // Amber low-stock badge threshold in grams (default 1000).
+  low_stock_threshold_g?: number
   [key: string]: any
 }
 
@@ -62,6 +66,16 @@ export type GlobalSettings = {
   currency_symbol?: string
   // How many days a new quote stays valid (drives quotes.valid_until).
   validity_days?: number
+  // Business identity rendered as a letterhead on quote/invoice documents.
+  // All optional; empty strings mean "not configured" and the documents fall
+  // back to their plain layout.
+  company_name?: string
+  company_address?: string
+  company_email?: string
+  company_phone?: string
+  company_tax_id?: string
+  // Logo as a data-URI string (uploaded via file input, capped ~200KB).
+  company_logo?: string
   created_at?: string
   updated_at?: string
   [key: string]: any
@@ -115,6 +129,33 @@ export type Quote = {
   // ISO timestamp after which the quote is no longer valid. Absent on legacy
   // rows, which fall back to created_at + 30 days.
   valid_until?: string
+  // Invoice fields, minted the first time the invoice document is opened.
+  // invoice_number is sequential per year ("INV-2026-001").
+  invoice_number?: string
+  invoice_date?: string
+  due_date?: string
+  // ISO timestamp when the invoice was marked paid; null/absent = unpaid.
+  paid_at?: string | null
+  // Set once the quote reached "finished" and filament stock was decremented,
+  // so repeated status flips never double-deduct inventory.
+  stock_deducted?: boolean
+  [key: string]: any
+}
+
+/** Per-year sequential counters (e.g. invoice numbering): key "invoice-2026". */
+export type Counter = {
+  id: string
+  key: string
+  value: number
+  [key: string]: any
+}
+
+/** A reusable quote structure saved from an existing quote (no client/pricing identity). */
+export type QuoteTemplate = {
+  id: string
+  name: string
+  payload: Partial<Quote>
+  created_at?: string
   [key: string]: any
 }
 
@@ -135,4 +176,6 @@ export interface Tables {
   imported_csv_files: UnknownRow
   quote_headers: UnknownRow
   quote_parts: UnknownRow
+  counters: Counter
+  quote_templates: QuoteTemplate
 }

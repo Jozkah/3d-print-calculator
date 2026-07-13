@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
 import { formatMoney } from "@/lib/format"
+import { CompanyLetterhead, issuerContactLine } from "@/components/quotation-document"
 import type { GlobalSettings, Quote as QuoteRow } from "@/types/db"
 
 interface PrintedPart {
@@ -303,6 +304,9 @@ export default function DetailedQuotePage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-8 py-16 print:py-10 print:px-0">
+        {/* Letterhead (renders nothing when business identity is unset) */}
+        <CompanyLetterhead settings={settings} />
+
         {/* Header */}
         <header className="mb-14">
           <div className="flex items-baseline justify-between gap-6">
@@ -646,7 +650,10 @@ export default function DetailedQuotePage() {
         {/* Footer */}
         <footer className="pt-6 border-t border-slate-100 text-center text-xs text-slate-400">
           <p className="text-slate-500">Thank you for your business</p>
-          <p className="mt-2">For questions about this quotation, please contact us with reference: {quote.quote_name}</p>
+          <p className="mt-2">
+            For questions about this quotation, please contact us
+            {issuerContactLine(settings) ? ` at ${issuerContactLine(settings)}` : ""} with reference: {quote.quote_name}
+          </p>
         </footer>
       </div>
 
