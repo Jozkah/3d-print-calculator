@@ -93,10 +93,6 @@ export default function DetailedQuotePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadQuote()
-  }, [params.id])
-
-  useEffect(() => {
     if (quote?.quote_name) {
       document.title = `${quote.quote_name} - Detailed Quotation`
     }
@@ -105,7 +101,8 @@ export default function DetailedQuotePage() {
     }
   }, [quote?.quote_name])
 
-  async function loadQuote() {
+  useEffect(() => {
+    const loadQuote = async () => {
     const supabase = createClient()
     const { data, error } = await supabase.from("quotes").select("*").eq("id", params.id).single()
 
@@ -148,8 +145,8 @@ export default function DetailedQuotePage() {
         .from("filaments")
         .select("id, name, price_per_kg")
         .in("id", filamentIds)
-      const filamentMap = new Map(filaments?.map((f) => [f.id, f.name]) || [])
-      const priceMap = new Map(filaments?.map((f) => [f.id, f.price_per_kg]) || [])
+      const filamentMap = new Map<string, string>(filaments?.map((f: any) => [f.id, f.name]) || [])
+      const priceMap = new Map<string, number>(filaments?.map((f: any) => [f.id, f.price_per_kg]) || [])
 
       // The price-based per-part cost below matches how 3D-PRINT quotes build
       // total_printing_cost. Laser cutting/engraving/sticker quotes compute
@@ -217,7 +214,9 @@ export default function DetailedQuotePage() {
 
     setQuote(data)
     setLoading(false)
-  }
+    }
+    loadQuote()
+  }, [params.id])
 
   async function loadFilamentName(filamentId: string): Promise<string> {
     const supabase = createClient()

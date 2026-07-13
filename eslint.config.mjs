@@ -7,10 +7,11 @@ const eslintConfig = [
     rules: {
       // Unescaped apostrophes/quotes in JSX text render fine; this rule is noise.
       "react/no-unescaped-entities": "off",
-      // Brand-new React-Compiler-era rules: keep them visible as warnings rather
-      // than failing the lint on long-standing (and harmless) v0-generated patterns.
-      "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/immutability": "warn",
+      // React-Compiler-era rules enforced as errors; the codebase is clean of
+      // offenders (any deliberate exception carries an inline disable with a
+      // justification comment).
+      "react-hooks/set-state-in-effect": "error",
+      "react-hooks/immutability": "error",
     },
   },
 ]
