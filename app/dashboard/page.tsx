@@ -209,7 +209,7 @@ export default function DashboardPage() {
     return [...grams.entries()]
       .map(([id, g], i) => {
         const f = filamentsList.find((x) => x.id === id)
-        return { name: f?.name || "Unknown", grams: g, color: f?.color_hex || FALLBACK[i % FALLBACK.length] }
+        return { id, name: f?.name || "Unknown", grams: g, color: f?.color_hex || FALLBACK[i % FALLBACK.length] }
       })
       .filter((m) => m.grams > 0)
       .sort((a, b) => b.grams - a.grams)
@@ -393,7 +393,7 @@ export default function DashboardPage() {
                           <PieChart>
                             <Pie data={materialMix} dataKey="grams" nameKey="name" innerRadius={42} outerRadius={64} paddingAngle={2} strokeWidth={0}>
                               {materialMix.map((m) => (
-                                <Cell key={m.name} fill={m.color} />
+                                <Cell key={m.id} fill={m.color} />
                               ))}
                             </Pie>
                           </PieChart>
@@ -401,7 +401,7 @@ export default function DashboardPage() {
                       </div>
                       <ul className="min-w-0 flex-1 space-y-1.5">
                         {materialMix.map((m) => (
-                          <li key={m.name} className="flex items-center gap-2 text-sm">
+                          <li key={m.id} className="flex items-center gap-2 text-sm">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: m.color }} />
                             <span className="min-w-0 flex-1 truncate text-foreground">{m.name}</span>
                             <span className="shrink-0 tabular-nums text-muted-foreground">{(m.grams / 1000).toFixed(2)} kg</span>
