@@ -1,10 +1,16 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { Suspense, useEffect, useRef, useState } from "react"
+import { useParams, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
+import { formatMoney } from "@/lib/format"
+
+// Only the display-relevant slice of global_settings this document reads.
+interface GlobalSettings {
+  currency_symbol?: string
+}
 
 interface Quote {
   id: string
@@ -27,13 +33,23 @@ interface Quote {
   // already inclusive of emergency fee and VAT). null when the quote used margin mode.
   final_price?: number | null
   vat_enabled?: boolean
+  // VAT fraction the quote was priced with (0.23 = 23%). Absent on legacy
+  // rows, which re-render with the historical 0.23.
+  vat_rate?: number
+  // ISO timestamp after which the quote is no longer valid. Absent on legacy
+  // rows, which fall back to created_at + 30 days.
+  valid_until?: string
 }
 
-export default function QuotePage() {
+function QuoteDocument() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const [quote, setQuote] = useState<Quote | null>(null)
   const [client, setClient] = useState<any>(null)
+  const [settings, setSettings] = useState<GlobalSettings | null>(null)
   const [loading, setLoading] = useState(true)
+  // Guard so ?print=1 triggers the print dialog once, not on every re-render.
+  const printedRef = useRef(false)
 
   useEffect(() => {
     async function loadQuote() {
@@ -51,6 +67,10 @@ export default function QuotePage() {
           }
         }
       }
+      // Settings only drive display (currency symbol); a missing row just
+      // falls back to the defaults.
+      const { data: settingsData } = await supabase.from("global_settings").select("*").limit(1).maybeSingle()
+      setSettings(settingsData ?? null)
       setLoading(false)
     }
     loadQuote()
@@ -64,6 +84,17 @@ export default function QuotePage() {
       document.title = "3D Print Calculator"
     }
   }, [quote?.quote_name])
+
+  // The history page's Download button links here with ?print=1: once the
+  // quote has rendered, open the browser's print dialog (after a short delay
+  // so the layout settles).
+  useEffect(() => {
+    if (searchParams.get("print") !== "1") return
+    if (loading || !quote || printedRef.current) return
+    printedRef.current = true
+    const timer = setTimeout(() => window.print(), 300)
+    return () => clearTimeout(timer)
+  }, [searchParams, loading, quote])
 
   function handlePrint() {
     window.print()
@@ -96,13 +127,24 @@ export default function QuotePage() {
   // must not grow a VAT line here. Legacy rows without the flag default to
   // VAT on (the historical behavior).
   const vatApplies = isBusinessQuote && quote.vat_enabled !== false
+  // Render with the rate the quote was priced at; legacy rows without the
+  // field were all quoted at 23%.
+  const vatRate = quote.vat_rate ?? 0.23
+  const vatPercentLabel = Math.round(vatRate * 10000) / 100
+  const currencySymbol = settings?.currency_symbol || "€"
+  const money = (n: number) => formatMoney(n, currencySymbol)
+  // Expiry date: stored valid_until when present, otherwise the legacy
+  // convention of created_at + 30 days.
+  const validUntil = quote.valid_until
+    ? new Date(quote.valid_until)
+    : new Date(new Date(quote.created_at).getTime() + 30 * 86400000)
 
   // For target-price quotes the Total is the stored (authoritative) final_price.
   // Scale the breakdown by an effective multiplier derived from that total so the
   // lines reconcile to it (the rounded selected_margin drifts by a rounding cent).
   // Margin-mode quotes keep marginMultiplier exactly.
   const targetExVat =
-    quote.final_price != null ? (vatApplies ? quote.final_price / 1.23 : quote.final_price) : null
+    quote.final_price != null ? (vatApplies ? quote.final_price / (1 + vatRate) : quote.final_price) : null
   const displayMultiplier =
     targetExVat != null && totalLandedCost > 0
       ? (targetExVat - emergencyFeeCost) / totalLandedCost
@@ -122,8 +164,8 @@ export default function QuotePage() {
 
   const priceWithMarginAndEmergency = priceWithMargin + emergencyFeeCost
 
-  // Add VAT for business quotes (23%)
-  const recomputedVat = vatApplies ? priceWithMarginAndEmergency * 0.23 : 0
+  // Add VAT for business quotes at the quoted rate
+  const recomputedVat = vatApplies ? priceWithMarginAndEmergency * vatRate : 0
   const recomputedFinal = priceWithMarginAndEmergency + recomputedVat
 
   // Prefer the stored authoritative final_price (set for target-price quotes) over the
@@ -133,11 +175,11 @@ export default function QuotePage() {
   // recompute when no target price was stored (margin-mode quotes).
   const finalPrice = quote.final_price != null ? quote.final_price : recomputedFinal
   // For business quotes the stored final_price is VAT-inclusive, so back out the VAT
-  // component (total - total/1.23) instead of re-applying 23% on top.
+  // component (total - total/(1+vatRate)) instead of re-applying the rate on top.
   const vatAmount =
     quote.final_price != null
       ? vatApplies
-        ? quote.final_price - quote.final_price / 1.23
+        ? quote.final_price - quote.final_price / (1 + vatRate)
         : 0
       : recomputedVat
 
@@ -168,7 +210,7 @@ export default function QuotePage() {
           </div>
           <div className="mt-4 flex gap-6 text-sm text-slate-400">
             <p>Issued {new Date(quote.created_at).toLocaleDateString()}</p>
-            <p>Valid 30 days</p>
+            <p>Valid until {validUntil.toLocaleDateString()}</p>
           </div>
         </header>
 
@@ -198,7 +240,7 @@ export default function QuotePage() {
                 <p className="text-sm text-slate-400 mt-0.5">Printing time, machine cost and material usage</p>
               </div>
               <p className="tabular-nums text-slate-900 whitespace-nowrap">
-                € {printingAndMaterialsWithMargin.toFixed(2)}
+                {money(printingAndMaterialsWithMargin)}
               </p>
             </div>
 
@@ -207,7 +249,7 @@ export default function QuotePage() {
                 <p className="text-slate-900">Labor</p>
                 <p className="text-sm text-slate-400 mt-0.5">Assembly, post-processing, or design work</p>
               </div>
-              <p className="tabular-nums text-slate-900 whitespace-nowrap">€ {laborWithMargin.toFixed(2)}</p>
+              <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(laborWithMargin)}</p>
             </div>
 
             <div className="flex items-baseline justify-between gap-8 py-4">
@@ -215,7 +257,7 @@ export default function QuotePage() {
                 <p className="text-slate-900">Packaging, Shipping &amp; Transport</p>
                 <p className="text-sm text-slate-400 mt-0.5">Packaging materials, courier, and transportation</p>
               </div>
-              <p className="tabular-nums text-slate-900 whitespace-nowrap">€ {packagingWithMargin.toFixed(2)}</p>
+              <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(packagingWithMargin)}</p>
             </div>
 
             {quote.is_emergency && emergencyFeeCost > 0 && (
@@ -224,15 +266,15 @@ export default function QuotePage() {
                   <p className="text-slate-900">Emergency Fee</p>
                   <p className="text-sm text-slate-400 mt-0.5">Urgent order surcharge</p>
                 </div>
-                <p className="tabular-nums text-slate-900 whitespace-nowrap">€ {emergencyFeeCost.toFixed(2)}</p>
+                <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(emergencyFeeCost)}</p>
               </div>
             )}
 
             {/* VAT - Only for business quotes that charged it */}
             {vatApplies && (
               <div className="flex items-baseline justify-between gap-8 py-4">
-                <p className="text-slate-900">VAT (23%)</p>
-                <p className="tabular-nums text-slate-900 whitespace-nowrap">€ {vatAmount.toFixed(2)}</p>
+                <p className="text-slate-900">VAT ({vatPercentLabel}%)</p>
+                <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(vatAmount)}</p>
               </div>
             )}
           </div>
@@ -243,7 +285,7 @@ export default function QuotePage() {
             style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
           >
             <span className="text-xs uppercase tracking-[0.2em] text-slate-300">Total</span>
-            <span className="tabular-nums text-3xl font-semibold whitespace-nowrap">€ {finalPrice.toFixed(2)}</span>
+            <span className="tabular-nums text-3xl font-semibold whitespace-nowrap">{money(finalPrice)}</span>
           </div>
         </section>
 
@@ -261,14 +303,17 @@ export default function QuotePage() {
               All costs include a {quote.selected_margin}% profit margin to cover business operations and overhead.
             </li>
             {vatApplies && (
-              <li>VAT at 23% is included in the final price as per legal requirements for business transactions.</li>
+              <li>
+                VAT at {vatPercentLabel}% is included in the final price as per legal requirements for business
+                transactions.
+              </li>
             )}
             {quote.is_emergency && (
               <li className="text-red-600">
                 Emergency order surcharge applied for expedited processing and priority handling.
               </li>
             )}
-            <li>This quotation is valid for 30 days from the date of issue.</li>
+            <li>This quotation is valid until {validUntil.toLocaleDateString()}.</li>
           </ul>
         </section>
 
@@ -329,5 +374,21 @@ export default function QuotePage() {
         }
       `}</style>
     </div>
+  )
+}
+
+// useSearchParams requires a Suspense boundary above it so the page can still
+// be statically processed by the Next build.
+export default function QuotePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen bg-white">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
+      }
+    >
+      <QuoteDocument />
+    </Suspense>
   )
 }

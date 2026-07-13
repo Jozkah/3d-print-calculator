@@ -63,6 +63,12 @@ type GlobalSettings = {
   emergency_fee_fixed: number
   labor_hourly_rate: number
   double_heating_cost?: boolean
+  // VAT rate stored as a fraction (0.23 = 23%). Rows written before this
+  // field existed fall back to 0.23 at every read site.
+  vat_rate?: number
+  currency_symbol?: string
+  // How many days a new quote stays valid (drives quotes.valid_until).
+  validity_days?: number
 }
 
 type FilamentEntry = {
@@ -624,7 +630,13 @@ export function ExcelCalculator({
             : // Added case for margin60
               totalLandedCost / (1 - selectedMargin / 100) + emergencyFee
 
-  const vatRate = 0.23
+  // Configurable VAT rate (fraction). Legacy settings rows without the field
+  // keep the historical 23%.
+  const vatRate = globalSettings?.vat_rate ?? 0.23
+  // Percent for labels, rounded to dodge float artifacts (0.23*100 = 23.000…4).
+  const vatPercentLabel = Math.round(vatRate * 10000) / 100
+  // How long saved quotes stay valid (drives quotes.valid_until on save).
+  const validityDays = globalSettings?.validity_days ?? 30
   const vatAmountFromLandedCost = mode === "business" && vatEnabled ? totalLandedCost * vatRate : 0
   // In target-price mode the client price is exactly targetPrice (VAT-inclusive),
   // so derive the VAT line from the actual target to avoid drift from the rounded
@@ -819,6 +831,8 @@ export function ExcelCalculator({
         owner_b_receives: mode === "business" ? ownerBReceives : null,
         is_draft: false, // Mark as finalized when saved
         vat_enabled: vatEnabled, // Save VAT enabled state
+        vat_rate: vatRate, // Persist the rate so old documents re-render as quoted
+        valid_until: new Date(Date.now() + validityDays * 86400000).toISOString(),
       }
 
       if (isEditingQuote && currentQuoteId) {
@@ -948,6 +962,8 @@ export function ExcelCalculator({
         owner_b_receives: mode === "business" ? ownerBReceives : null,
         is_draft: true, // Mark as draft
         vat_enabled: vatEnabled, // Save VAT enabled state
+        vat_rate: vatRate, // Persist the rate so old documents re-render as quoted
+        valid_until: new Date(Date.now() + validityDays * 86400000).toISOString(),
       }
 
       if (isEditingQuote && currentQuoteId) {
@@ -1217,7 +1233,7 @@ export function ExcelCalculator({
                     onCheckedChange={(checked) => setVatEnabled(checked as boolean)}
                   />
                   <Label htmlFor="vatEnabled" className="font-medium">
-                    Include VAT (23%)
+                    Include VAT ({vatPercentLabel}%)
                   </Label>
                 </div>
               )}
@@ -2046,7 +2062,7 @@ export function ExcelCalculator({
                 {mode === "business" && (
                   <div className="text-muted-foreground text-sm mb-4">
                     {vatEnabled
-                      ? `VAT (23% of Selling Price): €${vatAmountFromSellingPrice.toFixed(2)}`
+                      ? `VAT (${vatPercentLabel}% of Selling Price): €${vatAmountFromSellingPrice.toFixed(2)}`
                       : "VAT: Disabled"}
                   </div>
                 )}
@@ -2325,7 +2341,7 @@ export function ExcelCalculator({
                             <span>€{ownerBEmergency.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between gap-4">
-                            <span>VAT (23%):</span>
+                            <span>VAT ({vatPercentLabel}%):</span>
                             <span>€{vatAmountFromSellingPrice.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between gap-4 font-bold border-t border-blue-700 pt-1 mt-2">
