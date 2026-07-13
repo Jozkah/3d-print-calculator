@@ -61,8 +61,10 @@ function AddressField({ id, label, point, initialQuery, placeholder, onSelect }:
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   // Set when a suggestion is clicked so the query change it causes doesn't
-  // immediately re-trigger a search.
-  const skipNextSearchRef = useRef(false)
+  // immediately re-trigger a search. Initialized true when the field mounts
+  // with an already-resolved point, so reopening a saved route doesn't fire
+  // an unprompted Nominatim search for it.
+  const skipNextSearchRef = useRef(point !== null)
 
   useEffect(() => {
     if (skipNextSearchRef.current) {
@@ -193,7 +195,9 @@ function RouteDialogBody({
   }, [origin, destination])
 
   const oneWayKm = route ? Math.round(route.distanceKm * 10) / 10 : 0
-  const totalKm = route ? roundTripKm(route.distanceKm, isRoundTrip) : 0
+  // Derive the total from the already-rounded one-way value so the displayed
+  // math stays consistent (never "12.3 km × 2 = 24.7 km").
+  const totalKm = route ? roundTripKm(oneWayKm, isRoundTrip) : 0
 
   const handleConfirm = () => {
     if (!origin || !destination || !route) return
