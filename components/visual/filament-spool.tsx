@@ -19,6 +19,7 @@ export function FilamentSpool({
       viewBox="0 0 48 48"
       width={size}
       height={size}
+      style={{ width: size, height: size }}
       aria-hidden
       className={cn("shrink-0", className)}
     >
@@ -56,7 +57,14 @@ export function SpoolWithStock({
   return (
     <span className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
       {tracked && (
-        <svg viewBox="0 0 52 52" width={size} height={size} aria-hidden className="absolute inset-0 -rotate-90">
+        <svg
+          viewBox="0 0 52 52"
+          width={size}
+          height={size}
+          style={{ width: size, height: size }}
+          aria-hidden
+          className="absolute inset-0 -rotate-90"
+        >
           <circle cx="26" cy="26" r={r} fill="none" stroke="var(--color-border)" strokeWidth="2.5" />
           <circle
             cx="26"

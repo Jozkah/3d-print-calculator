@@ -16,6 +16,7 @@ import { ComboboxCreatable } from "@/components/ui/combobox-creatable"
 import { DialogCustom } from "@/components/ui/dialog-custom"
 import { cn } from "@/lib/utils" // Import cn for conditional styling
 import { SpoolWithStock } from "@/components/visual/filament-spool"
+import { resolveFilamentColor } from "@/lib/filament-color"
 import { BrandBadge } from "@/components/visual/brand-badge"
 import { ColorPicker } from "@/components/visual/color-picker"
 
@@ -1071,8 +1072,8 @@ export function FilamentsList({ filaments: initialFilaments }: FilamentsListProp
                   )}
                   <div className="flex items-center gap-4 min-w-0 flex-1">
                     <SpoolWithStock
-                      colorHex={filament.color_hex}
-                      stockGrams={filament.grams_in_stock}
+                      colorHex={resolveFilamentColor(filament)}
+                      stockGrams={filament.material_type === "material" ? null : filament.grams_in_stock}
                       lowThresholdGrams={filament.low_stock_threshold_g ?? 1000}
                       size={56}
                     />

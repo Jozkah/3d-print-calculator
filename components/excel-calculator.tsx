@@ -21,7 +21,8 @@ import {
   TooltipProvider, // Import TooltipProvider
 } from "@/components/ui/tooltip"
 import { PrinterPicker } from "@/components/visual/printer-picker"
-import { FilamentSpool } from "@/components/visual/filament-spool"
+import { FilamentSpool, SpoolWithStock } from "@/components/visual/filament-spool"
+import { resolveFilamentColor } from "@/lib/filament-color"
 import { BrandBadge } from "@/components/visual/brand-badge"
 
 import type { Printer, Filament, Client, GlobalSettings } from "@/types/db"
@@ -1458,7 +1459,7 @@ export function ExcelCalculator({
                                         key={filamentEntry.id}
                                         className="flex items-center gap-1 text-xs bg-muted/70 rounded-md p-1"
                                       >
-                                        <FilamentSpool colorHex={filament?.color_hex} size={16} />
+                                        <FilamentSpool colorHex={filament ? resolveFilamentColor(filament) : null} size={16} />
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
@@ -1598,7 +1599,14 @@ export function ExcelCalculator({
                                             disabled={isSelected}
                                             className={isSelected ? "opacity-50" : ""}
                                           >
-                                            <FilamentSpool colorHex={filament.color_hex} size={20} className="mr-2 size-5" />
+                                            <span className="mr-2 shrink-0">
+                                              <SpoolWithStock
+                                                colorHex={resolveFilamentColor(filament)}
+                                                stockGrams={filament.material_type === "material" ? null : filament.grams_in_stock}
+                                                lowThresholdGrams={filament.low_stock_threshold_g ?? 1000}
+                                                size={28}
+                                              />
+                                            </span>
                                             <span className="min-w-0 flex-1">
                                               <span className="block truncate">{filament.name}</span>
                                               <span className="flex items-center gap-1 min-w-0 text-xs text-muted-foreground">

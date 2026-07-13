@@ -20,6 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ClientAvatar } from "@/components/visual/client-avatar"
 import { FilamentSpool } from "@/components/visual/filament-spool"
+import { resolveFilamentColor } from "@/lib/filament-color"
 import {
   Trash2,
   ChevronDown,
@@ -915,7 +916,7 @@ function QuoteHistory({
                         title={usedFilaments.map((f: any) => f.name).join(", ")}
                       >
                         {usedFilaments.map((f: any) => (
-                          <FilamentSpool key={f.id} colorHex={f.color_hex} size={14} />
+                          <FilamentSpool key={f.id} colorHex={resolveFilamentColor(f)} size={14} />
                         ))}
                       </span>
                     )}

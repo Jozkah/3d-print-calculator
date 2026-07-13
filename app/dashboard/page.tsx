@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PrinterVisual } from "@/components/visual/printer-visual"
 import { ClientAvatar } from "@/components/visual/client-avatar"
 import { formatMoney } from "@/lib/format"
+import { resolveFilamentColor } from "@/lib/filament-color"
 import {
   Bar,
   BarChart,
@@ -209,7 +210,7 @@ export default function DashboardPage() {
     return [...grams.entries()]
       .map(([id, g], i) => {
         const f = filamentsList.find((x) => x.id === id)
-        return { id, name: f?.name || "Unknown", grams: g, color: f?.color_hex || FALLBACK[i % FALLBACK.length] }
+        return { id, name: f?.name || "Unknown", grams: g, color: (f ? resolveFilamentColor(f) : null) || FALLBACK[i % FALLBACK.length] }
       })
       .filter((m) => m.grams > 0)
       .sort((a, b) => b.grams - a.grams)
