@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Printer, Palette, Settings2, Users, ArrowRight } from "lucide-react"
+import { Printer, Palette, Settings2, Users, ArrowRight, Layers } from "lucide-react"
 import { SiteHeader, PageHeader } from "@/components/site-header"
 import { DataExportCard, DataImportCard } from "@/components/seed-importer"
 
@@ -20,7 +20,13 @@ const SECTIONS = [
     href: "/settings/filaments",
     icon: Palette,
     title: "Filaments & Materials",
-    description: "Filament spools, laser materials, brands, colors and prices.",
+    description: "Filament spools, brands, colors and prices.",
+  },
+  {
+    href: "/settings/materials",
+    icon: Layers,
+    title: "Laser & Sticker Materials",
+    description: "Sheets, vinyl rolls and blanks with per-sheet, per-area or per-piece pricing.",
   },
   {
     href: "/settings/clients",
