@@ -1597,7 +1597,7 @@ export function ExcelCalculator({
                                             disabled={isSelected}
                                             className={isSelected ? "opacity-50" : ""}
                                           >
-                                            <FilamentSpool colorHex={filament.color_hex} size={20} className="mr-2" />
+                                            <FilamentSpool colorHex={filament.color_hex} size={20} className="mr-2 size-5" />
                                             <span className="min-w-0 flex-1">
                                               <span className="block truncate">{filament.name}</span>
                                               <span className="block truncate text-xs text-muted-foreground">
