@@ -35,7 +35,8 @@ export function PrinterVisual({ name, imageKey, size, className }: Props) {
           alt=""
           width={px}
           height={px}
-          loading={size === "hero" ? "eager" : "lazy"}
+          priority={size === "hero"}
+          loading={size === "hero" ? undefined : "lazy"}
           className="h-[88%] w-[88%] object-contain drop-shadow-sm"
         />
       ) : (

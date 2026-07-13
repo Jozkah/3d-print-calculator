@@ -156,13 +156,13 @@ export default function DashboardPage() {
 
   // Top 5 clients by realized revenue.
   const topClients = useMemo(() => {
-    const byClient = new Map<string, { name: string; count: number; revenue: number }>()
+    const byClient = new Map<string, { id: string; name: string; count: number; revenue: number }>()
     for (const q of realized) {
       const key = q.client_id || "__none__"
       const name = q.client_id
         ? clients.find((c) => c.id === q.client_id)?.name || "Unknown client"
         : "No client"
-      const entry = byClient.get(key) || { name, count: 0, revenue: 0 }
+      const entry = byClient.get(key) || { id: key, name, count: 0, revenue: 0 }
       entry.count += 1
       entry.revenue += quoteRevenue(q)
       byClient.set(key, entry)
@@ -360,8 +360,8 @@ export default function DashboardPage() {
                     topClients.map((c) => {
                       const max = topClients[0].revenue || 1
                       return (
-                        <div key={c.name} className="flex items-center gap-3">
-                          <ClientAvatar id={c.name} name={c.name} size={32} />
+                        <div key={c.id} className="flex items-center gap-3">
+                          <ClientAvatar id={c.id} name={c.name} size={32} />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-baseline justify-between gap-2">
                               <p className="truncate text-sm font-medium text-foreground">{c.name}</p>
