@@ -70,6 +70,56 @@ const tdMuted = "py-3 pr-4 text-slate-500"
 const tdNum = "py-3 pl-4 text-right tabular-nums text-slate-500 whitespace-nowrap"
 const tdNumStrong = "py-3 pl-4 text-right tabular-nums text-slate-900 whitespace-nowrap"
 
+function LaserItemsSection({ quote, money }: { quote: any; money: (n: number) => string }) {
+  const items: any[] = quote.laser_items || []
+  return (
+    <section className="mb-12">
+      <p className={sectionLabel}>Laser &amp; Sticker Items</p>
+      <table className="w-full">
+        <thead>
+          <tr>
+            <th className={th}>Item</th>
+            <th className={th}>Material</th>
+            <th className={th}>Machine</th>
+            <th className={thRight}>Qty</th>
+            <th className={thRight}>Cost / pc</th>
+            <th className={thRight}>Sell / pc</th>
+            <th className={thRight}>Line Total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {items.map((it, i) => (
+            <tr key={it.id || i}>
+              <td className={td}>{it.name || "Unnamed item"}</td>
+              <td className={tdMuted}>{it.material_name || "—"}</td>
+              <td className={tdMuted}>{it.machine_name || "—"}{it.machine_minutes ? ` · ${it.machine_minutes} min/pc` : ""}</td>
+              <td className={tdNum}>{Number(it.quantity) || 0}</td>
+              <td className={tdNum}>{money(Number(it.cost_per_piece) || 0)}</td>
+              <td className={tdNum}>
+                {money(Number(it.sell_per_piece) || 0)}
+                {Number(it.discount_pct) > 0 ? ` (−${it.discount_pct}%)` : ""}
+              </td>
+              <td className={tdNumStrong}>{money(Number(it.line_sell) || 0)}</td>
+            </tr>
+          ))}
+          {Number(quote.setup_fee) > 0 && (
+            <tr>
+              <td className={td} colSpan={6}>Design / setup fee</td>
+              <td className={tdNumStrong}>{money(Number(quote.setup_fee) || 0)}</td>
+            </tr>
+          )}
+          {quote.min_price_applied && (
+            <tr>
+              <td className={td} colSpan={6}>Minimum job price adjustment</td>
+              <td className={tdNumStrong}>{money(Number(quote.min_price_adjustment) || 0)}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
 export default function DetailedQuotePage() {
   const params = useParams()
   const [quote, setQuote] = useState<Quote | null>(null)
@@ -104,7 +154,10 @@ export default function DetailedQuotePage() {
       }
     }
 
-    if (data.printed_parts && data.printed_parts.length > 0) {
+    // Laser quotes persist a denormalized laser_items array with per-piece figures
+    // already computed at save time; they have no printed_parts to enrich, and
+    // running this block against them would be a no-op that only wastes a fetch.
+    if (data.quote_type_mode !== "laser" && data.printed_parts && data.printed_parts.length > 0) {
       // Handle both old and new data structures
       const allFilamentIds: string[] = []
       data.printed_parts.forEach((p: any) => {
@@ -246,6 +299,8 @@ export default function DetailedQuotePage() {
   const totalLandedCost = quote.landed_cost || 0
   const emergencyFeeCost = quote.is_emergency ? quote.emergency_fee || 0 : 0
 
+  const isLaserMode = quote.quote_type_mode === "laser"
+
   const isBusinessQuote = quote.quote_type === "business"
   // Honor the saved VAT toggle — quotes saved with "Include VAT" unchecked
   // must not grow a VAT line here. Legacy rows without the flag default to
@@ -339,7 +394,9 @@ export default function DetailedQuotePage() {
           </section>
         )}
 
-        {quote.printed_parts && quote.printed_parts.length > 0 && (
+        {isLaserMode && <LaserItemsSection quote={quote} money={money} />}
+
+        {!isLaserMode && quote.printed_parts && quote.printed_parts.length > 0 && (
           <section className="mb-12">
             <p className={sectionLabel}>Printed Parts &amp; Materials</p>
             <div className="overflow-x-auto">
@@ -415,7 +472,7 @@ export default function DetailedQuotePage() {
           </div>
         </section>
 
-        {quote.dried_batches && quote.dried_batches.length > 0 && (
+        {!isLaserMode && quote.dried_batches && quote.dried_batches.length > 0 && (
           <section className="mb-12">
             <p className={sectionLabel}>Filament Drying &amp; Preparation</p>
             <div className="overflow-x-auto">
