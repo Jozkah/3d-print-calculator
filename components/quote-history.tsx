@@ -67,6 +67,15 @@ const safeFixed = (value: any, decimals = 2) => {
   return (value ?? 0).toFixed(decimals)
 }
 
+// Margin columns (margin_30..60) are stored ex-VAT, but the calculator's
+// margin cards and the client documents show VAT-inclusive prices for
+// business quotes — display the same basis here so one quote never shows two
+// different "40% margin" prices.
+const withQuoteVat = (quote: Quote, value: any): number => {
+  const vatApplies = quote.quote_type === "business" && quote.vat_enabled !== false
+  return (Number(value) || 0) * (vatApplies ? 1 + (quote.vat_rate ?? 0.23) : 1)
+}
+
 function QuoteHistory({
   quotes,
   clients = [],
@@ -1299,10 +1308,13 @@ function QuoteHistory({
                             </div>
                             <div className="text-lg font-semibold text-primary-foreground">
                               €
-                              {quote.final_price 
+                              {quote.final_price
                                 ? safeFixed(quote.final_price)
                                 : safeFixed(
-                                    (quote.landed_cost || 0) / (1 - Number(quote.selected_margin_percentage) / 100),
+                                    withQuoteVat(
+                                      quote,
+                                      (quote.landed_cost || 0) / (1 - Number(quote.selected_margin_percentage) / 100),
+                                    ),
                                   )}
                             </div>
                           </div>
@@ -1329,7 +1341,7 @@ function QuoteHistory({
                         >
                           €{quote.final_price && (Number(quote.selected_margin_percentage) >= 29 && Number(quote.selected_margin_percentage) < 35)
                             ? safeFixed(quote.final_price)
-                            : safeFixed(quote.margin_30)}
+                            : safeFixed(withQuoteVat(quote, quote.margin_30))}
                         </div>
                       </div>
                       <div
@@ -1354,7 +1366,7 @@ function QuoteHistory({
                         >
                           €{quote.final_price && (Number(quote.selected_margin_percentage) >= 35 && Number(quote.selected_margin_percentage) < 45)
                             ? safeFixed(quote.final_price)
-                            : safeFixed(quote.margin_40)}
+                            : safeFixed(withQuoteVat(quote, quote.margin_40))}
                         </div>
                       </div>
                       <div
@@ -1379,7 +1391,7 @@ function QuoteHistory({
                         >
                           €{quote.final_price && (Number(quote.selected_margin_percentage) >= 45 && Number(quote.selected_margin_percentage) < 55)
                             ? safeFixed(quote.final_price)
-                            : safeFixed(quote.margin_50)}
+                            : safeFixed(withQuoteVat(quote, quote.margin_50))}
                         </div>
                       </div>
                       <div
@@ -1404,7 +1416,7 @@ function QuoteHistory({
                         >
                           €{quote.final_price && (Number(quote.selected_margin_percentage) >= 55 && Number(quote.selected_margin_percentage) <= 60)
                             ? safeFixed(quote.final_price)
-                            : safeFixed(quote.margin_60)}
+                            : safeFixed(withQuoteVat(quote, quote.margin_60))}
                         </div>
                       </div>
                       {Number(quote.selected_margin_percentage) > 60 && (
@@ -1414,10 +1426,13 @@ function QuoteHistory({
                           </div>
                           <div className="text-lg font-semibold text-primary-foreground">
                             €
-                            {quote.final_price 
+                            {quote.final_price
                               ? safeFixed(quote.final_price)
                               : safeFixed(
-                                  (quote.landed_cost || 0) / (1 - Number(quote.selected_margin_percentage) / 100),
+                                  withQuoteVat(
+                                    quote,
+                                    (quote.landed_cost || 0) / (1 - Number(quote.selected_margin_percentage) / 100),
+                                  ),
                                 )}
                           </div>
                         </div>

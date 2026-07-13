@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, useSyncExternalStore } from "react"
 import { Download, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
@@ -113,8 +113,15 @@ function storageUsage(): { usedKb: number; percent: number } {
   return { usedKb, percent: Math.min(100, Math.round((usedKb / 5120) * 100)) }
 }
 
+// The meter reads localStorage, which doesn't exist during SSR — rendering it
+// on the server produced a hydration text mismatch (React #418). Server
+// snapshot false → meter renders only after mount.
+const emptySubscribe = () => () => {}
+const useMounted = () => useSyncExternalStore(emptySubscribe, () => true, () => false)
+
 export function DataExportCard() {
   const { toast } = useToast()
+  const mounted = useMounted()
   const [usage] = useState(storageUsage)
 
   const handleExport = () => {
@@ -169,10 +176,12 @@ export function DataExportCard() {
       <Button variant="outline" className="mt-4 w-fit" onClick={handleExport}>
         Export backup
       </Button>
-      <p className={`mt-3 text-xs ${usage.percent >= 80 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-        Browser storage used: ~{usage.usedKb} KB ({usage.percent}% of the typical 5 MB quota)
-        {usage.percent >= 80 ? " — export a backup and delete old quotes soon." : ""}
-      </p>
+      {mounted && (
+        <p className={`mt-3 text-xs ${usage.percent >= 80 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+          Browser storage used: ~{usage.usedKb} KB ({usage.percent}% of the typical 5 MB quota)
+          {usage.percent >= 80 ? " — export a backup and delete old quotes soon." : ""}
+        </p>
+      )}
     </div>
   )
 }
