@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { geocodeAddress } from "@/lib/geo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -39,6 +40,8 @@ type GlobalSettings = {
   sticker_min_job_price?: number
   default_setup_fee?: number
   qty_discount_tiers?: { min_qty: number; discount_pct: number }[]
+  company_lat?: number | null
+  company_lon?: number | null
 }
 
 export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | null }) {
@@ -145,6 +148,27 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
     setIsSaving(true)
     const supabase = createClient()
 
+    // Cache home coordinates for the route-distance dialog. Best-effort: the
+    // dialog re-geocodes on open when no cached coordinates exist, so a
+    // geocoding failure must never block saving settings.
+    const trimmedAddress = companyAddress.trim()
+    let companyLat = settings?.company_lat ?? null
+    let companyLon = settings?.company_lon ?? null
+    if (!trimmedAddress) {
+      companyLat = null
+      companyLon = null
+    } else if (trimmedAddress !== (settings?.company_address || "").trim()) {
+      try {
+        const results = await geocodeAddress(trimmedAddress)
+        companyLat = results[0]?.lat ?? null
+        companyLon = results[0]?.lon ?? null
+      } catch {
+        // Stale coordinates for a changed address would be wrong — drop them.
+        companyLat = null
+        companyLon = null
+      }
+    }
+
     const { error } = await supabase
       .from("global_settings")
       .update({
@@ -162,6 +186,8 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
         validity_days: Number.parseFloat(validityDays),
         company_name: companyName.trim(),
         company_address: companyAddress.trim(),
+        company_lat: companyLat,
+        company_lon: companyLon,
         company_email: companyEmail.trim(),
         company_phone: companyPhone.trim(),
         company_tax_id: companyTaxId.trim(),
