@@ -44,11 +44,14 @@ export async function geocodeAddress(query: string): Promise<GeoPoint[]> {
   if (!Array.isArray(data)) {
     throw new Error("Address search returned an unexpected response")
   }
-  return data.map((row: any) => ({
-    address: String(row.display_name ?? ""),
-    lat: Number(row.lat),
-    lon: Number(row.lon),
-  }))
+  return data.map((row: unknown) => {
+    const record = row as Record<string, unknown>
+    return {
+      address: String(record.display_name ?? ""),
+      lat: Number(record.lat),
+      lon: Number(record.lon),
+    }
+  })
 }
 
 export async function fetchRoute(from: GeoPoint, to: GeoPoint): Promise<RouteResult> {
