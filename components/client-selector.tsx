@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
+import { ClientAvatar } from "@/components/visual/client-avatar"
 
 type Client = {
   id: string
@@ -122,7 +123,16 @@ export function ClientSelector({
             aria-expanded={open}
             className={cn("w-full justify-between border-blue-200", className)}
           >
-            <span className={cn("truncate", !value && "text-muted-foreground")}>{value || placeholder}</span>
+            <span className={cn("flex items-center gap-2 truncate", !value && "text-muted-foreground")}>
+              {value && clients.find(c => c.name === value) && (
+                <ClientAvatar
+                  id={clients.find(c => c.name === value)!.id}
+                  name={value}
+                  size={20}
+                />
+              )}
+              <span className="truncate">{value || placeholder}</span>
+            </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -155,6 +165,7 @@ export function ClientSelector({
                     className="break-words whitespace-normal"
                   >
                     <Check className={cn("mr-2 h-4 w-4 shrink-0", value === client.name ? "opacity-100" : "opacity-0")} />
+                    <ClientAvatar id={client.id} name={client.name} size={24} className="mr-2" />
                     <div className="flex flex-col">
                       <span className="break-words">{client.name}</span>
                       {(client.email || client.phone) && (
