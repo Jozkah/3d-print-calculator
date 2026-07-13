@@ -835,7 +835,11 @@ function QuoteHistory({
       </div>
 
       {filteredQuotes.map((quote) => {
-        const totalParts = (quote.printed_parts || []).length
+        // Laser/sticker quotes keep their line items in laser_items, not
+        // printed_parts/materials, so the generic 3D-print counts below would
+        // always read zero for them — count laser_items as "items" instead.
+        const isLaser = isLaserQuote(quote)
+        const totalParts = isLaser ? (quote.laser_items || []).length : (quote.printed_parts || []).length
         const totalMaterials = (quote.materials || []).length || (quote.materials_cost > 0 ? 1 : 0)
         const totalLabor = (quote.labor_items || []).length
         const totalPackaging = (quote.packaging_items || []).length
@@ -942,9 +946,19 @@ function QuoteHistory({
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground break-words mt-1">
-                    {totalParts} part{totalParts !== 1 ? "s" : ""} | {totalMaterials} material
-                    {totalMaterials !== 1 ? "s" : ""} | {totalLabor} labor item{totalLabor !== 1 ? "s" : ""} |{" "}
-                    {totalPackaging} packaging item{totalPackaging !== 1 ? "s" : ""}
+                    {isLaser ? (
+                      <>
+                        {totalParts} item{totalParts !== 1 ? "s" : ""} | {totalLabor} labor item
+                        {totalLabor !== 1 ? "s" : ""} | {totalPackaging} packaging item
+                        {totalPackaging !== 1 ? "s" : ""}
+                      </>
+                    ) : (
+                      <>
+                        {totalParts} part{totalParts !== 1 ? "s" : ""} | {totalMaterials} material
+                        {totalMaterials !== 1 ? "s" : ""} | {totalLabor} labor item{totalLabor !== 1 ? "s" : ""} |{" "}
+                        {totalPackaging} packaging item{totalPackaging !== 1 ? "s" : ""}
+                      </>
+                    )}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Created: {new Date(quote.created_at).toLocaleString()}
