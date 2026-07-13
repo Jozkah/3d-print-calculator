@@ -21,6 +21,7 @@ import {
   TooltipTrigger,
   TooltipProvider, // Import TooltipProvider
 } from "@/components/ui/tooltip"
+import { PrinterPicker } from "@/components/visual/printer-picker"
 
 import type { Printer, Filament, Client, GlobalSettings } from "@/types/db"
 
@@ -1408,26 +1409,14 @@ export function ExcelCalculator({
                                   : 0
                               }
                               const selectEl = (
-                                <Select
+                                <PrinterPicker
+                                  printers={printers}
                                   value={part.printer_id === "" ? undefined : part.printer_id}
-                                  onValueChange={(value) => {
+                                  onSelect={(value) => {
                                     // Immutable update via helper instead of mutating state in place.
                                     updatePartField(index, "printer_id", value)
                                   }}
-                                >
-                                  <SelectTrigger className="bg-card">
-                                    <SelectValue placeholder="Select printer" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[...printers]
-                                      .sort((a, b) => a.name.localeCompare(b.name))
-                                      .map((printer) => (
-                                        <SelectItem key={printer.id} value={printer.id}>
-                                          {printer.name}
-                                        </SelectItem>
-                                      ))}
-                                  </SelectContent>
-                                </Select>
+                                />
                               )
                               if (!selPrinter) return selectEl
                               return (
