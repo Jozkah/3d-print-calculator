@@ -22,6 +22,8 @@ export type Printer = {
   // of name matching). Absent on legacy rows, which auto-match by name.
   image_key?: string | null
   material_type?: string
+  // "3d-printer" (default for legacy rows) | "laser" | "sticker-printer".
+  machine_type?: string
   [key: string]: any
 }
 
@@ -39,6 +41,22 @@ export type Filament = {
   grams_in_stock?: number | null
   // Amber low-stock badge threshold in grams (default 1000).
   low_stock_threshold_g?: number
+  [key: string]: any
+}
+
+export type LaserMaterial = {
+  id: string
+  name: string
+  color?: string | null
+  // How this material is bought/charged: per sheet, per cm², per cm, per piece.
+  pricing_unit: "sheet" | "area" | "length" | "piece"
+  price: number
+  sheet_width_cm?: number | null
+  sheet_height_cm?: number | null
+  stock_qty?: number | null
+  notes?: string | null
+  created_at: string
+  updated_at?: string
   [key: string]: any
 }
 
@@ -79,6 +97,12 @@ export type GlobalSettings = {
   company_tax_id?: string
   // Logo as a data-URI string (uploaded via file input, capped ~200KB).
   company_logo?: string
+  // Laser & Stickers pricing levers. Absent on legacy rows; read sites fall
+  // back to LASER_DEFAULTS from lib/laser-pricing.
+  laser_min_job_price?: number
+  sticker_min_job_price?: number
+  default_setup_fee?: number
+  qty_discount_tiers?: { min_qty: number; discount_pct: number }[]
   created_at?: string
   updated_at?: string
   [key: string]: any
@@ -172,7 +196,7 @@ export type UnknownRow = Record<string, any>
 export interface Tables {
   printers: Printer
   filaments: Filament
-  laser_materials: UnknownRow
+  laser_materials: LaserMaterial
   clients: Client
   quotes: Quote
   global_settings: GlobalSettings

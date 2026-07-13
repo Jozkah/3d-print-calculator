@@ -12,6 +12,8 @@
 // across machines.
 
 import type { Tables } from "@/types/db"
+import { migrateLegacyLaserMaterials } from "@/lib/laser-materials-migration"
+import { LASER_DEFAULTS } from "@/lib/laser-pricing"
 
 type Row = Record<string, any>
 
@@ -51,6 +53,7 @@ const SEED: Record<string, () => Row[]> = {
       vat_rate: 0.23,
       currency_symbol: "€",
       validity_days: 30,
+      ...LASER_DEFAULTS,
       company_name: "",
       company_address: "",
       company_email: "",
@@ -61,6 +64,7 @@ const SEED: Record<string, () => Row[]> = {
       updated_at: new Date().toISOString(),
     },
   ],
+  laser_materials: () => migrateLegacyLaserMaterials(load("filaments") as any[], []),
 }
 
 function uuid(): string {
