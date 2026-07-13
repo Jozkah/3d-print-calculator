@@ -1601,11 +1601,13 @@ export function ExcelCalculator({
                                             <FilamentSpool colorHex={filament.color_hex} size={20} className="mr-2 size-5" />
                                             <span className="min-w-0 flex-1">
                                               <span className="block truncate">{filament.name}</span>
-                                              <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                                              <span className="flex items-center gap-1 min-w-0 text-xs text-muted-foreground">
                                                 <BrandBadge brand={filament.brand} size={14} className="mr-1" />
-                                                {[filament.brand, filament.material_type === "material" ? "material" : filament.type]
-                                                  .filter(Boolean)
-                                                  .join(" · ")}
+                                                <span className="truncate">
+                                                  {[filament.brand, filament.material_type === "material" ? "material" : filament.type]
+                                                    .filter(Boolean)
+                                                    .join(" · ")}
+                                                </span>
                                               </span>
                                             </span>
                                             {typeof filament.grams_in_stock === "number" &&
