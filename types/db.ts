@@ -56,6 +56,12 @@ export type GlobalSettings = {
   material_efficiency_factor?: number
   cost_buffer_factor?: number
   double_heating_cost?: boolean
+  // VAT rate stored as a fraction (0.23 = 23%). Rows written before this
+  // field existed fall back to 0.23 at every read site.
+  vat_rate?: number
+  currency_symbol?: string
+  // How many days a new quote stays valid (drives quotes.valid_until).
+  validity_days?: number
   created_at?: string
   updated_at?: string
   [key: string]: any
@@ -103,6 +109,12 @@ export type Quote = {
   // when the quote used margin mode.
   final_price?: number | null
   vat_enabled?: boolean
+  // VAT fraction the quote was priced with (0.23 = 23%). Absent on legacy
+  // rows, which re-render with the historical 0.23.
+  vat_rate?: number
+  // ISO timestamp after which the quote is no longer valid. Absent on legacy
+  // rows, which fall back to created_at + 30 days.
+  valid_until?: string
   [key: string]: any
 }
 

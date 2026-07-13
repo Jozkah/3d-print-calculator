@@ -104,6 +104,30 @@ function isPlainObject(v: unknown): v is Record<string, any> {
 }
 
 /**
+ * Read every app table from localStorage (`3dpc:<table>`) into a plain
+ * `{ table: rows }` object suitable for a JSON backup file. Internal
+ * bookkeeping keys (`3dpc:__*`, e.g. `3dpc:__seeded`) are skipped, as are
+ * keys whose value doesn't parse as JSON. The output round-trips through
+ * importSeedObject().
+ */
+export function exportAll(): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  if (typeof window === "undefined" || !window.localStorage) return out
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i)
+    if (!key || !key.startsWith(PREFIX)) continue
+    const table = key.slice(PREFIX.length)
+    if (table.startsWith("__")) continue // internal flags, not table data
+    try {
+      out[table] = JSON.parse(window.localStorage.getItem(key) ?? "null")
+    } catch {
+      // Not JSON — not one of our tables; skip rather than corrupt the backup.
+    }
+  }
+  return out
+}
+
+/**
  * Validate and import a parsed seed object into localStorage, replacing the
  * existing contents of each table present in the file. Returns a summary;
  * throws only if the input is not an object at all.
