@@ -92,6 +92,10 @@ export type GlobalSettings = {
   // back to their plain layout.
   company_name?: string
   company_address?: string
+  // Cached coordinates for company_address, geocoded once on settings save so
+  // the route dialog doesn't re-geocode the home address on every quote.
+  company_lat?: number | null
+  company_lon?: number | null
   company_email?: string
   company_phone?: string
   company_tax_id?: string
@@ -123,6 +127,13 @@ export type Quote = {
   labor_items: any[]
   packaging_items: any[]
   distance_traveled_km: number
+  // Route used to calculate distance_traveled_km via the route dialog.
+  // Absent on manually-entered quotes; distance_traveled_km stays the single
+  // source of truth for the fuel-cost math either way.
+  route_origin?: { address: string; lat: number; lon: number } | null
+  route_destination?: { address: string; lat: number; lon: number } | null
+  route_is_round_trip?: boolean
+  route_one_way_km?: number | null
   is_emergency: boolean
   total_printing_cost: number
   machine_cost: number
