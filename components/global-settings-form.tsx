@@ -21,6 +21,9 @@ type GlobalSettings = {
   cost_buffer_factor: number
   emergency_fee_fixed: number
   double_heating_cost: boolean
+  vat_rate?: number
+  currency_symbol?: string
+  validity_days?: number
 }
 
 export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | null }) {
@@ -32,6 +35,13 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
   const [bufferFactor, setBufferFactor] = useState(settings?.cost_buffer_factor?.toString() || "1.3")
   const [emergencyFee, setEmergencyFee] = useState(settings?.emergency_fee_fixed?.toString() || "10.00")
   const [doubleHeatingCost, setDoubleHeatingCost] = useState(settings?.double_heating_cost ?? true)
+  // Shown to the user as a percent (23), stored as a fraction (0.23). Round
+  // the fraction->percent conversion to dodge float artifacts (0.23*100).
+  const [vatPercent, setVatPercent] = useState(
+    (Math.round((settings?.vat_rate ?? 0.23) * 10000) / 100).toString(),
+  )
+  const [currencySymbol, setCurrencySymbol] = useState(settings?.currency_symbol || "€")
+  const [validityDays, setValidityDays] = useState(settings?.validity_days?.toString() || "30")
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
@@ -48,6 +58,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
       { label: "Material Efficiency Factor", value: efficiencyFactor },
       { label: "Cost Buffer Factor", value: bufferFactor },
       { label: "Emergency Fee", value: emergencyFee },
+      { label: "Quote Validity", value: validityDays },
     ]
     const invalid = numericFields.filter(({ value }) => {
       const n = Number.parseFloat(value)
@@ -59,6 +70,16 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
         description: `${invalid.map((f) => f.label).join(", ")} must be ${
           invalid.length > 1 ? "non-negative numbers" : "a non-negative number"
         }.`,
+        variant: "destructive",
+      })
+      return
+    }
+
+    const vatPercentValue = Number.parseFloat(vatPercent)
+    if (!Number.isFinite(vatPercentValue) || vatPercentValue < 0 || vatPercentValue > 100) {
+      toast({
+        title: "Invalid settings",
+        description: "VAT Rate must be a number between 0 and 100.",
         variant: "destructive",
       })
       return
@@ -78,6 +99,10 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
         cost_buffer_factor: Number.parseFloat(bufferFactor),
         emergency_fee_fixed: Number.parseFloat(emergencyFee),
         double_heating_cost: doubleHeatingCost,
+        // Stored as a fraction; the UI edits a percent.
+        vat_rate: vatPercentValue / 100,
+        currency_symbol: currencySymbol.trim() || "€",
+        validity_days: Number.parseFloat(validityDays),
         updated_at: new Date().toISOString(),
       })
       .eq("id", settings?.id)
@@ -244,6 +269,63 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
                 cost = Drying Hours × Total Dryer Cost Per Hour
               </p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quotes & Billing */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Quotes &amp; Billing</CardTitle>
+          <CardDescription>VAT, currency and quote validity</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="vatRate">
+              VAT Rate (%)
+            </Label>
+            <Input
+              id="vatRate"
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              value={vatPercent}
+              onChange={(e) => setVatPercent(e.target.value)}
+              className="bg-card"
+            />
+            <p className="text-xs text-muted-foreground mt-1.5">Applied to business quotes with VAT enabled (default: 23%)</p>
+          </div>
+
+          <div>
+            <Label htmlFor="currencySymbol">
+              Currency Symbol
+            </Label>
+            <Input
+              id="currencySymbol"
+              type="text"
+              maxLength={4}
+              value={currencySymbol}
+              onChange={(e) => setCurrencySymbol(e.target.value)}
+              className="bg-card w-24"
+            />
+            <p className="text-xs text-muted-foreground mt-1.5">Shown on quote documents (default: €)</p>
+          </div>
+
+          <div>
+            <Label htmlFor="validityDays">
+              Quote Validity (days)
+            </Label>
+            <Input
+              id="validityDays"
+              type="number"
+              min="0"
+              step="1"
+              value={validityDays}
+              onChange={(e) => setValidityDays(e.target.value)}
+              className="bg-card"
+            />
+            <p className="text-xs text-muted-foreground mt-1.5">How long new quotes stay valid from the day they are saved (default: 30)</p>
           </div>
         </CardContent>
       </Card>

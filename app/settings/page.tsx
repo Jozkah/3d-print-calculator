@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Printer, Palette, Settings2, Users, ArrowRight } from "lucide-react"
 import { SiteHeader, PageHeader } from "@/components/site-header"
-import { DataImportCard } from "@/components/seed-importer"
+import { DataExportCard, DataImportCard } from "@/components/seed-importer"
 
 const SECTIONS = [
   {
@@ -58,6 +58,7 @@ export default function SettingsPage() {
               <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{description}</p>
             </Link>
           ))}
+          <DataExportCard />
           <DataImportCard />
         </div>
       </main>
