@@ -40,7 +40,7 @@ function BusinessPageInner() {
       const { data: globalSettingsData, error: settingsError } = await supabase.from("global_settings").select("*").limit(1).maybeSingle()
       const { data: clientsData, error: clientsError } = await supabase.from("clients").select("*").order("name")
       const { data: templatesData } = await supabase.from("quote_templates").select("*").order("name")
-      const { data: laserMaterialsData } = await supabase.from("laser_materials").select("*").order("created_at", { ascending: true })
+      const { data: laserMaterialsData, error: laserMaterialsError } = await supabase.from("laser_materials").select("*").order("created_at", { ascending: true })
       setLaserMaterials(laserMaterialsData || [])
       let quoteError: { message?: string } | null = null
       if (editingQuoteId) {
@@ -50,7 +50,7 @@ function BusinessPageInner() {
       } else {
         setEditingQuote(null)
       }
-      const firstError = printersError || filamentsError || settingsError || clientsError || quoteError
+      const firstError = printersError || filamentsError || settingsError || clientsError || laserMaterialsError || quoteError
       setLoadError(firstError ? firstError.message || "Could not read saved data." : null)
       setPrinters(printersData || [])
       setFilaments(filamentsData || [])

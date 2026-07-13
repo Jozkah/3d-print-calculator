@@ -839,7 +839,12 @@ function QuoteHistory({
         // printed_parts/materials, so the generic 3D-print counts below would
         // always read zero for them — count laser_items as "items" instead.
         const isLaser = isLaserQuote(quote)
-        const totalParts = isLaser ? (quote.laser_items || []).length : (quote.printed_parts || []).length
+        // Legacy laser quotes ("laser-engraving"/"laser-cutting"/"stickers") were saved
+        // before laser_items existed, so their line items still live in printed_parts —
+        // fall back to that count instead of showing 0.
+        const totalParts = isLaser
+          ? quote.laser_items?.length || quote.printed_parts?.length || 0
+          : (quote.printed_parts || []).length
         const totalMaterials = (quote.materials || []).length || (quote.materials_cost > 0 ? 1 : 0)
         const totalLabor = (quote.labor_items || []).length
         const totalPackaging = (quote.packaging_items || []).length
@@ -1025,16 +1030,18 @@ function QuoteHistory({
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSaveAsTemplate(quote)}
-                      className="h-9 w-9 p-0"
-                      title="Save as Template"
-                      aria-label="Save quote as template"
-                    >
-                      <LayoutTemplate className="h-4 w-4" />
-                    </Button>
+                    {!isLaserQuote(quote) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSaveAsTemplate(quote)}
+                        className="h-9 w-9 p-0"
+                        title="Save as Template"
+                        aria-label="Save quote as template"
+                      >
+                        <LayoutTemplate className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -1113,10 +1120,12 @@ function QuoteHistory({
                           <Copy className="h-4 w-4 mr-2" />
                           Duplicate
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleSaveAsTemplate(quote)}>
-                          <LayoutTemplate className="h-4 w-4 mr-2" />
-                          Save as template
-                        </DropdownMenuItem>
+                        {!isLaserQuote(quote) && (
+                          <DropdownMenuItem onClick={() => handleSaveAsTemplate(quote)}>
+                            <LayoutTemplate className="h-4 w-4 mr-2" />
+                            Save as template
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => convertQuoteType(quote.id, quote.quote_type)}>
                           <RefreshCw className="h-4 w-4 mr-2" />
                           Convert to {quote.quote_type === "personal" ? "business" : "personal"}

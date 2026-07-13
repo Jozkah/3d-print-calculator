@@ -229,7 +229,8 @@ export function LaserCalculator({
         setMarginInputMode("targetPrice")
         setTargetPrice(Number(data.final_price) || 0)
       } else {
-        setSelectedMargin(Number(data.selected_margin_percentage) || 50)
+        const savedMargin = Number(data.selected_margin_percentage)
+        setSelectedMargin(Number.isFinite(savedMargin) ? savedMargin : 50)
       }
     }
     loadQuote()
