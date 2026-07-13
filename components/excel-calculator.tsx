@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, ChevronsUpDown, Check, X, Copy } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast" // Assuming toast is available
+import { useToast } from "@/hooks/use-toast" // Must match the copy <Toaster /> subscribes to
 import { DialogCustom } from "@/components/ui/dialog-custom" // Import DialogCustom
 import { cn } from "@/lib/utils" // Assuming cn utility is available
 import {
