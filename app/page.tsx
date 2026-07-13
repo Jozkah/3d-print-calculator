@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react"
 import { SiteHeader } from "@/components/site-header"
+import { HomeHeroPrinter } from "@/components/visual/home-hero-printer"
 
 const TOOLS = [
   {
@@ -76,52 +77,50 @@ export default function HomePage() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="relative overflow-hidden border-b border-border/70 bg-card">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -top-40 left-1/2 h-[30rem] w-[52rem] max-w-none -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"
-          />
-          <div className="relative mx-auto max-w-7xl px-4 pb-16 pt-14 sm:px-6 sm:pb-20 sm:pt-20 lg:px-8">
-            <div className="mx-auto max-w-3xl text-center">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/8 px-3 py-1 text-xs font-medium text-primary">
-                <Sparkles className="size-3.5" />
-                3D printing · laser cutting · engraving
-              </span>
-              <h1 className="mt-5 text-4xl font-bold tracking-tight text-foreground sm:text-5xl text-balance">
-                Know exactly what every print costs —{" "}
-                <span className="bg-gradient-to-r from-primary to-sky-500 bg-clip-text text-transparent">
-                  and what to charge
-                </span>
-              </h1>
-              <p className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg text-pretty">
-                A maker-friendly cost and quote calculator for 3D printing and laser work. Capture every euro of
-                cost, pick your margin, and send quotes your clients can trust.
-              </p>
-              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Link
-                  href="/business"
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 sm:w-auto"
-                >
-                  Create a business quote
-                  <ArrowRight className="size-4" />
-                </Link>
-                <Link
-                  href="/personal"
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-6 text-sm font-semibold text-foreground shadow-xs transition-colors hover:border-primary/40 hover:bg-accent sm:w-auto"
-                >
-                  <Calculator className="size-4 text-primary" />
-                  Personal estimate
-                </Link>
+        <section className="relative border-b border-border/70 bg-background pt-8">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="relative overflow-hidden rounded-3xl bg-panel text-panel-foreground">
+              <div className="grid items-center gap-8 p-8 sm:p-12 lg:grid-cols-[3fr_2fr]">
+                <div className="text-center lg:text-left">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-xs font-medium text-primary">
+                    <Sparkles className="size-3.5" />
+                    3D printing · laser cutting · engraving
+                  </span>
+                  <h1 className="mt-5 text-4xl font-bold tracking-tight sm:text-5xl text-balance">
+                    Know exactly what every print costs —{" "}
+                    <span className="text-primary">and what to charge</span>
+                  </h1>
+                  <p className="mx-auto mt-5 max-w-2xl text-base text-panel-foreground/70 sm:text-lg text-pretty lg:mx-0">
+                    A maker-friendly cost and quote calculator for 3D printing and laser work. Capture every euro of
+                    cost, pick your margin, and send quotes your clients can trust.
+                  </p>
+                  <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
+                    <Link
+                      href="/business"
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/25 transition-all hover:bg-primary/90 sm:w-auto"
+                    >
+                      Create a business quote
+                      <ArrowRight className="size-4" />
+                    </Link>
+                    <Link
+                      href="/personal"
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-panel-foreground/25 bg-transparent px-6 text-sm font-semibold text-panel-foreground transition-colors hover:bg-panel-foreground/10 sm:w-auto"
+                    >
+                      <Calculator className="size-4 text-primary" />
+                      Personal estimate
+                    </Link>
+                  </div>
+                </div>
+                <div className="hidden lg:block">
+                  <HomeHeroPrinter />
+                </div>
               </div>
             </div>
 
-            {/* Highlights */}
-            <div className="mx-auto mt-14 grid max-w-5xl gap-4 sm:grid-cols-3 sm:gap-6">
+            {/* Highlights (unchanged content, now below the panel) */}
+            <div className="mx-auto mt-8 grid max-w-5xl gap-4 pb-14 sm:grid-cols-3 sm:gap-6">
               {HIGHLIGHTS.map(({ icon: Icon, title, description }) => (
-                <div
-                  key={title}
-                  className="rounded-2xl border border-border/80 bg-background/60 p-5 text-left"
-                >
+                <div key={title} className="rounded-2xl border border-border/80 bg-card p-5 text-left">
                   <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <Icon className="size-4.5" />
                   </span>
