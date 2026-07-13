@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import dynamic from "next/dynamic"
 import { createClient } from "@/lib/supabase/client"
 import { OWNER_A_KEY, OWNER_B_KEY, PROFIT_SPLIT_RATIO, EMERGENCY_SPLIT_RATIO } from "@/lib/business-config"
 import { Button } from "@/components/ui/button"
@@ -9,8 +10,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, Trash2, ChevronsUpDown, Check, X, Copy, Upload } from "lucide-react"
+import { Plus, Trash2, ChevronsUpDown, Check, X, Copy, Upload, MapPin } from "lucide-react"
 import { parseGcode } from "@/lib/gcode"
+import type { GeoPoint } from "@/lib/geo"
+import type { RouteSelection } from "@/components/route-distance-dialog"
+
+// Leaflet touches `window` at import time — load the dialog only in the
+// browser, and only when a quote actually needs a route.
+const RouteDistanceDialog = dynamic(() => import("@/components/route-distance-dialog"), { ssr: false })
 import { useToast } from "@/hooks/use-toast" // Must match the copy <Toaster /> subscribes to
 import { DialogCustom } from "@/components/ui/dialog-custom" // Import DialogCustom
 import { cn } from "@/lib/utils" // Assuming cn utility is available
@@ -132,6 +139,15 @@ export function ExcelCalculator({
   const [printers, setPrinters] = useState<Printer[]>(initialPrinters)
   const [filaments, setFilaments] = useState<Filament[]>(initialFilaments)
   const [distanceTraveledKm, setDistanceTraveledKm] = useState(0)
+
+  // Route metadata backing the km field when it was filled via the route
+  // dialog. Manual km entry leaves these untouched; they exist so a reopened
+  // quote can show and redo its route.
+  const [routeDialogOpen, setRouteDialogOpen] = useState(false)
+  const [routeOrigin, setRouteOrigin] = useState<GeoPoint | null>(null)
+  const [routeDestination, setRouteDestination] = useState<GeoPoint | null>(null)
+  const [routeIsRoundTrip, setRouteIsRoundTrip] = useState(true)
+  const [routeOneWayKm, setRouteOneWayKm] = useState<number | null>(null)
 
   // ADDED STATE FOR MARGIN SELECTION
   const [selectedMargin, setSelectedMargin] = useState<number>(propSelectedMargin || 50)
@@ -282,6 +298,10 @@ export function ExcelCalculator({
         setClientId(quote.client_id ?? null)
         setIsEmergency(quote.is_emergency || false)
         setDistanceTraveledKm(quote.distance_traveled_km || 0)
+        setRouteOrigin(quote.route_origin ?? null)
+        setRouteDestination(quote.route_destination ?? null)
+        setRouteIsRoundTrip(quote.route_is_round_trip ?? true)
+        setRouteOneWayKm(quote.route_one_way_km ?? null)
         // Clamp to 99 so a stored/legacy margin of >=100 can never make the
         // (1 - margin/100) price denominator 0 (which yields Infinity/NaN).
         setSelectedMargin(Math.min(99, Number(quote.selected_margin_percentage || quote.selected_margin || 50)))
@@ -835,6 +855,10 @@ export function ExcelCalculator({
         labor_items: labor,
         packaging_items: packaging,
         distance_traveled_km: distanceTraveledKm,
+        route_origin: routeOrigin,
+        route_destination: routeDestination,
+        route_is_round_trip: routeIsRoundTrip,
+        route_one_way_km: routeOneWayKm,
         is_emergency: isEmergency,
         total_printing_cost: totalPrintingCost,
         machine_cost: machineCost, // This is the total machine cost, not per owner
@@ -966,6 +990,10 @@ export function ExcelCalculator({
         labor_items: labor,
         packaging_items: packaging,
         distance_traveled_km: distanceTraveledKm,
+        route_origin: routeOrigin,
+        route_destination: routeDestination,
+        route_is_round_trip: routeIsRoundTrip,
+        route_one_way_km: routeOneWayKm,
         is_emergency: isEmergency,
         total_printing_cost: totalPrintingCost,
         machine_cost: machineCost, // Total machine cost
@@ -1299,18 +1327,54 @@ export function ExcelCalculator({
                 <Label htmlFor="distance">
                   Distance Traveled (km)
                 </Label>
-                <Input
-                  id="distance"
-                  type="number"
-                  min="0" // Added min="0"
-                  inputMode="numeric"
-                  step="0.1"
-                  value={distanceTraveledKm || ""}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    setDistanceTraveledKm(value === "" ? 0 : Number.parseFloat(value) || 0)
+                <div className="flex gap-2">
+                  <Input
+                    id="distance"
+                    type="number"
+                    min="0" // Added min="0"
+                    inputMode="numeric"
+                    step="0.1"
+                    value={distanceTraveledKm || ""}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setDistanceTraveledKm(value === "" ? 0 : Number.parseFloat(value) || 0)
+                    }}
+                    className="bg-card"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    title="Calculate from route"
+                    onClick={() => setRouteDialogOpen(true)}
+                  >
+                    <MapPin className="h-4 w-4" />
+                  </Button>
+                </div>
+                <RouteDistanceDialog
+                  open={routeDialogOpen}
+                  onOpenChange={setRouteDialogOpen}
+                  initialOrigin={
+                    routeOrigin ??
+                    (globalSettings?.company_lat != null && globalSettings?.company_lon != null
+                      ? {
+                          address: globalSettings.company_address || "",
+                          lat: globalSettings.company_lat,
+                          lon: globalSettings.company_lon,
+                        }
+                      : null)
+                  }
+                  initialOriginAddress={globalSettings?.company_address || ""}
+                  initialDestination={routeDestination}
+                  initialIsRoundTrip={routeIsRoundTrip}
+                  onConfirm={(selection: RouteSelection) => {
+                    setRouteOrigin(selection.origin)
+                    setRouteDestination(selection.destination)
+                    setRouteIsRoundTrip(selection.isRoundTrip)
+                    setRouteOneWayKm(selection.oneWayKm)
+                    setDistanceTraveledKm(selection.totalKm)
                   }}
-                  className="bg-card"
                 />
               </div>
             </div>
