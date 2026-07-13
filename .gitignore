@@ -32,3 +32,5 @@ seed-data.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.superpowers/
+.playwright-mcp/
