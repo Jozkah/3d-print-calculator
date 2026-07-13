@@ -1484,7 +1484,17 @@ export function ExcelCalculator({
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent className="w-[300px] p-0" align="start">
-                                <Command>
+                                <Command
+                                  filter={(value, search) => {
+                                    // cmdk's default is fuzzy subsequence matching, so
+                                    // "asa" leaks into "PLA Basic ..." items. Require every
+                                    // whitespace-separated search token to appear as a
+                                    // substring of the item value (which contains the name).
+                                    const haystack = value.toLowerCase()
+                                    const tokens = search.toLowerCase().split(/\s+/).filter(Boolean)
+                                    return tokens.every((t) => haystack.includes(t)) ? 1 : 0
+                                  }}
+                                >
                                   <CommandInput
                                     placeholder={`Search ${calculatorType === "3d-print" ? "filaments" : "materials"}...`}
                                     className="h-9"
