@@ -28,7 +28,7 @@ function PersonalPageInner() {
   const [globalSettings, setGlobalSettings] = useState<any>(null)
   const [clients, setClients] = useState<any[]>([])
   const [templates, setTemplates] = useState<any[]>([])
-  const [editingQuote, setEditingQuote] = useState<any>(null)
+  const [editingQuote, setEditingQuote] = useState<any | null | undefined>(undefined)
   const [loaded, setLoaded] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -42,13 +42,15 @@ function PersonalPageInner() {
       const { data: templatesData } = await supabase.from("quote_templates").select("*").order("name")
       const { data: laserMaterialsData } = await supabase.from("laser_materials").select("*").order("created_at", { ascending: true })
       setLaserMaterials(laserMaterialsData || [])
+      let quoteError: { message?: string } | null = null
       if (editingQuoteId) {
-        const { data: quoteRow } = await supabase.from("quotes").select("*").eq("id", editingQuoteId).maybeSingle()
+        const { data: quoteRow, error } = await supabase.from("quotes").select("*").eq("id", editingQuoteId).maybeSingle()
         setEditingQuote(quoteRow ?? null)
+        quoteError = error
       } else {
         setEditingQuote(null)
       }
-      const firstError = printersError || filamentsError || settingsError || clientsError
+      const firstError = printersError || filamentsError || settingsError || clientsError || quoteError
       setLoadError(firstError ? firstError.message || "Could not read saved data." : null)
       setPrinters(printersData || [])
       setFilaments(filamentsData || [])
@@ -63,7 +65,7 @@ function PersonalPageInner() {
 
   const editingMode = editingQuote?.quote_type_mode as string | undefined
   const calcType: "3d-print" | "laser" | "legacy-laser" =
-    editingQuoteId && editingQuote
+    editingQuoteId && editingQuote != null
       ? editingMode === "laser"
         ? "laser"
         : LEGACY_LASER_MODES.includes(editingMode ?? "")
@@ -76,7 +78,8 @@ function PersonalPageInner() {
   const printers3d = printers.filter((p) => !p.machine_type || p.machine_type === "3d-printer")
   const laserMachines = printers.filter((p) => p.machine_type === "laser" || p.machine_type === "sticker-printer")
 
-  const isLoading = !loaded || Boolean(editingQuoteId && !editingQuote)
+  const isLoading = !loaded || Boolean(editingQuoteId && editingQuote === undefined)
+  const quoteNotFound = Boolean(editingQuoteId) && editingQuote === null
 
   return (
     <div className="min-h-screen bg-background">
@@ -89,7 +92,10 @@ function PersonalPageInner() {
 
       {isLoading && <PageLoading />}
       {!isLoading && loadError && <PageLoadError message={loadError} />}
-      {!isLoading && !loadError && (
+      {!isLoading && !loadError && quoteNotFound && (
+        <PageLoadError message="This quote no longer exists — it may have been deleted." />
+      )}
+      {!isLoading && !loadError && !quoteNotFound && (
         <>
           {!editingQuoteId && (
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6">
