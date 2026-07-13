@@ -5,6 +5,7 @@
 // render the neutral gray spool).
 
 const NAME_TO_HEX: Record<string, string> = {
+  "rose gold": "#b76e79",
   "light gray": "#c9ccd1",
   "light grey": "#c9ccd1",
   "dark gray": "#4b4f55",
@@ -57,7 +58,11 @@ const NAME_TO_HEX: Record<string, string> = {
 }
 
 // Longest keys first so multi-word colors win over their last word.
-const ORDERED = Object.entries(NAME_TO_HEX).sort((a, b) => b[0].length - a[0].length)
+// Each entry carries a precomputed word-boundary regex so color words only
+// match as whole words ("tan" must not match inside "Titanium").
+const ORDERED: Array<[string, string, RegExp]> = Object.entries(NAME_TO_HEX)
+  .sort((a, b) => b[0].length - a[0].length)
+  .map(([word, hex]) => [word, hex, new RegExp("\\b" + word.replace(/ /g, "\\s+") + "\\b", "i")])
 
 /**
  * Display color for a filament row. Checks color_hex, then the color-name
@@ -71,9 +76,8 @@ export function resolveFilamentColor(f: {
   if (f.color_hex && /^#[0-9a-fA-F]{6}$/.test(f.color_hex)) return f.color_hex
   for (const source of [f.color, f.name]) {
     if (!source) continue
-    const s = source.toLowerCase()
-    for (const [word, hex] of ORDERED) {
-      if (s.includes(word)) return hex
+    for (const [, hex, re] of ORDERED) {
+      if (re.test(source)) return hex
     }
   }
   return null
