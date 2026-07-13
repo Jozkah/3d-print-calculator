@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ClientAvatar } from "@/components/visual/client-avatar"
+import { FilamentSpool } from "@/components/visual/filament-spool"
 import {
   Trash2,
   ChevronDown,
@@ -833,6 +835,27 @@ function QuoteHistory({
         const statusConfig = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending
         const StatusIcon = statusConfig.icon
 
+        // Resolved client name, same lookup the search filter uses (line ~500).
+        const clientName = quote.client_id
+          ? quote.client_name || clients.find((c) => c.id === quote.client_id)?.name || "Unknown client"
+          : null
+
+        // Up to 4 distinct filament colors used across this quote's parts,
+        // supporting both the legacy single-filament shape and the newer
+        // multi-filament shape (mirrors gramsPerFilament's part-shape handling).
+        const usedFilamentIds = new Set<string>()
+        for (const part of quote.printed_parts || []) {
+          if (Array.isArray(part?.filaments)) {
+            part.filaments.forEach((entry: any) => entry?.filament_id && usedFilamentIds.add(entry.filament_id))
+          } else if (part?.filament_id) {
+            usedFilamentIds.add(part.filament_id)
+          }
+        }
+        const usedFilaments = [...usedFilamentIds]
+          .map((id) => filaments.find((f) => f.id === id))
+          .filter(Boolean)
+          .slice(0, 4)
+
         return (
           <Card key={quote.id} className="overflow-hidden shadow-sm transition-shadow hover:shadow-md">
             <CardHeader className={expandedId === quote.id ? "border-b border-border" : ""}>
@@ -886,7 +909,23 @@ function QuoteHistory({
                         })}
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    {usedFilaments.length > 0 && (
+                      <span
+                        className="ml-1 inline-flex items-center gap-0.5"
+                        title={usedFilaments.map((f: any) => f.name).join(", ")}
+                      >
+                        {usedFilaments.map((f: any) => (
+                          <FilamentSpool key={f.id} colorHex={f.color_hex} size={14} />
+                        ))}
+                      </span>
+                    )}
                   </CardTitle>
+                  {quote.client_id && (
+                    <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                      <ClientAvatar id={quote.client_id} name={clientName || "?"} size={24} className="mr-1.5" />
+                      {clientName}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground break-words mt-1">
                     {totalParts} part{totalParts !== 1 ? "s" : ""} | {totalMaterials} material
                     {totalMaterials !== 1 ? "s" : ""} | {totalLabor} labor item{totalLabor !== 1 ? "s" : ""} |{" "}
