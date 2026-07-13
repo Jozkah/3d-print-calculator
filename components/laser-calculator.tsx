@@ -193,7 +193,15 @@ export function LaserCalculator({
     if (!editingQuoteId) return
     const loadQuote = async () => {
       const { data, error } = await supabase.from("quotes").select("*").eq("id", editingQuoteId).single()
-      if (error || !data || data.quote_type_mode !== "laser") return
+      if (error || !data) {
+        toast({
+          variant: "destructive",
+          title: "Could not load quote",
+          description: error?.message,
+        })
+        return
+      }
+      if (data.quote_type_mode !== "laser") return
       setIsEditingQuote(true)
       setCurrentQuoteId(data.id)
       setClientName(data.quote_name || "")
@@ -225,7 +233,7 @@ export function LaserCalculator({
       }
     }
     loadQuote()
-  }, [editingQuoteId, supabase])
+  }, [editingQuoteId, supabase, toast])
 
   // ---- Item helpers --------------------------------------------------------
   const patchItem = (index: number, patch: Partial<LaserItem>) =>
@@ -420,7 +428,9 @@ export function LaserCalculator({
               {items.map((item, index) => {
                 const material = materialsById.get(item.material_id)
                 const line = breakdown.items.find((b) => b.id === item.id)
-                const rowIncomplete = !item.material_id || !item.machine_id
+                const rowIncomplete =
+                  !item.material_id || !item.machine_id ||
+                  !materialsById.has(item.material_id) || !machinesById.has(item.machine_id)
                 return (
                   <tr key={item.id} className="border-b border-border/60 transition-colors hover:bg-muted/30 align-top">
                     <td className="p-2 min-w-[130px]">
