@@ -105,7 +105,7 @@ function LaserItemsSection({ quote, money }: { quote: any; money: (n: number) =>
           {Number(quote.setup_fee) > 0 && (
             <tr>
               <td className={td} colSpan={6}>Design / setup fee</td>
-              <td className={tdNumStrong}>{money(Number(quote.setup_fee) || 0)}</td>
+              <td className={tdNumStrong}>{money(Number(quote.setup_fee_sell ?? quote.setup_fee) || 0)}</td>
             </tr>
           )}
           {quote.min_price_applied && (
@@ -116,6 +116,9 @@ function LaserItemsSection({ quote, money }: { quote: any; money: (n: number) =>
           )}
         </tbody>
       </table>
+      <p className="mt-3 text-xs text-slate-400">
+        Item line totals include the job's allocated labor, packaging and delivery overhead — the sections below break those costs out for reference.
+      </p>
     </section>
   )
 }

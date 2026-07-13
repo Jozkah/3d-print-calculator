@@ -286,6 +286,7 @@ export function LaserCalculator({
       electricity_cost: 0,
       landed_cost: breakdown.baseCost,
       setup_fee: breakdown.setupFee,
+      setup_fee_sell: breakdown.setupFeeSell,
       discount_amount: breakdown.discountAmount,
       min_job_price: breakdown.minJobPrice,
       min_price_applied: breakdown.minPriceApplied,
