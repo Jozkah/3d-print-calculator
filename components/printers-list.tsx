@@ -12,6 +12,8 @@ import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DialogCustom } from "@/components/ui/dialog-custom"
 import { OWNER_A_KEY, OWNER_B_KEY, OWNER_OPTIONS } from "@/lib/business-config"
+import { PrinterVisual } from "@/components/visual/printer-visual"
+import { PRINTER_IMAGES, GENERIC_PRINTER_KEY } from "@/lib/printer-images"
 
 type Printer = {
   id: string
@@ -24,6 +26,7 @@ type Printer = {
   estimated_printer_uptime_percent: number
   average_power_consumption_watts: number
   has_enclosure: boolean
+  image_key?: string | null
 }
 
 export function PrintersList({ printers: initialPrinters }: { printers: Printer[] }) {
@@ -41,6 +44,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
     estimated_printer_uptime_percent: "0.50",
     average_power_consumption_watts: "150.00",
     has_enclosure: "false",
+    image_key: "auto",
   })
   const [editData, setEditData] = useState(newPrinter)
   const router = useRouter()
@@ -96,6 +100,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
       owner: newPrinter.owner,
       ...nums,
       has_enclosure: newPrinter.has_enclosure === "true",
+      image_key: newPrinter.image_key === "auto" ? null : newPrinter.image_key,
     })
 
     if (error) {
@@ -116,6 +121,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
       estimated_printer_uptime_percent: "0.50",
       average_power_consumption_watts: "150.00",
       has_enclosure: "false",
+      image_key: "auto",
     })
     setIsAdding(false)
   }
@@ -150,6 +156,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         owner: editData.owner,
         ...nums,
         has_enclosure: editData.has_enclosure === "true",
+        image_key: editData.image_key === "auto" ? null : editData.image_key,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -177,6 +184,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
       estimated_printer_uptime_percent: printer.estimated_printer_uptime_percent.toString(),
       average_power_consumption_watts: printer.average_power_consumption_watts.toString(),
       has_enclosure: (printer.has_enclosure ?? false).toString(),
+      image_key: printer.image_key || "auto",
     })
   }
 
@@ -206,6 +214,25 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="md:col-span-2">
+        <Label>Product image</Label>
+        <div className="mt-1.5 flex items-center gap-3">
+          <PrinterVisual name={data.name} imageKey={data.image_key === "auto" ? null : data.image_key} size="thumb" />
+          <Select value={data.image_key} onValueChange={(value) => onChange({ ...data, image_key: value })}>
+            <SelectTrigger className="bg-card">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Auto-detect from name</SelectItem>
+              <SelectItem value={GENERIC_PRINTER_KEY}>Generic (no image)</SelectItem>
+              {PRINTER_IMAGES.map((e) => (
+                <SelectItem key={e.key} value={e.key}>{e.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div>
@@ -326,9 +353,9 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         </Card>
       )}
 
-      <div className="grid gap-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {printers.map((printer) => (
-          <Card key={printer.id} className="shadow-sm transition-shadow hover:shadow-md">
+          <Card key={printer.id} className={`shadow-sm transition-shadow hover:shadow-md ${editingId === printer.id ? "sm:col-span-2 lg:col-span-3" : ""}`}>
             <CardContent className="p-6">
               {editingId === printer.id ? (
                 <div className="space-y-4">
@@ -349,78 +376,61 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
                   </div>
                 </div>
               ) : (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-semibold tracking-tight text-foreground">{printer.name}</h3>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${printer.owner === OWNER_A_KEY ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" : "bg-primary/10 text-primary"}`}
-                        >
-                          {printer.owner}
-                        </span>
-                        {printer.has_enclosure && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                            Enclosed
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-muted-foreground text-sm">
-                        Cost: €{printer.printer_cost.toFixed(2)} | Life: {printer.estimated_life_years}yrs | Power:{" "}
-                        {printer.average_power_consumption_watts}W
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => setExpandedId(expandedId === printer.id ? null : printer.id)}
-                        size="sm"
-                        variant="outline"
-                      >
-                        {expandedId === printer.id ? (
-                          <ChevronUp className="w-4 h-4" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4" />
-                        )}
-                      </Button>
-                      <Button onClick={() => startEdit(printer)} size="sm" variant="outline">
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        onClick={() => handleDelete(printer.id)}
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
+                <div className="flex flex-col items-center text-center">
+                  <PrinterVisual name={printer.name} imageKey={printer.image_key} size="card" className="mb-4 w-full" />
+                  <div className="mb-1 flex items-center justify-center gap-2">
+                    <h3 className="text-lg font-semibold tracking-tight text-foreground">{printer.name}</h3>
                   </div>
-
+                  <div className="mb-3 flex flex-wrap items-center justify-center gap-1.5">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${printer.owner === OWNER_A_KEY ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" : "bg-primary/10 text-primary"}`}
+                    >
+                      {printer.owner}
+                    </span>
+                    {printer.has_enclosure && (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                        Enclosed
+                      </span>
+                    )}
+                  </div>
+                  <dl className="grid w-full grid-cols-3 gap-2 text-center">
+                    <div className="rounded-lg bg-muted/60 px-1 py-2">
+                      <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Cost</dt>
+                      <dd className="text-sm font-semibold tabular-nums">€{printer.printer_cost.toFixed(0)}</dd>
+                    </div>
+                    <div className="rounded-lg bg-muted/60 px-1 py-2">
+                      <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Life</dt>
+                      <dd className="text-sm font-semibold tabular-nums">{printer.estimated_life_years}y</dd>
+                    </div>
+                    <div className="rounded-lg bg-muted/60 px-1 py-2">
+                      <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Power</dt>
+                      <dd className="text-sm font-semibold tabular-nums">{printer.average_power_consumption_watts}W</dd>
+                    </div>
+                  </dl>
+                  <div className="mt-4 flex w-full justify-center gap-2">
+                    <Button onClick={() => setExpandedId(expandedId === printer.id ? null : printer.id)} size="sm" variant="outline">
+                      {expandedId === printer.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </Button>
+                    <Button onClick={() => startEdit(printer)} size="sm" variant="outline">
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button onClick={() => handleDelete(printer.id)} size="sm" variant="outline" className="text-red-600 hover:text-red-700">
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                   {expandedId === printer.id && (
-                    <div className="mt-4 pt-4 border-t border-border grid md:grid-cols-2 gap-3 text-sm">
+                    <div className="mt-4 w-full border-t border-border pt-4 text-left grid gap-3 text-sm">
                       <div>
                         <span className="text-muted-foreground">Additional Cost:</span>
-                        <span className="text-foreground ml-2 font-medium tabular-nums">
-                          €{printer.additional_upfront_cost.toFixed(2)}
-                        </span>
+                        <span className="text-foreground ml-2 font-medium tabular-nums">€{printer.additional_upfront_cost.toFixed(2)}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Annual Maintenance:</span>
-                        <span className="text-foreground ml-2 font-medium tabular-nums">
-                          €{printer.estimated_annual_maintenance.toFixed(2)}
-                        </span>
+                        <span className="text-foreground ml-2 font-medium tabular-nums">€{printer.estimated_annual_maintenance.toFixed(2)}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Printer Uptime:</span>
-                        <span className="text-foreground ml-2 font-medium tabular-nums">
-                          {(printer.estimated_printer_uptime_percent * 100).toFixed(0)}%
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Has Enclosure:</span>
-                        <span className="text-foreground ml-2 font-medium tabular-nums">
-                          {printer.has_enclosure ? "Yes" : "No"}
-                        </span>
+                        <span className="text-foreground ml-2 font-medium tabular-nums">{(printer.estimated_printer_uptime_percent * 100).toFixed(0)}%</span>
                       </div>
                     </div>
                   )}
