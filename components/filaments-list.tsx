@@ -433,7 +433,11 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         records_imported: filamentData.length,
       })
 
-      // Refresh the page to show new filaments
+      // Re-fetch into local state (like handleAdd does) — the list renders
+      // from state seeded once from props, so router.refresh() alone never
+      // shows the imported rows.
+      const { data: refreshed } = await supabase.from("filaments").select("*").order("name")
+      if (refreshed) setFilaments(refreshed)
       router.refresh()
       event.target.value = ""
     } catch (error) {
