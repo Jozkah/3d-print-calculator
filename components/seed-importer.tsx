@@ -97,8 +97,25 @@ export function DataImportCard() {
 // Serializes every `3dpc:` table in localStorage to a pretty-printed JSON
 // file (the same shape DataImportCard reads back), downloaded via a
 // temporary object-URL link — the same pattern as the filaments CSV export.
+// Rough localStorage footprint of the app's data: UTF-16 = 2 bytes/char,
+// against the typical ~5MB per-origin quota. Estimate only — good enough to
+// warn before the quota error actually hits.
+function storageUsage(): { usedKb: number; percent: number } {
+  let chars = 0
+  if (typeof window !== "undefined" && window.localStorage) {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i)
+      if (!key || !key.startsWith("3dpc:")) continue
+      chars += key.length + (window.localStorage.getItem(key)?.length ?? 0)
+    }
+  }
+  const usedKb = Math.round((chars * 2) / 1024)
+  return { usedKb, percent: Math.min(100, Math.round((usedKb / 5120) * 100)) }
+}
+
 export function DataExportCard() {
   const { toast } = useToast()
+  const [usage] = useState(storageUsage)
 
   const handleExport = () => {
     try {
@@ -152,6 +169,10 @@ export function DataExportCard() {
       <Button variant="outline" className="mt-4 w-fit" onClick={handleExport}>
         Export backup
       </Button>
+      <p className={`mt-3 text-xs ${usage.percent >= 80 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+        Browser storage used: ~{usage.usedKb} KB ({usage.percent}% of the typical 5 MB quota)
+        {usage.percent >= 80 ? " — export a backup and delete old quotes soon." : ""}
+      </p>
     </div>
   )
 }

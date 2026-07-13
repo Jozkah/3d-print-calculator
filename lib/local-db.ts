@@ -85,6 +85,17 @@ function load(table: string): Row[] {
     try {
       return JSON.parse(raw) as Row[]
     } catch {
+      // Don't silently discard a corrupt table — years of quotes would look
+      // deleted with no recovery path. Preserve the raw value under a
+      // timestamped key so it can be inspected/repaired, then start fresh.
+      try {
+        window.localStorage.setItem(`${PREFIX}corrupt:${table}:${Date.now()}`, raw)
+        console.error(
+          `local-db: "${table}" contained invalid JSON; the raw value was preserved under ${PREFIX}corrupt:${table}:*`,
+        )
+      } catch {
+        console.error(`local-db: "${table}" contained invalid JSON and could not be preserved (storage full?)`)
+      }
       return []
     }
   }
@@ -95,7 +106,19 @@ function load(table: string): Row[] {
 
 function save(table: string, rows: Row[]): void {
   if (!hasStorage()) return
-  window.localStorage.setItem(PREFIX + table, JSON.stringify(rows))
+  try {
+    window.localStorage.setItem(PREFIX + table, JSON.stringify(rows))
+  } catch (e: any) {
+    // Quota exceeded (~5MB). Rethrow with an actionable message — exec()
+    // catches this and returns it as the query error, so callers' existing
+    // error branches show it instead of a false success.
+    const quota = e?.name === "QuotaExceededError" || /quota/i.test(String(e?.message))
+    throw new Error(
+      quota
+        ? "Browser storage is full — export a backup from Settings, then delete old quotes to free space."
+        : `Failed to write "${table}": ${e?.message ?? String(e)}`,
+    )
+  }
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { table } }))
 }
 
