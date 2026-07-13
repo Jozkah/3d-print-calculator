@@ -64,7 +64,7 @@ export function AccentToggle() {
           <Palette className="h-5 w-5 text-primary" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent side="left" align="end" className="w-auto p-2">
+      <PopoverContent side="left" align="end" className="w-auto p-2 z-[10000]">
         <div className="flex gap-1.5">
           {ACCENTS.map((a) => (
             <button
