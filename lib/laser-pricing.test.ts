@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest"
-import { machineCostPerHour, type LaserMachineLike } from "./laser-pricing"
+import {
+  machineCostPerHour,
+  itemMaterialCost,
+  itemMachineCost,
+  discountPctForQty,
+  resolveMinJobPrice,
+  LASER_DEFAULTS,
+  type LaserMachineLike,
+  type LaserItem,
+  type LaserMaterialLike,
+} from "./laser-pricing"
 
 const machine = (over: Partial<LaserMachineLike> = {}): LaserMachineLike => ({
   id: "m1",
@@ -14,6 +24,19 @@ const machine = (over: Partial<LaserMachineLike> = {}): LaserMachineLike => ({
   ...over,
 })
 
+const item = (over: Partial<LaserItem> = {}): LaserItem => ({
+  id: "i1",
+  name: "Keychain",
+  quantity: 1,
+  material_id: "mat1",
+  usage: 1,
+  machine_id: "m1",
+  machine_minutes: 0,
+  ...over,
+})
+
+const sheetMaterial: LaserMaterialLike = { id: "mat1", name: "Plywood 3mm", pricing_unit: "sheet", price: 8 }
+
 describe("machineCostPerHour", () => {
   it("amortizes capital cost and adds electricity, with 1.3 buffer", () => {
     // lifetime = 2000 + 100*5 = 2500; uptime hrs/yr = 8760*0.5 = 4380
@@ -26,5 +49,61 @@ describe("machineCostPerHour", () => {
     const m = machine({ estimated_life_years: 0 })
     // capital denominator 0 → capital 0; 0.4kW*0.2*1.3 = 0.104
     expect(machineCostPerHour(m, 0.2)).toBeCloseTo(0.104, 5)
+  })
+})
+
+describe("itemMaterialCost", () => {
+  it("multiplies usage × price × qty × efficiency", () => {
+    expect(itemMaterialCost(item({ usage: 0.25, quantity: 10 }), sheetMaterial, 1.1)).toBeCloseTo(22, 5)
+  })
+  it("is unit-agnostic — area material priced per cm²", () => {
+    const vinyl: LaserMaterialLike = { id: "v", name: "Vinyl", pricing_unit: "area", price: 0.02 }
+    expect(itemMaterialCost(item({ usage: 96, quantity: 50 }), vinyl, 1.1)).toBeCloseTo(105.6, 5)
+  })
+  it("returns 0 for missing material, zero qty, or negative usage", () => {
+    expect(itemMaterialCost(item(), undefined, 1.1)).toBe(0)
+    expect(itemMaterialCost(item({ quantity: 0 }), sheetMaterial, 1.1)).toBe(0)
+    expect(itemMaterialCost(item({ usage: -3 }), sheetMaterial, 1.1)).toBe(0)
+  })
+})
+
+describe("itemMachineCost", () => {
+  it("charges minutes/60 × cost-per-hour × qty", () => {
+    // machine below: capital 0, electricity 1kW × €1 = 1 → ×1.3 = 1.3/hr
+    const m = machine({ printer_cost: 0, estimated_annual_maintenance: 0, average_power_consumption_watts: 1000, estimated_printer_uptime_percent: 1, estimated_life_years: 1 })
+    expect(itemMachineCost(item({ machine_minutes: 6, quantity: 10 }), m, 1)).toBeCloseTo(1.3, 5)
+  })
+  it("returns 0 for a missing machine", () => {
+    expect(itemMachineCost(item({ machine_minutes: 60 }), undefined, 1)).toBe(0)
+  })
+})
+
+describe("discountPctForQty", () => {
+  it("applies the highest qualifying tier, with boundaries inclusive", () => {
+    const tiers = LASER_DEFAULTS.qty_discount_tiers
+    expect(discountPctForQty(9, tiers)).toBe(0)
+    expect(discountPctForQty(10, tiers)).toBe(5)
+    expect(discountPctForQty(49, tiers)).toBe(5)
+    expect(discountPctForQty(50, tiers)).toBe(10)
+  })
+  it("handles unsorted tiers and empty lists", () => {
+    expect(discountPctForQty(100, [{ min_qty: 50, discount_pct: 10 }, { min_qty: 10, discount_pct: 5 }])).toBe(10)
+    expect(discountPctForQty(100, [])).toBe(0)
+  })
+})
+
+describe("resolveMinJobPrice", () => {
+  const machines = new Map([
+    ["laser1", machine({ id: "laser1", machine_type: "laser" })],
+    ["stick1", machine({ id: "stick1", machine_type: "sticker-printer" })],
+  ])
+  it("uses the laser minimum for laser-only quotes", () => {
+    expect(resolveMinJobPrice([item({ machine_id: "laser1" })], machines, 15, 10)).toBe(15)
+  })
+  it("uses the sticker minimum for sticker-only quotes", () => {
+    expect(resolveMinJobPrice([item({ machine_id: "stick1" })], machines, 15, 10)).toBe(10)
+  })
+  it("uses the higher minimum when both machine kinds appear", () => {
+    expect(resolveMinJobPrice([item({ machine_id: "laser1" }), item({ machine_id: "stick1" })], machines, 15, 10)).toBe(15)
   })
 })

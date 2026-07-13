@@ -88,3 +88,57 @@ export function machineCostPerHour(machine: LaserMachineLike, electricityCostPer
   const electricityPerHour = (pos(machine.average_power_consumption_watts) / 1000) * pos(electricityCostPerKwh)
   return (capitalPerHour + electricityPerHour) * COST_BUFFER_FACTOR
 }
+
+/** Material cost for all pieces of one item: usage × unit price × qty × waste factor. */
+export function itemMaterialCost(
+  item: LaserItem,
+  material: LaserMaterialLike | undefined,
+  materialEfficiencyFactor: number,
+): number {
+  if (!material) return 0
+  const efficiency = pos(materialEfficiencyFactor) || 1
+  return pos(item.usage) * pos(material.price) * itemQty(item) * efficiency
+}
+
+/** Machine cost for all pieces of one item: (minutes/60) × €/hr × qty. */
+export function itemMachineCost(
+  item: LaserItem,
+  machine: LaserMachineLike | undefined,
+  electricityCostPerKwh: number,
+): number {
+  if (!machine) return 0
+  return (pos(item.machine_minutes) / 60) * machineCostPerHour(machine, electricityCostPerKwh) * itemQty(item)
+}
+
+/** Highest discount among tiers whose min_qty the quantity reaches. */
+export function discountPctForQty(qty: number, tiers: QtyDiscountTier[]): number {
+  let discount = 0
+  for (const tier of tiers ?? []) {
+    if (qty >= pos(tier.min_qty) && pos(tier.discount_pct) > discount) discount = pos(tier.discount_pct)
+  }
+  return Math.min(95, discount)
+}
+
+/**
+ * Minimum job price for a quote: sticker-printer-only quotes use the sticker
+ * minimum, anything touching a laser uses the laser minimum, and a mixed quote
+ * takes the higher of the two.
+ */
+export function resolveMinJobPrice(
+  items: LaserItem[],
+  machinesById: ReadonlyMap<string, LaserMachineLike>,
+  laserMinJobPrice: number,
+  stickerMinJobPrice: number,
+): number {
+  let hasSticker = false
+  let hasLaser = false
+  for (const it of items) {
+    const machine = machinesById.get(it.machine_id)
+    if (!machine) continue
+    if (machine.machine_type === "sticker-printer") hasSticker = true
+    else hasLaser = true
+  }
+  if (hasSticker && hasLaser) return Math.max(pos(laserMinJobPrice), pos(stickerMinJobPrice))
+  if (hasSticker) return pos(stickerMinJobPrice)
+  return pos(laserMinJobPrice)
+}
