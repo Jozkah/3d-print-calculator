@@ -1,24 +1,28 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useTheme } from "next-themes"
 import { createClient } from "@/lib/supabase/client"
 import { onLocalDbChange } from "@/lib/local-db"
 import { SiteHeader, PageHeader } from "@/components/site-header"
 import { PageLoading, PageLoadError } from "@/components/page-loading"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PrinterVisual } from "@/components/visual/printer-visual"
+import { ClientAvatar } from "@/components/visual/client-avatar"
 import { formatMoney } from "@/lib/format"
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts"
-import type { GlobalSettings, Quote } from "@/types/db"
+import type { Filament, GlobalSettings, Printer, Quote } from "@/types/db"
 
 // Realized work only: quotes that were accepted and are (being) delivered.
 // Pending offers, drafts and canceled/invalid quotes carry no revenue.
@@ -52,11 +56,11 @@ function quoteRevenueExVat(q: Quote): number {
 export default function DashboardPage() {
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [clients, setClients] = useState<any[]>([])
-  const [printers, setPrinters] = useState<any[]>([])
+  const [printers, setPrinters] = useState<Printer[]>([])
+  const [filamentsList, setFilamentsList] = useState<Filament[]>([])
   const [settings, setSettings] = useState<GlobalSettings | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const { resolvedTheme } = useTheme()
 
   useEffect(() => {
     const loadData = async () => {
@@ -64,16 +68,18 @@ export default function DashboardPage() {
       const { data: quotesData, error: quotesError } = await supabase.from("quotes").select("*")
       const { data: clientsData, error: clientsError } = await supabase.from("clients").select("*")
       const { data: printersData, error: printersError } = await supabase.from("printers").select("*")
+      const { data: filamentsData, error: filamentsError } = await supabase.from("filaments").select("*")
       const { data: settingsData, error: settingsError } = await supabase
         .from("global_settings")
         .select("*")
         .limit(1)
         .maybeSingle()
-      const firstError = quotesError || clientsError || printersError || settingsError
+      const firstError = quotesError || clientsError || printersError || filamentsError || settingsError
       setLoadError(firstError ? firstError.message || "Could not read saved data." : null)
       setQuotes(quotesData || [])
       setClients(clientsData || [])
       setPrinters(printersData || [])
+      setFilamentsList(filamentsData || [])
       setSettings(settingsData ?? null)
       setLoaded(true)
     }
@@ -164,9 +170,9 @@ export default function DashboardPage() {
     return [...byClient.values()].sort((x, y) => y.revenue - x.revenue).slice(0, 5)
   }, [realized, clients])
 
-  // Printing hours per printer across realized quotes (both part shapes carry
-  // printer_id directly on the part).
-  const printerHours = useMemo(() => {
+  // Printing hours per printer across realized quotes, with the printer row
+  // attached so the fleet panel can render its product image.
+  const fleet = useMemo(() => {
     const byPrinter = new Map<string, number>()
     for (const q of realized) {
       for (const part of q.printed_parts || []) {
@@ -176,17 +182,45 @@ export default function DashboardPage() {
     }
     return [...byPrinter.entries()]
       .map(([printerId, hours]) => ({
-        name: printers.find((p) => p.id === printerId)?.name || "Unknown printer",
+        printer: printers.find((p) => p.id === printerId) || null,
         hours,
       }))
+      .filter((e): e is { printer: Printer; hours: number } => e.printer !== null)
       .sort((x, y) => y.hours - x.hours)
   }, [realized, printers])
 
-  // Series colors validated for both surfaces (CVD-safe pair, 3:1+ contrast).
-  const revenueColor = resolvedTheme === "dark" ? "#3b82f6" : "#2563eb"
-  const costColor = "#d97706"
-  const tickColor = "#64748b"
-  const gridColor = resolvedTheme === "dark" ? "#334155" : "#e2e8f0"
+  // Grams of filament per filament row across realized quotes (legacy
+  // single-filament parts and multi-filament parts both counted).
+  const materialMix = useMemo(() => {
+    const grams = new Map<string, number>()
+    for (const q of realized) {
+      for (const part of q.printed_parts || []) {
+        if (Array.isArray(part?.filaments)) {
+          for (const entry of part.filaments) {
+            if (!entry?.filament_id) continue
+            grams.set(entry.filament_id, (grams.get(entry.filament_id) || 0) + (Number(entry.grams) || 0))
+          }
+        } else if (part?.filament_id) {
+          grams.set(part.filament_id, (grams.get(part.filament_id) || 0) + (Number(part.filament_grams) || 0))
+        }
+      }
+    }
+    const FALLBACK = ["var(--color-chart-1)", "var(--color-chart-3)", "var(--color-chart-4)", "var(--color-chart-5)", "var(--color-chart-2)"]
+    return [...grams.entries()]
+      .map(([id, g], i) => {
+        const f = filamentsList.find((x) => x.id === id)
+        return { name: f?.name || "Unknown", grams: g, color: f?.color_hex || FALLBACK[i % FALLBACK.length] }
+      })
+      .filter((m) => m.grams > 0)
+      .sort((a, b) => b.grams - a.grams)
+      .slice(0, 6)
+  }, [realized, filamentsList])
+
+  // Chart colors come from the theme so both modes stay coherent.
+  const revenueColor = "var(--color-chart-1)"
+  const costColor = "var(--color-chart-2)"
+  const tickColor = "var(--color-muted-foreground)"
+  const gridColor = "var(--color-border)"
 
   return (
     <div className="min-h-screen bg-background">
@@ -202,41 +236,44 @@ export default function DashboardPage() {
         {loaded && loadError && <PageLoadError message={loadError} />}
         {loaded && !loadError && (
           <div className="space-y-6">
-            {/* Stat cards */}
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Card className="shadow-sm">
-                <CardContent className="pt-6">
-                  <p className="text-sm text-muted-foreground">Realized revenue</p>
-                  <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{money(totalRevenue)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+            {/* Hero band: headline revenue + the shop's workhorse printer */}
+            <section className="relative overflow-hidden rounded-3xl bg-panel text-panel-foreground">
+              <div className="relative z-10 grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto]">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-widest text-panel-foreground/60">
+                    Realized revenue
+                  </p>
+                  <p className="mt-2 text-5xl font-bold tabular-nums tracking-tight sm:text-6xl">
+                    {money(totalRevenue)}
+                  </p>
+                  <p className="mt-1 text-sm text-panel-foreground/60">
                     {realized.length} quote{realized.length !== 1 ? "s" : ""} in progress or done
                   </p>
-                </CardContent>
-              </Card>
-              <Card className="shadow-sm">
-                <CardContent className="pt-6">
-                  <p className="text-sm text-muted-foreground">Avg realized margin</p>
-                  <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                    {avgMargin === null ? "—" : `${avgMargin.toFixed(1)}%`}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">Ex-VAT revenue vs landed cost</p>
-                </CardContent>
-              </Card>
-              <Card className="shadow-sm">
-                <CardContent className="pt-6">
-                  <p className="text-sm text-muted-foreground">Owner A received (YTD)</p>
-                  <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{money(ownerTotals.a)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Business profit split</p>
-                </CardContent>
-              </Card>
-              <Card className="shadow-sm">
-                <CardContent className="pt-6">
-                  <p className="text-sm text-muted-foreground">Owner B received (YTD)</p>
-                  <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{money(ownerTotals.b)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Business profit split</p>
-                </CardContent>
-              </Card>
-            </div>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <div className="rounded-xl bg-panel-foreground/10 px-4 py-3">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-panel-foreground/60">Avg margin</p>
+                      <p className="text-xl font-bold tabular-nums">{avgMargin === null ? "—" : `${avgMargin.toFixed(1)}%`}</p>
+                    </div>
+                    <div className="rounded-xl bg-panel-foreground/10 px-4 py-3">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-panel-foreground/60">Owner A (YTD)</p>
+                      <p className="text-xl font-bold tabular-nums">{money(ownerTotals.a)}</p>
+                    </div>
+                    <div className="rounded-xl bg-panel-foreground/10 px-4 py-3">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-panel-foreground/60">Owner B (YTD)</p>
+                      <p className="text-xl font-bold tabular-nums">{money(ownerTotals.b)}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="hidden items-end lg:flex">
+                  <PrinterVisual
+                    name={fleet[0]?.printer.name || "X1C"}
+                    imageKey={fleet[0]?.printer.image_key}
+                    size="hero"
+                    className="translate-y-4"
+                  />
+                </div>
+              </div>
+            </section>
 
             {/* Revenue vs cost chart */}
             <Card className="shadow-sm">
@@ -265,10 +302,10 @@ export default function DashboardPage() {
                         cursor={{ fill: gridColor, opacity: 0.3 }}
                         formatter={(value: number | string, name: string) => [money(Number(value)), name]}
                         contentStyle={{
-                          backgroundColor: resolvedTheme === "dark" ? "#1e293b" : "#ffffff",
+                          backgroundColor: "var(--color-popover)",
                           border: `1px solid ${gridColor}`,
                           borderRadius: 8,
-                          color: resolvedTheme === "dark" ? "#e2e8f0" : "#0f172a",
+                          color: "var(--color-popover-foreground)",
                         }}
                       />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -280,66 +317,98 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Tables */}
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-3">
+              {/* Fleet: hours per machine with product imagery */}
               <Card className="shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base">Top clients by revenue</CardTitle>
+                  <CardTitle className="text-base">Fleet workload</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  {topClients.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No realized quotes yet.</p>
+                <CardContent className="space-y-3">
+                  {fleet.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No printed parts on realized quotes yet.</p>
                   ) : (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                          <th className="py-2 pr-4 font-semibold">Client</th>
-                          <th className="py-2 pr-4 text-right font-semibold">Quotes</th>
-                          <th className="py-2 text-right font-semibold">Revenue</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {topClients.map((c) => (
-                          <tr key={c.name} className="border-b border-border/50 last:border-0">
-                            <td className="py-2 pr-4 text-foreground">{c.name}</td>
-                            <td className="py-2 pr-4 text-right tabular-nums text-muted-foreground">{c.count}</td>
-                            <td className="py-2 text-right tabular-nums font-medium text-foreground">
-                              {money(c.revenue)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    fleet.map(({ printer, hours }) => {
+                      const max = fleet[0].hours || 1
+                      return (
+                        <div key={printer.id} className="flex items-center gap-3">
+                          <PrinterVisual name={printer.name} imageKey={printer.image_key} size="thumb" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <p className="truncate text-sm font-medium text-foreground">{printer.name}</p>
+                              <p className="shrink-0 text-sm tabular-nums text-muted-foreground">{hours.toFixed(1)} h</p>
+                            </div>
+                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                              <div className="h-full rounded-full bg-primary" style={{ width: `${(hours / max) * 100}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
                   )}
                 </CardContent>
               </Card>
 
+              {/* Top clients with avatars + revenue bars */}
               <Card className="shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base">Printing hours per printer</CardTitle>
+                  <CardTitle className="text-base">Top clients</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {topClients.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No realized quotes yet.</p>
+                  ) : (
+                    topClients.map((c) => {
+                      const max = topClients[0].revenue || 1
+                      return (
+                        <div key={c.name} className="flex items-center gap-3">
+                          <ClientAvatar id={c.name} name={c.name} size={32} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <p className="truncate text-sm font-medium text-foreground">{c.name}</p>
+                              <p className="shrink-0 text-sm font-medium tabular-nums text-foreground">{money(c.revenue)}</p>
+                            </div>
+                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                              <div className="h-full rounded-full bg-primary" style={{ width: `${(c.revenue / max) * 100}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Material mix: grams per filament, tinted with real spool colors */}
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Material mix</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {printerHours.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No printed parts on realized quotes yet.</p>
+                  {materialMix.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No filament usage recorded yet.</p>
                   ) : (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                          <th className="py-2 pr-4 font-semibold">Printer</th>
-                          <th className="py-2 text-right font-semibold">Hours</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {printerHours.map((p) => (
-                          <tr key={p.name} className="border-b border-border/50 last:border-0">
-                            <td className="py-2 pr-4 text-foreground">{p.name}</td>
-                            <td className="py-2 text-right tabular-nums font-medium text-foreground">
-                              {p.hours.toFixed(1)} h
-                            </td>
-                          </tr>
+                    <div className="flex items-center gap-4">
+                      <div className="h-[140px] w-[140px] shrink-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={materialMix} dataKey="grams" nameKey="name" innerRadius={42} outerRadius={64} paddingAngle={2} strokeWidth={0}>
+                              {materialMix.map((m) => (
+                                <Cell key={m.name} fill={m.color} />
+                              ))}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <ul className="min-w-0 flex-1 space-y-1.5">
+                        {materialMix.map((m) => (
+                          <li key={m.name} className="flex items-center gap-2 text-sm">
+                            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: m.color }} />
+                            <span className="min-w-0 flex-1 truncate text-foreground">{m.name}</span>
+                            <span className="shrink-0 tabular-nums text-muted-foreground">{(m.grams / 1000).toFixed(2)} kg</span>
+                          </li>
                         ))}
-                      </tbody>
-                    </table>
+                      </ul>
+                    </div>
                   )}
                 </CardContent>
               </Card>
