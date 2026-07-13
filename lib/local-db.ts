@@ -72,17 +72,33 @@ function load(table: string): Row[] {
 function save(table: string, rows: Row[]): void {
   if (!hasStorage()) return
   window.localStorage.setItem(PREFIX + table, JSON.stringify(rows))
-  window.dispatchEvent(new Event(CHANGE_EVENT))
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { table } }))
 }
 
 /**
- * Subscribe to any local-db write. Returns an unsubscribe function.
+ * Subscribe to local-db writes. Returns an unsubscribe function.
  * Pages use this to reload their data after a mutation happens anywhere.
+ *
+ * Fires for writes in this window (via CHANGE_EVENT) and in other tabs (via
+ * the native `storage` event, which browsers only deliver cross-tab) — so an
+ * edit made in one tab refreshes views in another instead of being silently
+ * overwritten by the next whole-table write. The callback receives the table
+ * name when known so subscribers can refetch selectively.
  */
-export function onLocalDbChange(cb: () => void): () => void {
+export function onLocalDbChange(cb: (table?: string) => void): () => void {
   if (typeof window === "undefined") return () => {}
-  window.addEventListener(CHANGE_EVENT, cb)
-  return () => window.removeEventListener(CHANGE_EVENT, cb)
+  const onLocal = (e: Event) => cb((e as CustomEvent)?.detail?.table)
+  const onStorage = (e: StorageEvent) => {
+    // key === null means the whole store was cleared.
+    if (e.key === null) return cb(undefined)
+    if (e.key.startsWith(PREFIX)) cb(e.key.slice(PREFIX.length))
+  }
+  window.addEventListener(CHANGE_EVENT, onLocal)
+  window.addEventListener("storage", onStorage)
+  return () => {
+    window.removeEventListener(CHANGE_EVENT, onLocal)
+    window.removeEventListener("storage", onStorage)
+  }
 }
 
 type Filter = { col: string; op: "eq" | "in"; val: any }
@@ -257,17 +273,21 @@ class QueryBuilder implements PromiseLike<Result> {
 // to live-refresh open views; we wire those subscriptions to our local write
 // event so edits made in one screen still refresh another that's open.
 class LocalChannel {
-  private callbacks: Array<() => void> = []
+  private callbacks: Array<{ table: string | null; cb: () => void }> = []
   private unsubscribe: (() => void) | null = null
 
-  on(_event: string, _filter: any, cb: () => void): this {
-    this.callbacks.push(cb)
+  on(_event: string, filter: any, cb: () => void): this {
+    // Supabase-style filter: { event, schema, table }. Honor the table so a
+    // write to one table doesn't refetch every subscriber of every table.
+    this.callbacks.push({ table: typeof filter?.table === "string" ? filter.table : null, cb })
     return this
   }
 
   subscribe(): this {
-    this.unsubscribe = onLocalDbChange(() => {
-      this.callbacks.forEach((cb) => cb())
+    this.unsubscribe = onLocalDbChange((changedTable) => {
+      this.callbacks.forEach(({ table, cb }) => {
+        if (!changedTable || !table || table === changedTable) cb()
+      })
     })
     return this
   }
