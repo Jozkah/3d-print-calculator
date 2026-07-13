@@ -517,6 +517,16 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     }
   }
 
+  // Serialize one CSV cell: quote fields containing the delimiter, quotes or
+  // newlines, and neutralize spreadsheet formula injection (values starting
+  // with =, +, -, @, tab or CR execute as formulas in Excel/LibreOffice).
+  const csvCell = (value: string | number): string => {
+    let s = String(value)
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s
+    if (/[";\n\r]/.test(s)) s = `"${s.replace(/"/g, '""')}"`
+    return s
+  }
+
   const handleExportCSV = () => {
     // Determine which filaments to export
     let filamentsToExport = filteredAndSortedFilaments
@@ -553,7 +563,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         filament.thickness || "",
         filament.size || "",
       ]
-      csvRows.push(row.join(";"))
+      csvRows.push(row.map(csvCell).join(";"))
     })
 
     const csvContent = csvRows.join("\n")
