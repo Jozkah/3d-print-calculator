@@ -50,7 +50,7 @@ npm install    # or: pnpm install
 npm run dev    # or: pnpm dev
 ```
 
-Open <http://localhost:3001>. *(The dev/start port is set to **3001** in `package.json` — change it there if you prefer another.)*
+Open <http://localhost:4001>. *(The dev/start port is set to **4001** in `package.json` — change it there if you prefer another.)*
 
 The first time a page loads, sensible default **Global Settings** are seeded automatically. Add your printers, filaments and clients from the **Settings** screens and start quoting.
 
