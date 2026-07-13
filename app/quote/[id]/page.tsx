@@ -36,6 +36,23 @@ export default function QuotePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    async function loadQuote() {
+      const supabase = createClient()
+      const { data, error } = await supabase.from("quotes").select("*").eq("id", params.id).single()
+
+      if (error) {
+        console.error("Error loading quote:", error)
+      } else {
+        setQuote(data)
+        if (data.client_id) {
+          const { data: clientData } = await supabase.from("clients").select("*").eq("id", data.client_id).single()
+          if (clientData) {
+            setClient(clientData)
+          }
+        }
+      }
+      setLoading(false)
+    }
     loadQuote()
   }, [params.id])
 
@@ -47,24 +64,6 @@ export default function QuotePage() {
       document.title = "3D Print Calculator"
     }
   }, [quote?.quote_name])
-
-  async function loadQuote() {
-    const supabase = createClient()
-    const { data, error } = await supabase.from("quotes").select("*").eq("id", params.id).single()
-
-    if (error) {
-      console.error("Error loading quote:", error)
-    } else {
-      setQuote(data)
-      if (data.client_id) {
-        const { data: clientData } = await supabase.from("clients").select("*").eq("id", data.client_id).single()
-        if (clientData) {
-          setClient(clientData)
-        }
-      }
-    }
-    setLoading(false)
-  }
 
   function handlePrint() {
     window.print()

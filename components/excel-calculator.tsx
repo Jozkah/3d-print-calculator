@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { OWNER_A_KEY, OWNER_B_KEY, PROFIT_SPLIT_RATIO, EMERGENCY_SPLIT_RATIO } from "@/lib/business-config"
 import { Button } from "@/components/ui/button"
@@ -19,35 +19,6 @@ import {
   TooltipTrigger,
   TooltipProvider, // Import TooltipProvider
 } from "@/components/ui/tooltip"
-
-// Placeholder for LaserMaterial type if it's defined elsewhere
-type LaserMaterial = {
-  id: string
-  name: string
-  price_per_sqm: number
-  // Add other relevant properties for laser materials
-}
-
-// Placeholder for LaserCalculator component if it's defined elsewhere
-const LaserCalculator = ({
-  type,
-  materials,
-  globalSettings,
-  mode,
-}: { type: string; materials: LaserMaterial[]; globalSettings: GlobalSettings; mode: "personal" | "business" }) => {
-  // This is a placeholder. The actual implementation of LaserCalculator
-  // would go here, taking its specific props and rendering its UI.
-  // For now, it just displays the type and a message.
-  return (
-    <div className="p-6 border-2 border-dashed border-gray-400 rounded-lg">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Laser Calculator ({type})</h2>
-      <p className="text-gray-600">
-        This section will display the calculator for {type}. It will use the provided materials and global settings.
-      </p>
-      {/* Render actual Laser Calculator UI here */}
-    </div>
-  )
-}
 
 type Printer = {
   id: string
@@ -145,9 +116,6 @@ type ExcelCalculatorProps = {
   globalSettings: GlobalSettings | null
   mode: "personal" | "business"
   selectedMargin?: number
-  // Keeping laserMaterials from original code, though it's not used in the main part of this component.
-  // If it's intended for the LaserCalculator component, it should be passed down.
-  laserMaterials?: LaserMaterial[]
   editingQuoteId?: string
   clients?: Client[]
 }
@@ -159,7 +127,6 @@ import { ClientSelector } from "@/components/client-selector"
 export function ExcelCalculator({
   printers: initialPrinters,
   filaments: initialFilaments,
-  laserMaterials: initialLaserMaterials = [],
   globalSettings: initialGlobalSettings,
   mode = "business", // Default to business mode
   selectedMargin: propSelectedMargin, // Renamed to avoid conflict with state
@@ -167,7 +134,9 @@ export function ExcelCalculator({
   clients: initialClients = [],
 }: ExcelCalculatorProps) {
   const { toast } = useToast() // Initialize toast
-  const supabase = createClient() // Declare supabase client here
+  // Stable client identity so effects can list it as a dependency without
+  // re-subscribing every render.
+  const supabase = useMemo(() => createClient(), [])
 
   // ADDED STATE FOR CALCULATION TYPE SELECTION
   const [calculatorType, setCalculatorType] = useState<
@@ -215,6 +184,10 @@ export function ExcelCalculator({
   const isHydratingRef = useRef(false)
 
   const [isSavingDraft, setIsSavingDraft] = useState(false)
+
+  // Memoized id -> entity lookups so render/row loops avoid repeated .find() scans.
+  const filamentById = useMemo(() => new Map(filaments.map((f) => [f.id, f])), [filaments])
+  const printerById = useMemo(() => new Map(printers.map((p) => [p.id, p])), [printers])
 
   const availableFilaments = filaments.filter((f) => {
     if (calculatorType === "3d-print") {
@@ -299,7 +272,7 @@ export function ExcelCalculator({
       supabase.removeChannel(printersChannel)
       supabase.removeChannel(filamentsChannel)
     }
-  }, [])
+  }, [supabase])
 
   useEffect(() => {
     const loadQuoteForEditing = async () => {
@@ -369,7 +342,7 @@ export function ExcelCalculator({
             if (part.filament_id && part.filament_grams !== undefined) {
               return {
                 ...part,
-                filaments: [{ id: Date.now().toString(), filament_id: part.filament_id, grams: part.filament_grams }],
+                filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
                 filament_id: undefined, // Remove legacy fields
                 filament_grams: undefined,
               }
@@ -405,7 +378,7 @@ export function ExcelCalculator({
     }
 
     loadQuoteForEditing()
-  }, [editingQuoteId]) // Keep minimal dependencies to avoid re-runs
+  }, [editingQuoteId, supabase, toast])
 
   useEffect(() => {
     // Skip the single recompute triggered by loading a saved quote so the
@@ -471,55 +444,65 @@ export function ExcelCalculator({
   // per-row display, AND the value persisted on each saved part (read back by the
   // detailed quote view) all agree. Laser/sticker: (material + electricity) * 11;
   // 3D-print: price_per_kg * grams / 1000.
-  const computePartPrintingCost = (part: (typeof printedParts)[number]): number => {
-    if (!part.filaments || part.filaments.length === 0 || !globalSettings) return 0
+  const computePartPrintingCost = useCallback(
+    (part: (typeof printedParts)[number]): number => {
+      if (!part.filaments || part.filaments.length === 0 || !globalSettings) return 0
 
-    let partFilamentCost = 0
-    part.filaments.forEach((filamentEntry) => {
-      const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
-      if (!filament) return
+      let partFilamentCost = 0
+      part.filaments.forEach((filamentEntry) => {
+        const filament = filamentById.get(filamentEntry.filament_id)
+        if (!filament) return
 
-      if (calculatorType !== "3d-print") {
-        const materialCost = filament.price_per_kg
-        // Electricity computed fresh per filament (not accumulated) so the summary
-        // total matches the per-row table cell.
-        const electricityCost = part.printing_time_hr * globalSettings.electricity_cost_per_kwh
-        partFilamentCost += (materialCost + electricityCost) * 11
-      } else {
-        partFilamentCost += (filament.price_per_kg * filamentEntry.grams) / 1000
-      }
-    })
-    return partFilamentCost
-  }
+        if (calculatorType !== "3d-print") {
+          const materialCost = filament.price_per_kg
+          // Electricity computed fresh per filament (not accumulated) so the summary
+          // total matches the per-row table cell.
+          const electricityCost = part.printing_time_hr * globalSettings.electricity_cost_per_kwh
+          partFilamentCost += (materialCost + electricityCost) * 11
+        } else {
+          partFilamentCost += (filament.price_per_kg * filamentEntry.grams) / 1000
+        }
+      })
+      return partFilamentCost
+    },
+    [filamentById, globalSettings, calculatorType],
+  )
 
-  const totalPrintingCost = printedParts.reduce((sum, part) => sum + computePartPrintingCost(part), 0)
+  const totalPrintingCost = useMemo(
+    () => printedParts.reduce((sum, part) => sum + computePartPrintingCost(part), 0),
+    [printedParts, computePartPrintingCost],
+  )
 
-  const totalDryingCost = driedBatches.reduce((sum, batch) => {
-    if (!batch.drying_time_hr || !globalSettings) return sum
+  const totalDryingCost = useMemo(
+    () =>
+      driedBatches.reduce((sum, batch) => {
+        if (!batch.drying_time_hr || !globalSettings) return sum
 
-    // Calculate Dryer Cost per hour using the exact Excel formula
-    const dryerCost = 90 // Standard dryer cost from Excel
-    const estimatedLife = 3 // years
-    const estimatedDryerUptime = 0.1 // 10% uptime
-    const dryerUptimeHoursPerYear = 8760 * estimatedDryerUptime
-    const dryerCapitalCostPerHour = dryerCost / (dryerUptimeHoursPerYear * estimatedLife)
+        // Calculate Dryer Cost per hour using the exact Excel formula
+        const dryerCost = 90 // Standard dryer cost from Excel
+        const estimatedLife = 3 // years
+        const estimatedDryerUptime = 0.1 // 10% uptime
+        const dryerUptimeHoursPerYear = 8760 * estimatedDryerUptime
+        const dryerCapitalCostPerHour = dryerCost / (dryerUptimeHoursPerYear * estimatedLife)
 
-    // Get the electrical cost per hour (same as printer electrical cost)
-    const electricalCostPerHour = (150 / 1000) * globalSettings.electricity_cost_per_kwh // Using 150W average
+        // Get the electrical cost per hour (same as printer electrical cost)
+        const electricalCostPerHour = (150 / 1000) * globalSettings.electricity_cost_per_kwh // Using 150W average
 
-    const costBufferFactor = 1.3
-    const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
+        const costBufferFactor = 1.3
+        const totalDryerCostPerHour = (dryerCapitalCostPerHour + electricalCostPerHour) * costBufferFactor
 
-    if (batch.material === "HEATING") {
-      // For HEATING, multiply the total dryer cost per hour by 2 if enabled
-      const heatingMultiplier = globalSettings.double_heating_cost !== false ? 2 : 1
-      return sum + batch.drying_time_hr * totalDryerCostPerHour * heatingMultiplier
-    }
-    // Normal drying uses the standard dryer cost per hour
-    return sum + batch.drying_time_hr * totalDryerCostPerHour
-  }, 0)
+        if (batch.material === "HEATING") {
+          // For HEATING, multiply the total dryer cost per hour by 2 if enabled
+          const heatingMultiplier = globalSettings.double_heating_cost !== false ? 2 : 1
+          return sum + batch.drying_time_hr * totalDryerCostPerHour * heatingMultiplier
+        }
+        // Normal drying uses the standard dryer cost per hour
+        return sum + batch.drying_time_hr * totalDryerCostPerHour
+      }, 0),
+    [driedBatches, globalSettings],
+  )
 
-  const { machineCost, ownerAMachineCost, ownerBMachineCost } = (() => {
+  const { machineCost, ownerAMachineCost, ownerBMachineCost } = useMemo(() => {
     if (!globalSettings) return { machineCost: 0, ownerAMachineCost: 0, ownerBMachineCost: 0 }
 
     let totalMachineCost = 0
@@ -528,7 +511,7 @@ export function ExcelCalculator({
 
     printedParts.forEach((part) => {
       if (!part.printing_time_hr || !part.printer_id) return
-      const printer = printers.find((p) => p.id === part.printer_id)
+      const printer = printerById.get(part.printer_id)
       if (!printer) return
 
       // Calculate printer cost per hour based on Excel formula
@@ -558,26 +541,25 @@ export function ExcelCalculator({
     })
 
     return { machineCost: totalMachineCost, ownerAMachineCost: ownerAMachine, ownerBMachineCost: ownerBMachine }
-  })()
+  }, [printedParts, printerById, globalSettings])
 
-  const totalMaterialsCost = materials.reduce((sum, m) => sum + m.quantity * m.unit_cost, 0)
-  const totalLaborCost = labor.reduce((sum, l) => sum + l.hours * l.hourly_cost, 0)
-  const totalPackagingCost = packaging.reduce((sum, p) => sum + p.quantity * p.unit_cost, 0)
+  const totalMaterialsCost = useMemo(() => materials.reduce((sum, m) => sum + m.quantity * m.unit_cost, 0), [materials])
+  const totalLaborCost = useMemo(() => labor.reduce((sum, l) => sum + l.hours * l.hourly_cost, 0), [labor])
+  const totalPackagingCost = useMemo(
+    () => packaging.reduce((sum, p) => sum + p.quantity * p.unit_cost, 0),
+    [packaging],
+  )
 
-  const fuelCost = (() => {
+  const fuelCost = useMemo(() => {
     if (!globalSettings) return 0
     return (
       (distanceTraveledKm / 100) * globalSettings.car_fuel_consumption_per_100km * globalSettings.fuel_cost_per_liter
     )
-  })()
+  }, [distanceTraveledKm, globalSettings])
 
   const emergencyFee = isEmergency && globalSettings ? globalSettings.emergency_fee_fixed : 0
 
-  const totalGramage = printedParts.reduce((sum, part) => {
-    return sum + (part.filaments?.reduce((subSum, fEntry) => subSum + (fEntry.grams || 0), 0) || 0)
-  }, 0)
-
-  const { electricityCost, ownerAElectricityCost, ownerBElectricityCost } = (() => {
+  const { electricityCost, ownerAElectricityCost, ownerBElectricityCost } = useMemo(() => {
     if (!globalSettings) return { electricityCost: 0, ownerAElectricityCost: 0, ownerBElectricityCost: 0 }
 
     let totalElectricity = 0
@@ -586,7 +568,7 @@ export function ExcelCalculator({
 
     printedParts.forEach((part) => {
       if (!part.printing_time_hr || !part.printer_id || !part.filaments) return
-      const printer = printers.find((p) => p.id === part.printer_id)
+      const printer = printerById.get(part.printer_id)
       if (!printer) return
 
       const electricalCostPerHour =
@@ -610,7 +592,7 @@ export function ExcelCalculator({
       ownerAElectricityCost: ownerAElectricity,
       ownerBElectricityCost: ownerBElectricity,
     }
-  })()
+  }, [printedParts, printerById, globalSettings])
 
   // Landed cost calculation should account for all direct costs before margin
   const totalLandedCost =
@@ -685,6 +667,9 @@ export function ExcelCalculator({
         // Solving for margin: margin = (1 - cost/priceBeforeEmergency) * 100
         const calculatedMargin = (1 - totalLandedCostValue / priceBeforeEmergency) * 100
         const roundedMargin = Math.max(0, Math.round(calculatedMargin * 10) / 10)
+        // The margin is deliberately back-solved state (persisted on save), not
+        // pure derived data; a render-time derivation would change save semantics.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCustomMargin(roundedMargin)
         setSelectedMargin(roundedMargin)
       } else if (priceBeforeEmergency <= totalLandedCostValue) {
@@ -696,24 +681,6 @@ export function ExcelCalculator({
     }
   }, [marginInputMode, targetPrice, totalLandedCost, vatEnabled, vatAmountFromLandedCost, emergencyFee, mode, vatRate])
   // </CHANGE>
-
-  // Business profit split calculations
-  // Determine printer owner for profit split - this is no longer used for the main split
-  // since we now split machine costs by actual printer ownership
-  let selectedPrinterOwner: string | null = null
-  if (printedParts.length > 0 && printers.length > 0) {
-    const firstPrinterId = printedParts[0].printer_id
-    if (firstPrinterId) {
-      const ownerPrinter = printers.find((p) => p.id === firstPrinterId)
-      if (ownerPrinter && ownerPrinter.owner) {
-        selectedPrinterOwner = ownerPrinter.owner.toLowerCase()
-      }
-    }
-  }
-  // Default to 'owner b' if no owner is found or no printed parts
-  if (!selectedPrinterOwner) {
-    selectedPrinterOwner = OWNER_B_KEY.toLowerCase()
-  }
 
   // selectedMarginValue already includes the emergency fee; strip it here so
   // the fee is distributed only once (via ownerA/BEmergency below), otherwise
@@ -796,7 +763,7 @@ export function ExcelCalculator({
         if ((!part.filaments || part.filaments.length === 0) && part.filament_id && part.filament_grams !== undefined) {
           const normalized = {
             ...part,
-            filaments: [{ id: Date.now().toString(), filament_id: part.filament_id, grams: part.filament_grams }],
+            filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
           }
           // Persist the computed per-part cost so the detailed view can show it
           // directly (esp. laser/sticker quotes, whose weight is 0 and so cannot
@@ -929,7 +896,7 @@ export function ExcelCalculator({
         if ((!part.filaments || part.filaments.length === 0) && part.filament_id && part.filament_grams !== undefined) {
           const normalized = {
             ...part,
-            filaments: [{ id: Date.now().toString(), filament_id: part.filament_id, grams: part.filament_grams }],
+            filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
           }
           // Persist part_cost like handleSaveQuote does — laser/sticker part
           // costs cannot be reconstructed from grams (weight 0), so without
@@ -1046,7 +1013,7 @@ export function ExcelCalculator({
     setPrintedParts((prev) =>
       prev.map((p, i) =>
         i === partIndex
-          ? { ...p, filaments: [...p.filaments, { id: Date.now().toString(), filament_id: "", grams: 0 }] }
+          ? { ...p, filaments: [...p.filaments, { id: crypto.randomUUID(), filament_id: "", grams: 0 }] }
           : p,
       ),
     )
@@ -1064,9 +1031,9 @@ export function ExcelCalculator({
     const partToDuplicate = printedParts[index]
     const duplicatedPart: PrintedPart = {
       ...partToDuplicate,
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       name: partToDuplicate.name ? `${partToDuplicate.name} (copy)` : "",
-      filaments: partToDuplicate.filaments.map((f) => ({ ...f, id: Date.now().toString() + Math.random() })),
+      filaments: partToDuplicate.filaments.map((f) => ({ ...f, id: crypto.randomUUID() })),
     }
     const updated = [...printedParts]
     updated.splice(index + 1, 0, duplicatedPart)
@@ -1101,16 +1068,6 @@ export function ExcelCalculator({
     return part.filaments.reduce((sum, f) => sum + (f.grams || 0), 0)
   }
 
-  const getPartFilamentCost = (part: PrintedPart): number => {
-    return part.filaments.reduce((sum, f) => {
-      const filament = filaments.find((fil) => fil.id === f.filament_id)
-      if (filament) {
-        return sum + (filament.price_per_kg * f.grams) / 1000
-      }
-      return sum
-    }, 0)
-  }
-
   const removePrintedPart = (index: number) => {
     setPrintedParts(printedParts.filter((_, i) => i !== index))
   }
@@ -1119,7 +1076,7 @@ export function ExcelCalculator({
     setPrintedParts([
       ...printedParts,
       {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         name: "",
         printer_id: "",
         filaments: [],
@@ -1298,31 +1255,15 @@ export function ExcelCalculator({
                 </thead>
                 <tbody>
                   {printedParts.map((part, index) => {
-                    let partCost = 0
-                    // Calculate cost for the part based on its filaments
-                    if (part.filaments && part.filaments.length > 0 && globalSettings) {
-                      part.filaments.forEach((filamentEntry) => {
-                        const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
-                        if (filament) {
-                          if (calculatorType !== "3d-print") {
-                            // Assuming filament.price_per_kg is used for material cost in non-3D print scenarios
-                            const materialCost = filament.price_per_kg
-                            const electricityCost = part.printing_time_hr * globalSettings.electricity_cost_per_kwh
-                            // Assuming the '11' is a factor for non-3D print material cost calculation
-                            partCost += (materialCost + electricityCost) * 11
-                          } else {
-                            // For 3D print, calculate cost based on grams
-                            partCost += (filament.price_per_kg * filamentEntry.grams) / 1000
-                          }
-                        }
-                      })
-                    }
+                    // Single source of truth for the per-part cost (same helper used by
+                    // the live total and the persisted part_cost).
+                    const partCost = computePartPrintingCost(part)
 
                     // Filter filaments based on printer enclosure. An enclosure is
                     // what ENABLES high-temp / heating filaments (ASA, ABS, ...), so
                     // only hide those when a printer is selected AND it has no
                     // enclosure. Enclosed printers (or no printer yet) show everything.
-                    const selectedPartPrinter = printers.find((p) => p.id === part.printer_id)
+                    const selectedPartPrinter = printerById.get(part.printer_id)
                     const partAvailableFilaments = selectedPartPrinter && !selectedPartPrinter.has_enclosure
                       ? availableFilaments.filter((f) => !f.requires_heating)
                       : availableFilaments
@@ -1343,7 +1284,7 @@ export function ExcelCalculator({
                         {calculatorType === "3d-print" && (
                           <td className="p-2">
                             {(() => {
-                              const selPrinter = part.printer_id ? printers.find((p) => p.id === part.printer_id) : null
+                              const selPrinter = part.printer_id ? printerById.get(part.printer_id) : null
                               let costPerHr = 0
                               if (selPrinter) {
                                 const totalInvestment = selPrinter.printer_cost + selPrinter.additional_upfront_cost
@@ -1407,7 +1348,7 @@ export function ExcelCalculator({
                                 {part.filaments
                                   .filter((f) => f.filament_id) // Only show filaments with valid filament_id
                                   .map((filamentEntry, filamentIndex) => {
-                                    const filament = filaments.find((f) => f.id === filamentEntry.filament_id)
+                                    const filament = filamentById.get(filamentEntry.filament_id)
                                     const originalIndex = part.filaments.indexOf(filamentEntry) // Use original index for update
                                     return (
                                       <div
@@ -1543,7 +1484,7 @@ export function ExcelCalculator({
                                                         ...p,
                                                         filaments: [
                                                           ...p.filaments,
-                                                          { id: Date.now().toString(), filament_id: filament.id, grams: 0 },
+                                                          { id: crypto.randomUUID(), filament_id: filament.id, grams: 0 },
                                                         ],
                                                       }
                                                     : p,
@@ -1628,7 +1569,7 @@ export function ExcelCalculator({
                 onClick={() =>
                   setDriedBatches([
                     ...driedBatches,
-                    { id: Date.now().toString(), material: "", drying_time_hr: 0, cost: 0 },
+                    { id: crypto.randomUUID(), material: "", drying_time_hr: 0, cost: 0 },
                   ])
                 }
                 size="sm"
@@ -1697,9 +1638,9 @@ export function ExcelCalculator({
                                     <CommandItem
                                       value="HEATING"
                                       onSelect={() => {
-                                        const updated = [...driedBatches]
-                                        updated[index].material = "HEATING"
-                                        setDriedBatches(updated)
+                                        setDriedBatches((prev) =>
+                                          prev.map((row, i) => (i === index ? { ...row, material: "HEATING" } : row)),
+                                        )
                                       }}
                                     >
                                       HEATING
@@ -1716,9 +1657,9 @@ export function ExcelCalculator({
                                         key={filament.id}
                                         value={`${filament.id}-${filament.name}`}
                                         onSelect={() => {
-                                          const updated = [...driedBatches]
-                                          updated[index].material = filament.name
-                                          setDriedBatches(updated)
+                                          setDriedBatches((prev) =>
+                                            prev.map((row, i) => (i === index ? { ...row, material: filament.name } : row)),
+                                          )
                                         }}
                                       >
                                         {filament.name}
@@ -1743,9 +1684,10 @@ export function ExcelCalculator({
                             step="0.1"
                             value={batch.drying_time_hr || ""}
                             onChange={(e) => {
-                              const updated = [...driedBatches]
-                              updated[index].drying_time_hr = Number.parseFloat(e.target.value) || 0
-                              setDriedBatches(updated)
+                              const value = Number.parseFloat(e.target.value) || 0
+                              setDriedBatches((prev) =>
+                                prev.map((row, i) => (i === index ? { ...row, drying_time_hr: value } : row)),
+                              )
                             }}
                             className="bg-card"
                           />
@@ -1779,7 +1721,7 @@ export function ExcelCalculator({
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Materials (Hardware, etc.)</h2>
               <Button
                 onClick={() =>
-                  setMaterials([...materials, { id: Date.now().toString(), name: "", quantity: 0, unit_cost: 0 }])
+                  setMaterials([...materials, { id: crypto.randomUUID(), name: "", quantity: 0, unit_cost: 0 }])
                 }
                 size="sm"
                 className="shadow-sm"
@@ -1808,9 +1750,8 @@ export function ExcelCalculator({
                           <Input
                             value={material.name}
                             onChange={(e) => {
-                              const updated = [...materials]
-                              updated[index].name = e.target.value
-                              setMaterials(updated)
+                              const value = e.target.value
+                              setMaterials((prev) => prev.map((row, i) => (i === index ? { ...row, name: value } : row)))
                             }}
                             className="bg-card"
                             placeholder="Material name"
@@ -1824,10 +1765,9 @@ export function ExcelCalculator({
                             step="0.1"
                             value={material.quantity || ""}
                             onChange={(e) => {
-                              const updated = [...materials]
                               const value = e.target.value
-                              updated[index].quantity = value === "" ? 0 : Number.parseFloat(value) || 0
-                              setMaterials(updated)
+                              const quantity = value === "" ? 0 : Number.parseFloat(value) || 0
+                              setMaterials((prev) => prev.map((row, i) => (i === index ? { ...row, quantity } : row)))
                             }}
                             className="bg-card"
                           />
@@ -1840,10 +1780,9 @@ export function ExcelCalculator({
                             step="0.01"
                             value={material.unit_cost || ""}
                             onChange={(e) => {
-                              const updated = [...materials]
                               const value = e.target.value
-                              updated[index].unit_cost = value === "" ? 0 : Number.parseFloat(value) || 0
-                              setMaterials(updated)
+                              const unitCost = value === "" ? 0 : Number.parseFloat(value) || 0
+                              setMaterials((prev) => prev.map((row, i) => (i === index ? { ...row, unit_cost: unitCost } : row)))
                             }}
                             className="bg-card"
                           />
@@ -1876,7 +1815,7 @@ export function ExcelCalculator({
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Labor</h2>
               <Button
                 onClick={() =>
-                  setLabor([...labor, { id: Date.now().toString(), action: "", hours: 0, hourly_cost: 0 }])
+                  setLabor([...labor, { id: crypto.randomUUID(), action: "", hours: 0, hourly_cost: 0 }])
                 }
                 size="sm"
                 className="shadow-sm"
@@ -1905,9 +1844,8 @@ export function ExcelCalculator({
                           <Input
                             value={laborItem.action}
                             onChange={(e) => {
-                              const updated = [...labor]
-                              updated[index].action = e.target.value
-                              setLabor(updated)
+                              const value = e.target.value
+                              setLabor((prev) => prev.map((row, i) => (i === index ? { ...row, action: value } : row)))
                             }}
                             className="bg-card"
                             placeholder="Labor action"
@@ -1921,10 +1859,9 @@ export function ExcelCalculator({
                             step="0.1"
                             value={laborItem.hours || ""}
                             onChange={(e) => {
-                              const updated = [...labor]
                               const value = e.target.value
-                              updated[index].hours = value === "" ? 0 : Number.parseFloat(value) || 0
-                              setLabor(updated)
+                              const hours = value === "" ? 0 : Number.parseFloat(value) || 0
+                              setLabor((prev) => prev.map((row, i) => (i === index ? { ...row, hours } : row)))
                             }}
                             className="bg-card"
                           />
@@ -1937,10 +1874,9 @@ export function ExcelCalculator({
                             step="0.01"
                             value={laborItem.hourly_cost || ""}
                             onChange={(e) => {
-                              const updated = [...labor]
                               const value = e.target.value
-                              updated[index].hourly_cost = value === "" ? 0 : Number.parseFloat(value) || 0
-                              setLabor(updated)
+                              const hourlyCost = value === "" ? 0 : Number.parseFloat(value) || 0
+                              setLabor((prev) => prev.map((row, i) => (i === index ? { ...row, hourly_cost: hourlyCost } : row)))
                             }}
                             className="bg-card"
                           />
@@ -1973,7 +1909,7 @@ export function ExcelCalculator({
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Packaging & Shipping</h2>
               <Button
                 onClick={() =>
-                  setPackaging([...packaging, { id: Date.now().toString(), name: "", quantity: 0, unit_cost: 0 }])
+                  setPackaging([...packaging, { id: crypto.randomUUID(), name: "", quantity: 0, unit_cost: 0 }])
                 }
                 size="sm"
                 className="shadow-sm"
@@ -2002,9 +1938,8 @@ export function ExcelCalculator({
                           <Input
                             value={item.name}
                             onChange={(e) => {
-                              const updated = [...packaging]
-                              updated[index].name = e.target.value
-                              setPackaging(updated)
+                              const value = e.target.value
+                              setPackaging((prev) => prev.map((row, i) => (i === index ? { ...row, name: value } : row)))
                             }}
                             className="bg-card"
                             placeholder="Item name"
@@ -2018,10 +1953,9 @@ export function ExcelCalculator({
                             step="0.1"
                             value={item.quantity || ""}
                             onChange={(e) => {
-                              const updated = [...packaging]
                               const value = e.target.value
-                              updated[index].quantity = value === "" ? 0 : Number.parseFloat(value) || 0
-                              setPackaging(updated)
+                              const quantity = value === "" ? 0 : Number.parseFloat(value) || 0
+                              setPackaging((prev) => prev.map((row, i) => (i === index ? { ...row, quantity } : row)))
                             }}
                             className="bg-card"
                           />
@@ -2034,10 +1968,9 @@ export function ExcelCalculator({
                             step="0.01"
                             value={item.unit_cost || ""}
                             onChange={(e) => {
-                              const updated = [...packaging]
                               const value = e.target.value
-                              updated[index].unit_cost = value === "" ? 0 : Number.parseFloat(value) || 0
-                              setPackaging(updated)
+                              const unitCost = value === "" ? 0 : Number.parseFloat(value) || 0
+                              setPackaging((prev) => prev.map((row, i) => (i === index ? { ...row, unit_cost: unitCost } : row)))
                             }}
                             className="bg-card"
                           />
@@ -2128,8 +2061,9 @@ export function ExcelCalculator({
               <h3 className="text-lg font-semibold tracking-tight text-foreground mb-4">Profit Margins (Click to Select)</h3>
               {/* Improved mobile grid layout for profit margins */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                <div
-                  className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
+                <button
+                  type="button"
+                  className={`w-full p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                     selectedMargin === 30
                       ? "bg-primary/10 border-primary ring-2 ring-primary/25"
                       : "bg-card border-border hover:border-primary/40"
@@ -2142,9 +2076,10 @@ export function ExcelCalculator({
                 >
                   <div className="text-muted-foreground text-xs sm:text-sm font-medium mb-1">30% Margin</div>
                   <div className="text-foreground text-lg sm:text-xl font-bold tabular-nums">€{margin30WithVAT.toFixed(2)}</div>
-                </div>
-                <div
-                  className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
+                </button>
+                <button
+                  type="button"
+                  className={`w-full p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                     selectedMargin === 40
                       ? "bg-primary/10 border-primary ring-2 ring-primary/25"
                       : "bg-card border-border hover:border-primary/40"
@@ -2157,9 +2092,10 @@ export function ExcelCalculator({
                 >
                   <div className="text-muted-foreground text-xs sm:text-sm font-medium mb-1">40% Margin</div>
                   <div className="text-foreground text-lg sm:text-xl font-bold tabular-nums">€{margin40WithVAT.toFixed(2)}</div>
-                </div>
-                <div
-                  className={`p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
+                </button>
+                <button
+                  type="button"
+                  className={`w-full p-3 sm:p-4 rounded-lg border-2 text-center cursor-pointer hover:shadow-lg transition-shadow ${
                     selectedMargin === 50
                       ? "bg-primary/10 border-primary ring-2 ring-primary/25"
                       : "bg-card border-border hover:border-primary/40"
@@ -2172,7 +2108,7 @@ export function ExcelCalculator({
                 >
                   <div className="text-muted-foreground text-xs sm:text-sm font-medium mb-1">50% Margin</div>
                   <div className="text-foreground text-lg sm:text-xl font-bold tabular-nums">€{margin50WithVAT.toFixed(2)}</div>
-                </div>
+                </button>
                 {/* START UPDATED CODE for custom margin input */}
                 <div
                   className={`p-3 sm:p-4 rounded-lg border-2 hover:shadow-lg transition-shadow ${
@@ -2419,27 +2355,6 @@ export function ExcelCalculator({
               </Button>
             </div>
           </Card>
-
-          {/* Placeholder for Laser Calculator */}
-          {/* This section remains as a placeholder as the LaserCalculator component itself is not provided */}
-          {/* The logic has been adjusted to dynamically render labels and buttons based on calculatorType */}
-          {/* If the LaserCalculator component is intended to be interactive, its implementation would be needed here */}
-          {/* For now, it acts as a static display */}
-          {/* Removed conditional rendering for the 3D print specific section. */}
-          {/* All parts of the UI that were previously within the 3D print block are now always rendered, */}
-          {/* with labels and button text dynamically changing based on the selected calculatorType. */}
-
-          {/* If you were to implement the LaserCalculator component, you would uncomment and use this section: */}
-          {/*
-        calculatorType !== "3d-print" && (
-          <LaserCalculator
-            type={calculatorType}
-            materials={initialLaserMaterials} // Assuming laserMaterials are relevant here
-            globalSettings={initialGlobalSettings}
-            mode={mode}
-          />
-        )
-        */}
         </div>
       </div>
     </TooltipProvider>
