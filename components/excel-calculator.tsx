@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/tooltip"
 import { PrinterPicker } from "@/components/visual/printer-picker"
 import { FilamentSpool } from "@/components/visual/filament-spool"
+import { BrandBadge } from "@/components/visual/brand-badge"
 
 import type { Printer, Filament, Client, GlobalSettings } from "@/types/db"
 
@@ -1600,7 +1601,8 @@ export function ExcelCalculator({
                                             <FilamentSpool colorHex={filament.color_hex} size={20} className="mr-2 size-5" />
                                             <span className="min-w-0 flex-1">
                                               <span className="block truncate">{filament.name}</span>
-                                              <span className="block truncate text-xs text-muted-foreground">
+                                              <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                                                <BrandBadge brand={filament.brand} size={14} className="mr-1" />
                                                 {[filament.brand, filament.material_type === "material" ? "material" : filament.type]
                                                   .filter(Boolean)
                                                   .join(" · ")}

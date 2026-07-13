@@ -16,6 +16,7 @@ import { ComboboxCreatable } from "@/components/ui/combobox-creatable"
 import { DialogCustom } from "@/components/ui/dialog-custom"
 import { cn } from "@/lib/utils" // Import cn for conditional styling
 import { SpoolWithStock } from "@/components/visual/filament-spool"
+import { BrandBadge } from "@/components/visual/brand-badge"
 
 type Filament = {
   id: string
@@ -1256,6 +1257,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                         {filament.brand && (
                           <>
                             <span className="text-muted-foreground/50">•</span>
+                            <BrandBadge brand={filament.brand} size={16} className="mr-1" />
                             <span>{filament.brand}</span>
                           </>
                         )}
@@ -1528,6 +1530,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                           {filament.brand && (
                             <>
                               <span className="text-muted-foreground/50">•</span>
+                              <BrandBadge brand={filament.brand} size={16} className="mr-1" />
                               <span>{filament.brand}</span>
                             </>
                           )}
