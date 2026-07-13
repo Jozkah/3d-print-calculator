@@ -6,8 +6,11 @@
 -- scripts/migrations/ (kept for history), reconciled to match what the app code
 -- actually reads/writes.
 --
--- AFTER running this, apply scripts/rls_policies.sql and review the security
--- notes in the README before exposing the app publicly.
+-- Row-Level Security is enabled at the bottom of this file: every table is
+-- restricted to the `authenticated` role, so new deployments are secure by
+-- default. Create user accounts in the Supabase dashboard (Authentication →
+-- Users) — the app has no public sign-up. scripts/rls_policies.sql applies
+-- the same policies to an existing database.
 --
 -- NOTE: cost-calculator.tsx currently reads `global_settings.electricity_rate`
 -- and `global_settings.vat_rate`, but the settings UI persists
@@ -214,3 +217,25 @@ CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name);
 CREATE INDEX IF NOT EXISTS idx_filaments_material_type ON filaments(material_type);
 CREATE INDEX IF NOT EXISTS idx_laser_materials_type ON laser_materials(material_type);
 CREATE INDEX IF NOT EXISTS idx_imported_csv_files_hash ON imported_csv_files(file_hash);
+
+-- Row-Level Security ----------------------------------------------------------
+-- Secure by default: enable RLS on every table and grant access to signed-in
+-- users only. The public `anon` role gets no access — the app requires login
+-- (accounts are created in the Supabase dashboard, Authentication → Users).
+-- Keep this in sync with scripts/rls_policies.sql.
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'global_settings','printers','filaments','laser_materials',
+    'clients','quotes','quote_headers','quote_parts','imported_csv_files'
+  ]
+  LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I;', t || '_authenticated_all', t);
+    EXECUTE format(
+      'CREATE POLICY %I ON %I FOR ALL TO authenticated USING (true) WITH CHECK (true);',
+      t || '_authenticated_all', t
+    );
+  END LOOP;
+END $$;

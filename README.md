@@ -2,7 +2,7 @@
 
 A self-hostable web app for pricing **3D printing, laser cutting and laser engraving** jobs. It turns your real costs — filament, machine depreciation, electricity, labour, packaging, VAT and profit margin — into consistent quotes, keeps a searchable history of everything you've quoted, and can split the books between two business owners.
 
-> Bring your own **Supabase** project and the whole thing runs on infrastructure *you* control — there's no shared backend and no data ever flows to me. It's a plain Next.js app you can deploy to Vercel or any Node host. *(Heads-up: it ships with no login screen and talks to Supabase with the public anon key, so turning on **Row-Level Security** is mandatory before you put it on the public internet — see [Security](#3-security--read-this-before-going-public).)*
+> Bring your own **Supabase** project and the whole thing runs on infrastructure *you* control — there's no shared backend and no data ever flows to me. It's a plain Next.js app you can deploy to Vercel or any Node host. Every route sits behind a login screen (Supabase Auth) and Row-Level Security locks the database down to signed-in users — see [Authentication & security](#3-authentication--security).
 
 ## Why I built this
 
@@ -60,18 +60,17 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 
 ### 2. Create the database
 
-Run [`scripts/schema.sql`](scripts/schema.sql) once against your Supabase database (paste it into the Supabase SQL editor). It creates every table and seeds a couple of example printers/filaments. It's the consolidated equivalent of the step-by-step files in [`scripts/migrations/`](scripts/migrations), which are kept only for history.
+Run [`scripts/schema.sql`](scripts/schema.sql) once against your Supabase database (paste it into the Supabase SQL editor). It creates every table, seeds a couple of example printers/filaments, and **enables Row-Level Security** so only signed-in users can touch the data. It's the consolidated equivalent of the step-by-step files in [`scripts/migrations/`](scripts/migrations), which are kept only for history.
 
-### 3. Security — read this before going public
+> Upgrading an existing database? Run [`scripts/rls_policies.sql`](scripts/rls_policies.sql) — it enables the same authenticated-only policies (and removes any legacy anon policy).
 
-This app talks to Supabase with the **public anon key** and ships with **no login screen**. That key is embedded in the browser bundle, so **without Row-Level Security, anyone who opens the site can read and write every table.**
+### 3. Authentication & security
 
-Run [`scripts/rls_policies.sql`](scripts/rls_policies.sql) to enable RLS. It offers two models:
+The app requires sign-in. Next.js middleware guards every route: visitors without a Supabase session are redirected to `/login`, where they can sign in with **email + password** or request a **magic link**. A sign-out button lives in the site header.
 
-- **Model A (recommended)** — access for logged-in users only. Add [Supabase Auth](https://supabase.com/docs/guides/auth) (e.g. email magic-link) to your deployment; the policies then lock out the public.
-- **Model B (use with care)** — allow the anon role; only acceptable on a trusted/private network. The file documents the trade-off.
-
-If you skip this step, **do not expose the deployment to the public internet.**
+- **Creating users:** there is no public sign-up — this is a private business tool. Create accounts in the Supabase dashboard under **Authentication → Users** ("Add user"), and share the credentials with your team. Any signed-in user sees all data (single-user/small-team model; no per-user scoping).
+- **Magic links:** make sure your deployment URL is listed in Supabase under **Authentication → URL Configuration** (Site URL / Redirect URLs) so the `/auth/callback` redirect is allowed.
+- **Database:** RLS grants access to the `authenticated` role only. **Anonymous access is no longer supported** — the public `anon` role has no policies, so the anon key alone (which is embedded in the browser bundle) cannot read or write anything via the Supabase REST API.
 
 ### 4. Run
 
@@ -107,6 +106,8 @@ The whole two-owner business model — owner labels and how profit and emergency
 ```
 app/
   page.tsx            # landing
+  login/              # sign-in (email+password or magic link)
+  auth/callback/      # magic-link code exchange
   personal/           # personal cost estimate
   business/           # full business quote
   quote/              # quote builder
@@ -122,9 +123,10 @@ components/
 lib/
   business-config.ts  # two-owner model: labels + split ratios (edit me)
   supabase/           # browser + server Supabase clients
+middleware.ts         # auth guard: redirects signed-out visitors to /login
 scripts/
-  schema.sql          # one-shot DB setup (run this)
-  rls_policies.sql    # Row-Level Security (run before going public)
+  schema.sql          # one-shot DB setup incl. RLS (run this)
+  rls_policies.sql    # authenticated-only RLS for existing databases
   migrations/         # historical step-by-step migrations
 docs/screenshot.png
 .env.example          # Supabase env vars

@@ -2,6 +2,7 @@ import type React from "react"
 import Link from "next/link"
 import { ArrowLeft, Box, Calculator, Briefcase, History, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SignOutButton } from "@/components/sign-out-button"
 
 const NAV_LINKS = [
   { href: "/personal", label: "Personal", icon: Calculator },
@@ -39,6 +40,7 @@ export function SiteHeader({ active }: { active?: string }) {
               <span className="hidden sm:inline">{label}</span>
             </Link>
           ))}
+          <SignOutButton className="ml-0.5 sm:ml-1" />
         </nav>
       </div>
     </header>
