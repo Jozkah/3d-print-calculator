@@ -30,6 +30,11 @@ CREATE TABLE IF NOT EXISTS global_settings (
   cost_buffer_factor DECIMAL(10, 2) NOT NULL DEFAULT 1.3,
   emergency_fee_fixed DECIMAL(10, 2) NOT NULL DEFAULT 10.00,
   double_heating_cost BOOLEAN DEFAULT TRUE,
+  -- VAT rate stored as a fraction (0.23 = 23%), edited as a percent in the UI
+  vat_rate NUMERIC DEFAULT 0.23,
+  currency_symbol TEXT DEFAULT '€',
+  -- How many days a new quote stays valid (drives quotes.valid_until)
+  validity_days INTEGER DEFAULT 30,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -165,6 +170,12 @@ CREATE TABLE IF NOT EXISTS quotes (
   margin_40 NUMERIC,
   margin_50 NUMERIC,
   margin_60 NUMERIC,
+  -- VAT fraction the quote was priced with (0.23 = 23%); NULL on legacy rows,
+  -- which the document pages render at the historical 23%
+  vat_rate NUMERIC,
+  -- When the quote stops being valid (created_at + global_settings.validity_days
+  -- at save time); NULL on legacy rows, which never expire
+  valid_until TIMESTAMPTZ,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

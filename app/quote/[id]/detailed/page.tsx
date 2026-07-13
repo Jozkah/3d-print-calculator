@@ -5,6 +5,12 @@ import { useParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
+import { formatMoney } from "@/lib/format"
+
+// Only the display-relevant slice of global_settings this document reads.
+interface GlobalSettings {
+  currency_symbol?: string
+}
 
 interface PrintedPart {
   id: string
@@ -76,6 +82,12 @@ interface Quote {
   // already inclusive of emergency fee and VAT). null when the quote used margin mode.
   final_price?: number | null
   vat_enabled?: boolean
+  // VAT fraction the quote was priced with (0.23 = 23%). Absent on legacy
+  // rows, which re-render with the historical 0.23.
+  vat_rate?: number
+  // ISO timestamp after which the quote is no longer valid. Absent on legacy
+  // rows, which fall back to created_at + 30 days.
+  valid_until?: string
 }
 
 const sectionLabel = "text-xs uppercase tracking-[0.2em] text-slate-400 mb-4 pb-3 border-b border-slate-200"
@@ -90,6 +102,7 @@ export default function DetailedQuotePage() {
   const params = useParams()
   const [quote, setQuote] = useState<Quote | null>(null)
   const [client, setClient] = useState<any>(null)
+  const [settings, setSettings] = useState<GlobalSettings | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -212,6 +225,11 @@ export default function DetailedQuotePage() {
       })
     }
 
+    // Settings only drive display (currency symbol); a missing row just
+    // falls back to the defaults.
+    const { data: settingsData } = await supabase.from("global_settings").select("*").limit(1).maybeSingle()
+    setSettings(settingsData ?? null)
+
     setQuote(data)
     setLoading(false)
     }
@@ -261,13 +279,24 @@ export default function DetailedQuotePage() {
   // must not grow a VAT line here. Legacy rows without the flag default to
   // VAT on (the historical behavior).
   const vatApplies = isBusinessQuote && quote.vat_enabled !== false
+  // Render with the rate the quote was priced at; legacy rows without the
+  // field were all quoted at 23%.
+  const vatRate = quote.vat_rate ?? 0.23
+  const vatPercentLabel = Math.round(vatRate * 10000) / 100
+  const currencySymbol = settings?.currency_symbol || "€"
+  const money = (n: number) => formatMoney(n, currencySymbol)
+  // Expiry date: stored valid_until when present, otherwise the legacy
+  // convention of created_at + 30 days.
+  const validUntil = quote.valid_until
+    ? new Date(quote.valid_until)
+    : new Date(new Date(quote.created_at).getTime() + 30 * 86400000)
   // For target-price quotes the Total is the stored (authoritative) final_price.
   // Scale the breakdown rows by an effective multiplier derived from that total so
   // the lines reconcile to it, instead of the rounded selected_margin (which drifts
-  // by a rounding cent). targetExVat backs the 23% VAT out of the stored
+  // by a rounding cent). targetExVat backs the quoted VAT out of the stored
   // VAT-inclusive business price. Margin-mode quotes keep marginMultiplier exactly.
   const targetExVat =
-    quote.final_price != null ? (vatApplies ? quote.final_price / 1.23 : quote.final_price) : null
+    quote.final_price != null ? (vatApplies ? quote.final_price / (1 + vatRate) : quote.final_price) : null
   const displayMultiplier =
     targetExVat != null && totalLandedCost > 0
       ? (targetExVat - emergencyFeeCost) / totalLandedCost
@@ -276,7 +305,7 @@ export default function DetailedQuotePage() {
   // or the printed summary rows don't add up to the Total bar below them.
   const priceWithMargin = totalLandedCost * displayMultiplier
   const priceWithMarginAndEmergency = priceWithMargin + emergencyFeeCost
-  const recomputedVat = vatApplies ? priceWithMarginAndEmergency * 0.23 : 0
+  const recomputedVat = vatApplies ? priceWithMarginAndEmergency * vatRate : 0
   const recomputedFinal = priceWithMarginAndEmergency + recomputedVat
 
   // Prefer the stored authoritative final_price (set for target-price quotes) over the margin
@@ -285,11 +314,11 @@ export default function DetailedQuotePage() {
   // Only fall back to the recompute when no target price was stored (margin-mode quotes).
   const finalPrice = quote.final_price != null ? quote.final_price : recomputedFinal
   // For business quotes the stored final_price is VAT-inclusive, so back out the VAT
-  // component (total - total/1.23) instead of re-applying 23% on top.
+  // component (total - total/(1+vatRate)) instead of re-applying the rate on top.
   const vatAmount =
     quote.final_price != null
       ? vatApplies
-        ? quote.final_price - quote.final_price / 1.23
+        ? quote.final_price - quote.final_price / (1 + vatRate)
         : 0
       : recomputedVat
 
@@ -318,7 +347,7 @@ export default function DetailedQuotePage() {
           </div>
           <div className="mt-4 flex gap-6 text-sm text-slate-400">
             <p>Issued {new Date(quote.created_at).toLocaleDateString()}</p>
-            <p>Valid 30 days</p>
+            <p>Valid until {validUntil.toLocaleDateString()}</p>
           </div>
         </header>
 
@@ -357,8 +386,8 @@ export default function DetailedQuotePage() {
                       <td className={tdMuted}>{part.material}</td>
                       <td className={tdNum}>{Math.round(part.filament_grams || 0)}</td>
                       <td className={tdNum}>{part.printing_time_hr?.toFixed(2) || "0.00"}</td>
-                      <td className={tdNum}>€ {part.part_cost?.toFixed(2) || "0.00"}</td>
-                      <td className={tdNumStrong}>€ {((part.part_cost || 0) * displayMultiplier).toFixed(2)}</td>
+                      <td className={tdNum}>{money(part.part_cost ?? 0)}</td>
+                      <td className={tdNumStrong}>{money((part.part_cost || 0) * displayMultiplier)}</td>
                     </tr>
                   ))}
                   <tr>
@@ -366,7 +395,7 @@ export default function DetailedQuotePage() {
                       Subtotal
                     </td>
                     <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                      € {(quote.total_printing_cost * displayMultiplier).toFixed(2)}
+                      {money(quote.total_printing_cost * displayMultiplier)}
                     </td>
                   </tr>
                 </tbody>
@@ -389,21 +418,21 @@ export default function DetailedQuotePage() {
               <tbody>
                 <tr className="border-b border-slate-100">
                   <td className={td}>Machine depreciation and maintenance cost</td>
-                  <td className={tdNum}>€ {quote.machine_cost?.toFixed(2) || "0.00"}</td>
-                  <td className={tdNumStrong}>€ {((quote.machine_cost || 0) * displayMultiplier).toFixed(2)}</td>
+                  <td className={tdNum}>{money(quote.machine_cost ?? 0)}</td>
+                  <td className={tdNumStrong}>{money((quote.machine_cost || 0) * displayMultiplier)}</td>
                 </tr>
                 <tr className="border-b border-slate-100">
                   <td className={td}>Electricity cost</td>
-                  <td className={tdNum}>€ {quote.electricity_cost?.toFixed(2) || "0.00"}</td>
-                  <td className={tdNumStrong}>€ {((quote.electricity_cost || 0) * displayMultiplier).toFixed(2)}</td>
+                  <td className={tdNum}>{money(quote.electricity_cost ?? 0)}</td>
+                  <td className={tdNumStrong}>{money((quote.electricity_cost || 0) * displayMultiplier)}</td>
                 </tr>
                 <tr>
                   <td className="py-3 pr-4 text-right text-sm text-slate-500">Subtotal</td>
                   <td className="py-3 pl-4 text-right tabular-nums text-slate-500 whitespace-nowrap border-t border-slate-200">
-                    € {((quote.machine_cost || 0) + (quote.electricity_cost || 0)).toFixed(2)}
+                    {money((quote.machine_cost || 0) + (quote.electricity_cost || 0))}
                   </td>
                   <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                    € {(((quote.machine_cost || 0) + (quote.electricity_cost || 0)) * displayMultiplier).toFixed(2)}
+                    {money(((quote.machine_cost || 0) + (quote.electricity_cost || 0)) * displayMultiplier)}
                   </td>
                 </tr>
               </tbody>
@@ -429,8 +458,8 @@ export default function DetailedQuotePage() {
                     <tr key={batch.id || index} className="border-b border-slate-100">
                       <td className={td}>{batch.material}</td>
                       <td className={tdNum}>{batch.drying_time_hr?.toFixed(2) || "0.00"}</td>
-                      <td className={tdNum}>€ {batch.cost?.toFixed(2) || "0.00"}</td>
-                      <td className={tdNumStrong}>€ {((batch.cost || 0) * displayMultiplier).toFixed(2)}</td>
+                      <td className={tdNum}>{money(batch.cost ?? 0)}</td>
+                      <td className={tdNumStrong}>{money((batch.cost || 0) * displayMultiplier)}</td>
                     </tr>
                   ))}
                   <tr>
@@ -438,7 +467,7 @@ export default function DetailedQuotePage() {
                       Subtotal
                     </td>
                     <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                      € {(quote.drying_cost * displayMultiplier).toFixed(2)}
+                      {money(quote.drying_cost * displayMultiplier)}
                     </td>
                   </tr>
                 </tbody>
@@ -470,9 +499,9 @@ export default function DetailedQuotePage() {
                       <tr key={index} className="border-b border-slate-100">
                         <td className={td}>{material.name}</td>
                         <td className={tdNum}>{material.quantity}</td>
-                        <td className={tdNum}>€ {material.unit_cost?.toFixed(2) || "0.00"}</td>
-                        <td className={tdNum}>€ {lineTotal.toFixed(2)}</td>
-                        <td className={tdNumStrong}>€ {(lineTotal * displayMultiplier).toFixed(2)}</td>
+                        <td className={tdNum}>{money(material.unit_cost ?? 0)}</td>
+                        <td className={tdNum}>{money(lineTotal)}</td>
+                        <td className={tdNumStrong}>{money(lineTotal * displayMultiplier)}</td>
                       </tr>
                     )
                   })}
@@ -481,7 +510,7 @@ export default function DetailedQuotePage() {
                       Subtotal
                     </td>
                     <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                      € {(quote.materials_cost * displayMultiplier).toFixed(2)}
+                      {money(quote.materials_cost * displayMultiplier)}
                     </td>
                   </tr>
                 </tbody>
@@ -499,7 +528,7 @@ export default function DetailedQuotePage() {
                   <tr className="border-b border-slate-100">
                     <th className={th}>Action</th>
                     <th className={thRight}>Hours</th>
-                    <th className={thRight}>Rate (€/h)</th>
+                    <th className={thRight}>Rate ({currencySymbol}/h)</th>
                     <th className={thRight}>Base</th>
                     <th className={thRight}>With Margin</th>
                   </tr>
@@ -513,9 +542,9 @@ export default function DetailedQuotePage() {
                       <tr key={index} className="border-b border-slate-100">
                         <td className={td}>{labor.action}</td>
                         <td className={tdNum}>{labor.hours?.toFixed(2) || "0.00"}</td>
-                        <td className={tdNum}>€ {labor.hourly_cost?.toFixed(2) || "0.00"}</td>
-                        <td className={tdNum}>€ {lineTotal.toFixed(2)}</td>
-                        <td className={tdNumStrong}>€ {(lineTotal * displayMultiplier).toFixed(2)}</td>
+                        <td className={tdNum}>{money(labor.hourly_cost ?? 0)}</td>
+                        <td className={tdNum}>{money(lineTotal)}</td>
+                        <td className={tdNumStrong}>{money(lineTotal * displayMultiplier)}</td>
                       </tr>
                     )
                   })}
@@ -524,7 +553,7 @@ export default function DetailedQuotePage() {
                       Subtotal
                     </td>
                     <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                      € {(quote.labor_cost * displayMultiplier).toFixed(2)}
+                      {money(quote.labor_cost * displayMultiplier)}
                     </td>
                   </tr>
                 </tbody>
@@ -556,9 +585,9 @@ export default function DetailedQuotePage() {
                       <tr key={index} className="border-b border-slate-100">
                         <td className={td}>{pkg.name}</td>
                         <td className={tdNum}>{pkg.quantity}</td>
-                        <td className={tdNum}>€ {pkg.unit_cost?.toFixed(2) || "0.00"}</td>
-                        <td className={tdNum}>€ {lineTotal.toFixed(2)}</td>
-                        <td className={tdNumStrong}>€ {(lineTotal * displayMultiplier).toFixed(2)}</td>
+                        <td className={tdNum}>{money(pkg.unit_cost ?? 0)}</td>
+                        <td className={tdNum}>{money(lineTotal)}</td>
+                        <td className={tdNumStrong}>{money(lineTotal * displayMultiplier)}</td>
                       </tr>
                     )
                   })}
@@ -567,8 +596,8 @@ export default function DetailedQuotePage() {
                       <td className={td}>Transportation fuel cost</td>
                       <td className={tdNum}>{quote.distance_traveled_km.toFixed(2)} km</td>
                       <td className={tdNum}>—</td>
-                      <td className={tdNum}>€ {quote.fuel_cost?.toFixed(2) || "0.00"}</td>
-                      <td className={tdNumStrong}>€ {((quote.fuel_cost || 0) * displayMultiplier).toFixed(2)}</td>
+                      <td className={tdNum}>{money(quote.fuel_cost ?? 0)}</td>
+                      <td className={tdNumStrong}>{money((quote.fuel_cost || 0) * displayMultiplier)}</td>
                     </tr>
                   )}
                   <tr>
@@ -576,7 +605,7 @@ export default function DetailedQuotePage() {
                       Subtotal
                     </td>
                     <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                      € {((quote.packaging_cost + quote.fuel_cost) * displayMultiplier).toFixed(2)}
+                      {money((quote.packaging_cost + quote.fuel_cost) * displayMultiplier)}
                     </td>
                   </tr>
                 </tbody>
@@ -591,20 +620,20 @@ export default function DetailedQuotePage() {
           <div className="divide-y divide-slate-100">
             <div className="flex items-baseline justify-between gap-8 py-3">
               <span className="text-slate-500">Subtotal (with {quote.selected_margin}% margin)</span>
-              <span className="tabular-nums text-slate-900 whitespace-nowrap">€ {priceWithMargin.toFixed(2)}</span>
+              <span className="tabular-nums text-slate-900 whitespace-nowrap">{money(priceWithMargin)}</span>
             </div>
 
             {quote.is_emergency && emergencyFeeCost > 0 && (
               <div className="flex items-baseline justify-between gap-8 py-3">
                 <span className="text-red-600">Emergency Fee</span>
-                <span className="tabular-nums text-slate-900 whitespace-nowrap">€ {emergencyFeeCost.toFixed(2)}</span>
+                <span className="tabular-nums text-slate-900 whitespace-nowrap">{money(emergencyFeeCost)}</span>
               </div>
             )}
 
             {vatApplies && (
               <div className="flex items-baseline justify-between gap-8 py-3">
-                <span className="text-slate-500">VAT (23%)</span>
-                <span className="tabular-nums text-slate-900 whitespace-nowrap">€ {vatAmount.toFixed(2)}</span>
+                <span className="text-slate-500">VAT ({vatPercentLabel}%)</span>
+                <span className="tabular-nums text-slate-900 whitespace-nowrap">{money(vatAmount)}</span>
               </div>
             )}
           </div>
@@ -614,7 +643,7 @@ export default function DetailedQuotePage() {
             style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
           >
             <span className="text-xs uppercase tracking-[0.2em] text-slate-300">Total</span>
-            <span className="tabular-nums text-3xl font-semibold whitespace-nowrap">€ {finalPrice.toFixed(2)}</span>
+            <span className="tabular-nums text-3xl font-semibold whitespace-nowrap">{money(finalPrice)}</span>
           </div>
         </section>
 
@@ -629,14 +658,17 @@ export default function DetailedQuotePage() {
               Pricing reflects current material costs and may be subject to adjustment for significant market changes.
             </li>
             {vatApplies && (
-              <li>VAT at 23% is included in the final price as per legal requirements for business transactions.</li>
+              <li>
+                VAT at {vatPercentLabel}% is included in the final price as per legal requirements for business
+                transactions.
+              </li>
             )}
             {quote.is_emergency && (
               <li className="text-red-600">
                 Emergency order surcharge applied for expedited processing and priority handling.
               </li>
             )}
-            <li>This quotation is valid for 30 days from the date of issue.</li>
+            <li>This quotation is valid until {validUntil.toLocaleDateString()}.</li>
           </ul>
         </section>
 

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -37,6 +38,8 @@ import {
   Printer,
   Package,
   FileText,
+  Search,
+  CalendarRange,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -77,6 +80,9 @@ type Quote = {
   is_draft?: boolean
   status?: string // Added status field
   final_price?: number // Added final_price field
+  // ISO timestamp after which the quote is no longer valid. Absent on legacy
+  // rows, which never expire.
+  valid_until?: string
 }
 
 const STATUS_CONFIG = {
@@ -107,6 +113,9 @@ function QuoteHistory({
   // on every local-db change (including this component's own mutations), so
   // copying props into state here only created a second, stale copy.
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [statusFilters, setStatusFilters] = useState<string[]>([])
   const [clientFilters, setClientFilters] = useState<string[]>([])
   const [printerFilters, setPrinterFilters] = useState<string[]>([])
@@ -117,9 +126,15 @@ function QuoteHistory({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [quoteToDelete, setQuoteToDelete] = useState<string | null>(null)
 
+  // Captured once per mount so render stays pure (no Date.now() in render).
+  // Fresh enough: the server page refreshes and remounts this list on every
+  // data change, and expiry granularity is a whole day.
+  const [now] = useState(() => Date.now())
+
   const handleDownload = (id: string) => {
-    // Placeholder for download logic
-    console.log(`Download quote with id: ${id}`)
+    // The quote document page opens the browser's print dialog when ?print=1
+    // is present, so "download" = navigate there and let it print to PDF.
+    router.push(`/quote/${id}?print=1`)
   }
 
   const handleDuplicate = async (quote: Quote) => {
@@ -285,8 +300,43 @@ function QuoteHistory({
     }
   }
 
-  // Filter quotes based on selected statuses, clients, printers, and filaments
+  // A quote past its validity window that is still awaiting a decision.
+  // Only pending/draft quotes can "expire" — once in progress or finished the
+  // date no longer matters. Legacy rows without valid_until never expire.
+  const isExpired = (quote: Quote) => {
+    const awaitingDecision = quote.is_draft || (quote.status || "pending") === "pending"
+    return awaitingDecision && !!quote.valid_until && new Date(quote.valid_until).getTime() < now
+  }
+
+  // Local calendar date as "YYYY-MM-DD", so the date-range filter compares in
+  // the user's timezone (matching the Created timestamps shown on the cards).
+  const localDateKey = (iso: string) => {
+    const d = new Date(iso)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  }
+
+  // Filter quotes based on search text, date range, and selected statuses,
+  // clients, printers, and filaments
   const filteredQuotes = quotes.filter((quote) => {
+    // Text search - quote name, resolved client name, and part names
+    const query = searchQuery.trim().toLowerCase()
+    if (query) {
+      const clientName =
+        quote.client_name || clients.find((c) => c.id === quote.client_id)?.name || ""
+      const partNames = (quote.printed_parts || [])
+        .map((part: any) => part?.name || "")
+        .join(" ")
+      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames}`.toLowerCase()
+      if (!haystack.includes(query)) return false
+    }
+
+    // Date range filter (inclusive on both ends)
+    if (dateFrom || dateTo) {
+      const createdKey = localDateKey(quote.created_at)
+      if (dateFrom && createdKey < dateFrom) return false
+      if (dateTo && createdKey > dateTo) return false
+    }
+
     // Status filter
     if (statusFilters.length > 0) {
       const statusMatch = statusFilters.some((filter) => {
@@ -372,6 +422,41 @@ function QuoteHistory({
 
         {/* Filter Section */}
         <div className="space-y-3">
+          {/* Search + Date Range Row */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search by quote, client or part name…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 bg-card"
+                aria-label="Search quotes"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <CalendarRange className="h-4 w-4 text-muted-foreground shrink-0" />
+              <Input
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-[150px] bg-card"
+                aria-label="Created from date"
+              />
+              <span className="text-sm text-muted-foreground">to</span>
+              <Input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-[150px] bg-card"
+                aria-label="Created to date"
+              />
+            </div>
+          </div>
+
           {/* Dropdown Filters Row */}
           <div className="flex items-center gap-3">
             <div className="flex flex-wrap items-center gap-3 flex-1">
@@ -527,11 +612,14 @@ function QuoteHistory({
             </div>
             
             {/* Clear All Filters Button */}
-            {(statusFilters.length > 0 || clientFilters.length > 0 || printerFilters.length > 0 || filamentFilters.length > 0) && (
+            {(searchQuery !== "" || dateFrom !== "" || dateTo !== "" || statusFilters.length > 0 || clientFilters.length > 0 || printerFilters.length > 0 || filamentFilters.length > 0) && (
               <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
+                    setSearchQuery("")
+                    setDateFrom("")
+                    setDateTo("")
                     setStatusFilters([])
                     setClientFilters([])
                     setPrinterFilters([])
@@ -543,6 +631,10 @@ function QuoteHistory({
               </Button>
             )}
           </div>
+
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            Showing {filteredQuotes.length} of {quotes.length} quote{quotes.length !== 1 ? "s" : ""}
+          </p>
         </div>
       </div>
 
@@ -572,6 +664,12 @@ function QuoteHistory({
                       <Badge className="bg-red-500 hover:bg-red-600 text-white border-0">
                         <AlertTriangle className="h-3 w-3 mr-1" />
                         Emergency
+                      </Badge>
+                    )}
+                    {isExpired(quote) && (
+                      <Badge className="bg-red-100 text-red-700 border-red-300 border" variant="outline">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Expired
                       </Badge>
                     )}
                     <DropdownMenu>
