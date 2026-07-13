@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -92,22 +92,21 @@ const safeFixed = (value: any, decimals = 2) => {
   return (value ?? 0).toFixed(decimals)
 }
 
-function QuoteHistory({ 
-  quotes: initialQuotes, 
-  clients: initialClients = [],
-  printers: initialPrinters = [],
-  filaments: initialFilaments = []
-}: { 
+function QuoteHistory({
+  quotes,
+  clients = [],
+  printers = [],
+  filaments = []
+}: {
   quotes: Quote[],
   clients?: any[],
   printers?: any[],
   filaments?: any[]
 }) {
-  const [quotes, setQuotes] = useState(initialQuotes)
+  // Fully controlled: props are the source of truth. The parent page reloads
+  // on every local-db change (including this component's own mutations), so
+  // copying props into state here only created a second, stale copy.
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [printers, setPrinters] = useState<any[]>(initialPrinters)
-  const [filaments, setFilaments] = useState<any[]>(initialFilaments)
-  const [clients, setClients] = useState<any[]>(initialClients)
   const [statusFilters, setStatusFilters] = useState<string[]>([])
   const [clientFilters, setClientFilters] = useState<string[]>([])
   const [printerFilters, setPrinterFilters] = useState<string[]>([])
@@ -156,7 +155,7 @@ function QuoteHistory({
     }
     
     if (data && data.length > 0) {
-      setQuotes([data[0], ...quotes])
+      // Parent refetches via the local-db change event; no local copy to update.
       toast({
         title: "Success",
         description: "Quote duplicated successfully",
@@ -170,27 +169,6 @@ function QuoteHistory({
     router.push(`${route}?edit=${quote.id}`)
   }
 
-  useEffect(() => {
-    const loadData = async () => {
-      const supabase = createClient()
-      
-      // Only fetch if not provided via props
-      if (initialPrinters.length === 0) {
-        const { data: printersData } = await supabase.from("printers").select("*")
-        if (printersData) setPrinters(printersData)
-      }
-      if (initialFilaments.length === 0) {
-        const { data: filamentsData } = await supabase.from("filaments").select("*")
-        if (filamentsData) setFilaments(filamentsData)
-      }
-      if (initialClients.length === 0) {
-        const { data: clientsData } = await supabase.from("clients").select("*")
-        if (clientsData) setClients(clientsData)
-      }
-    }
-    loadData()
-  }, [initialPrinters.length, initialFilaments.length, initialClients.length])
-
   const handleDelete = async (id: string) => {
     setQuoteToDelete(id)
     setDeleteDialogOpen(true)
@@ -203,7 +181,6 @@ function QuoteHistory({
     const { error } = await supabase.from("quotes").delete().eq("id", quoteToDelete)
 
     if (!error) {
-      setQuotes(quotes.filter((q) => q.id !== quoteToDelete))
       toast({
         title: "Success",
         description: "Quote deleted successfully",
@@ -239,7 +216,6 @@ function QuoteHistory({
     const { error } = await supabase.from("quotes").update({ status: newStatus }).eq("id", quoteId)
 
     if (!error) {
-      setQuotes(quotes.map((q) => (q.id === quoteId ? { ...q, status: newStatus } : q)))
       toast({
         title: "Status Updated",
         description: `Quote status changed to ${STATUS_CONFIG[newStatus as keyof typeof STATUS_CONFIG]?.label || newStatus}`,
@@ -259,7 +235,6 @@ function QuoteHistory({
     const { error } = await supabase.from("quotes").update({ quote_type: newType }).eq("id", quoteId)
 
     if (!error) {
-      setQuotes(quotes.map((q) => (q.id === quoteId ? { ...q, quote_type: newType } : q)))
       toast({
         title: "Quote Converted",
         description: `Quote converted from ${currentType} to ${newType}`,
@@ -597,14 +572,17 @@ function QuoteHistory({
                     )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Badge
-                          className={`cursor-pointer ${statusConfig.color} border hover:opacity-80 transition-opacity`}
-                          variant="outline"
-                        >
-                          <StatusIcon className="h-3 w-3 mr-1" />
-                          {statusConfig.label}
-                          <ChevronDown className="h-3 w-3 ml-1" />
-                        </Badge>
+                        {/* Real button so status changes are keyboard-reachable; Badge alone is not focusable. */}
+                        <button type="button" aria-label={`Change status (currently ${statusConfig.label})`}>
+                          <Badge
+                            className={`cursor-pointer ${statusConfig.color} border hover:opacity-80 transition-opacity`}
+                            variant="outline"
+                          >
+                            <StatusIcon className="h-3 w-3 mr-1" />
+                            {statusConfig.label}
+                            <ChevronDown className="h-3 w-3 ml-1" />
+                          </Badge>
+                        </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
                         {Object.entries(STATUS_CONFIG).map(([key, config]) => {
@@ -636,7 +614,13 @@ function QuoteHistory({
                   {/* Action Buttons */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent" title="Share Quote">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 w-9 p-0 bg-transparent"
+                        title="Share Quote"
+                        aria-label="Share quote"
+                      >
                         <Share2 className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -656,6 +640,7 @@ function QuoteHistory({
                     onClick={() => handleDownload(quote.id)}
                     className="h-9 w-9 p-0"
                     title="Download Quote"
+                    aria-label="Download quote"
                   >
                     <Download className="h-4 w-4" />
                   </Button>
@@ -665,6 +650,7 @@ function QuoteHistory({
                     onClick={() => handleEdit(quote)}
                     className="h-9 w-9 p-0"
                     title="Edit Quote"
+                    aria-label="Edit quote"
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -674,6 +660,7 @@ function QuoteHistory({
                     onClick={() => handleDuplicate(quote)}
                     className="h-9 w-9 p-0"
                     title="Duplicate Quote"
+                    aria-label="Duplicate quote"
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
@@ -683,6 +670,7 @@ function QuoteHistory({
                     onClick={() => convertQuoteType(quote.id, quote.quote_type)}
                     className="h-9 w-9 p-0"
                     title={`Convert to ${quote.quote_type === "personal" ? "Business" : "Personal"}`}
+                    aria-label={`Convert to ${quote.quote_type === "personal" ? "business" : "personal"} quote`}
                   >
                     <RefreshCw className="h-4 w-4" />
                   </Button>
@@ -692,6 +680,8 @@ function QuoteHistory({
                     onClick={() => setExpandedId(expandedId === quote.id ? null : quote.id)}
                     className="h-9 w-9 p-0"
                     title={expandedId === quote.id ? "Collapse" : "Expand"}
+                    aria-label={expandedId === quote.id ? "Collapse quote details" : "Expand quote details"}
+                    aria-expanded={expandedId === quote.id}
                   >
                     {expandedId === quote.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
@@ -701,6 +691,7 @@ function QuoteHistory({
                     onClick={() => handleDelete(quote.id)}
                     className="h-9 w-9 p-0"
                     title="Delete Quote"
+                    aria-label="Delete quote"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

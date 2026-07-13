@@ -3,13 +3,17 @@
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
-import { useEffect, useState } from "react"
+import { useSyncExternalStore } from "react"
+
+// Client-only mount detection without a setState-in-effect cascade: the
+// server snapshot is false, the client snapshot is true, so the toggle
+// renders nothing during SSR/hydration and appears right after.
+const emptySubscribe = () => () => {}
+const useMounted = () => useSyncExternalStore(emptySubscribe, () => true, () => false)
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => setMounted(true), [])
+  const mounted = useMounted()
 
   if (!mounted) return null
 

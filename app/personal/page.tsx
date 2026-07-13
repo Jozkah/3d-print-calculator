@@ -7,6 +7,7 @@ import { onLocalDbChange } from "@/lib/local-db"
 import { ExcelCalculator } from "@/components/excel-calculator"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SiteHeader, PageHeader } from "@/components/site-header"
+import { PageLoading, PageLoadError } from "@/components/page-loading"
 
 function PersonalPageInner() {
   const searchParams = useSearchParams()
@@ -17,14 +18,17 @@ function PersonalPageInner() {
   const [globalSettings, setGlobalSettings] = useState<any>(null)
   const [clients, setClients] = useState<any[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
       const supabase = createClient()
-      const { data: printersData } = await supabase.from("printers").select("*").order("name", { ascending: true })
-      const { data: filamentsData } = await supabase.from("filaments").select("*").order("created_at", { ascending: true })
-      const { data: globalSettingsData } = await supabase.from("global_settings").select("*").limit(1).single()
-      const { data: clientsData } = await supabase.from("clients").select("*").order("name")
+      const { data: printersData, error: printersError } = await supabase.from("printers").select("*").order("name", { ascending: true })
+      const { data: filamentsData, error: filamentsError } = await supabase.from("filaments").select("*").order("created_at", { ascending: true })
+      const { data: globalSettingsData, error: settingsError } = await supabase.from("global_settings").select("*").limit(1).single()
+      const { data: clientsData, error: clientsError } = await supabase.from("clients").select("*").order("name")
+      const firstError = printersError || filamentsError || settingsError || clientsError
+      setLoadError(firstError ? firstError.message || "Could not read saved data." : null)
       setPrinters(printersData || [])
       setFilaments(filamentsData || [])
       setGlobalSettings(globalSettingsData ?? null)
@@ -44,7 +48,9 @@ function PersonalPageInner() {
         description="At-cost estimates for your own projects — no margins, just the real numbers"
       />
 
-      {loaded && (
+      {!loaded && <PageLoading />}
+      {loaded && loadError && <PageLoadError message={loadError} />}
+      {loaded && !loadError && (
         <TooltipProvider>
           <ExcelCalculator
             mode="personal"
@@ -62,7 +68,7 @@ function PersonalPageInner() {
 
 export default function PersonalPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<PageLoading />}>
       <PersonalPageInner />
     </Suspense>
   )
