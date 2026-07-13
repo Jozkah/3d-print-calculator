@@ -35,6 +35,14 @@ CREATE TABLE IF NOT EXISTS global_settings (
   currency_symbol TEXT DEFAULT '€',
   -- How many days a new quote stays valid (drives quotes.valid_until)
   validity_days INTEGER DEFAULT 30,
+  -- Business identity rendered as a letterhead on quote/invoice documents;
+  -- all optional. company_logo holds a small (~200KB max) data-URI image.
+  company_name TEXT,
+  company_address TEXT,
+  company_email TEXT,
+  company_phone TEXT,
+  company_tax_id TEXT,
+  company_logo TEXT,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -78,6 +86,9 @@ CREATE TABLE IF NOT EXISTS filaments (
   color_hex TEXT,
   thickness TEXT,
   size TEXT,
+  -- Spool inventory (filament rows only). NULL grams_in_stock = not tracked.
+  grams_in_stock NUMERIC,
+  low_stock_threshold_g NUMERIC DEFAULT 1000,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -176,6 +187,16 @@ CREATE TABLE IF NOT EXISTS quotes (
   -- When the quote stops being valid (created_at + global_settings.validity_days
   -- at save time); NULL on legacy rows, which never expire
   valid_until TIMESTAMPTZ,
+  -- Invoice metadata, minted on first visit to the invoice view
+  -- (invoice_number is sequential per year, "INV-2026-001"); paid_at is the
+  -- Paid/Unpaid toggle
+  invoice_number TEXT,
+  invoice_date TIMESTAMPTZ,
+  due_date TIMESTAMPTZ,
+  paid_at TIMESTAMPTZ,
+  -- Set once the quote reached "finished" and filament stock was decremented,
+  -- so repeated status flips never double-deduct inventory
+  stock_deducted BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -219,6 +240,21 @@ CREATE TABLE IF NOT EXISTS imported_csv_files (
   filament_count INTEGER
 );
 
+-- Per-year sequential counters, e.g. invoice numbering (id 'invoice-2026') ----
+CREATE TABLE IF NOT EXISTS counters (
+  id TEXT PRIMARY KEY,
+  value INTEGER NOT NULL DEFAULT 0
+);
+
+-- Reusable quote templates: buildable structure only (parts, batches,
+-- materials, labor, packaging, margins) — no client/pricing identity ----------
+CREATE TABLE IF NOT EXISTS quote_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes ---------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_quote_parts_header ON quote_parts(quote_header_id);
 CREATE INDEX IF NOT EXISTS idx_quote_headers_type ON quote_headers(quote_type);
@@ -239,7 +275,8 @@ DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
     'global_settings','printers','filaments','laser_materials',
-    'clients','quotes','quote_headers','quote_parts','imported_csv_files'
+    'clients','quotes','quote_headers','quote_parts','imported_csv_files',
+    'counters','quote_templates'
   ]
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);

@@ -63,6 +63,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 Run [`scripts/schema.sql`](scripts/schema.sql) once against your Supabase database (paste it into the Supabase SQL editor). It creates every table, seeds a couple of example printers/filaments, and **enables Row-Level Security** so only signed-in users can touch the data. It's the consolidated equivalent of the step-by-step files in [`scripts/migrations/`](scripts/migrations), which are kept only for history.
 
 > Upgrading an existing database? Run [`scripts/rls_policies.sql`](scripts/rls_policies.sql) — it enables the same authenticated-only policies (and removes any legacy anon policy). Also run [`scripts/migrations/2026-07-13-quick-wins.sql`](scripts/migrations/2026-07-13-quick-wins.sql) (idempotent) to add the configurable VAT rate / currency symbol / quote validity columns to `global_settings` and the `vat_rate` / `valid_until` columns to `quotes`; fresh installs get them from `schema.sql`.
+>
+> Then run [`scripts/migrations/2026-07-13-features.sql`](scripts/migrations/2026-07-13-features.sql) (idempotent) for the feature batch (#31 #32 #36 #40 #42): business-identity `company_*` columns on `global_settings` (letterhead + logo), invoice columns (`invoice_number`, `invoice_date`, `due_date`, `paid_at`) and the `stock_deducted` guard on `quotes`, spool-inventory columns (`grams_in_stock`, `low_stock_threshold_g`) on `filaments`, and the new `counters` (sequential invoice numbers) and `quote_templates` tables with the same authenticated-only RLS. Fresh installs get all of it from `schema.sql`.
 
 ### 3. Authentication & security
 

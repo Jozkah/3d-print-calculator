@@ -4,11 +4,12 @@ import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SiteHeader, PageHeader } from "@/components/site-header"
+import { TemplatePicker } from "@/components/template-picker"
 
 export default async function BusinessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ edit?: string }>
+  searchParams: Promise<{ edit?: string; template?: string }>
 }) {
   const params = await searchParams
   const supabase = await createClient()
@@ -17,10 +18,11 @@ export default async function BusinessPage({
   let filaments = []
   let globalSettingsData = null
   let clients = []
+  let templates: { id: string; name: string }[] = []
   let error = null
 
   try {
-    const [printersResult, filamentsResult, globalSettingsResult, clientsResult] = await Promise.all([
+    const [printersResult, filamentsResult, globalSettingsResult, clientsResult, templatesResult] = await Promise.all([
       supabase.from("printers").select("*").order("name", { ascending: true }),
       supabase.from("filaments").select("*").order("created_at", { ascending: true }),
       // Use maybeSingle() so a 0-row global_settings table returns { data: null, error: null }
@@ -28,12 +30,16 @@ export default async function BusinessPage({
       // globalSettings prop, so a missing settings row must not blank the whole calculator.
       supabase.from("global_settings").select("*").limit(1).maybeSingle(),
       supabase.from("clients").select("*").order("name"),
+      supabase.from("quote_templates").select("id, name").order("name"),
     ])
 
     printers = printersResult.data || []
     filaments = filamentsResult.data || []
     globalSettingsData = globalSettingsResult.data
     clients = clientsResult.data || []
+    // Templates are optional sugar: ignore templatesResult.error so a missing
+    // quote_templates table (pre-migration) doesn't blank the calculator.
+    templates = templatesResult.data || []
 
     // Check for Supabase errors
     if (printersResult.error || filamentsResult.error || globalSettingsResult.error || clientsResult.error) {
@@ -70,16 +76,20 @@ export default async function BusinessPage({
           </Alert>
         </div>
       ) : (
-        <TooltipProvider>
-          <ExcelCalculator
-            mode="business"
-          printers={printers}
-          filaments={filaments}
-          globalSettings={globalSettingsData}
-          clients={clients}
-          editingQuoteId={params.edit}
-          />
-        </TooltipProvider>
+        <>
+          {!params.edit && <TemplatePicker templates={templates} value={params.template} basePath="/business" />}
+          <TooltipProvider>
+            <ExcelCalculator
+              mode="business"
+              printers={printers}
+              filaments={filaments}
+              globalSettings={globalSettingsData}
+              clients={clients}
+              editingQuoteId={params.edit}
+              templateId={params.template}
+            />
+          </TooltipProvider>
+        </>
       )}
     </div>
   )
