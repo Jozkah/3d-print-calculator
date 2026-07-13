@@ -41,42 +41,12 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 
-type Quote = {
-  id: string
-  quote_type: string
-  quote_name: string
-  client_name: string // Added client_name field
-  client_id?: string // Added client_id field
-  printer_id?: string // Added printer_id field
-  printed_parts: any[]
-  dried_batches: any[]
-  materials: any[]
-  labor_items: any[]
-  packaging_items: any[]
-  distance_traveled_km: number
-  is_emergency: boolean
-  total_printing_cost: number
-  machine_cost: number
-  drying_cost: number
-  materials_cost: number
-  labor_cost: number
-  packaging_cost: number
-  fuel_cost: number
-  emergency_fee: number
-  electricity_cost: number
-  landed_cost: number
-  margin_30: number
-  margin_40: number
-  margin_50: number
-  margin_60: number
-  selected_margin: string // Updated to string
-  selected_margin_percentage: number | null // Updated to number | null
-  owner_a_receives: number
-  owner_b_receives: number
-  created_at: string
-  is_draft?: boolean
-  status?: string // Added status field
-  final_price?: number // Added final_price field
+import type { Quote as QuoteRow } from "@/types/db"
+
+// History rows carry a derived join artifact (`client_name`, resolved from the
+// client_id at load time) on top of the stored quote columns.
+type Quote = QuoteRow & {
+  client_name?: string
 }
 
 const STATUS_CONFIG = {

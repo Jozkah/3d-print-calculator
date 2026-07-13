@@ -11,8 +11,23 @@
 // wipes everything; use the export/backup features if you need persistence
 // across machines.
 
+import type { Tables } from "@/types/db"
+
 type Row = Record<string, any>
-type Result = { data: any; error: any }
+
+export type LocalDbError = { code?: string; message: string }
+export type Result<R> = { data: R; error: LocalDbError | null }
+
+/**
+ * Row type for a table name: the concrete shape from types/db.ts when the
+ * table is known, otherwise a loose record. Keeps unknown/adhoc tables usable
+ * while giving the common tables real types.
+ */
+type TableRow<T extends string> = T extends keyof Tables ? Tables[T] : Row
+
+// Internal result shape used while executing; cast to the typed Result at the
+// promise boundary (rows in localStorage are inherently untyped).
+type AnyResult = { data: any; error: LocalDbError | null }
 
 const PREFIX = "3dpc:"
 const CHANGE_EVENT = "local-db-change"
@@ -104,7 +119,13 @@ export function onLocalDbChange(cb: (table?: string) => void): () => void {
 type Filter = { col: string; op: "eq" | "in"; val: any }
 type Order = { col: string; asc: boolean }
 
-class QueryBuilder implements PromiseLike<Result> {
+/**
+ * Query builder generic over the row type `T` and the result payload `R`
+ * (`T[]` for list queries; `single()` / `maybeSingle()` narrow it).
+ * Execution operates on untyped localStorage rows; `T` only shapes what the
+ * awaited result is declared as.
+ */
+class QueryBuilder<T, R = T[]> implements PromiseLike<Result<R>> {
   private op: "select" | "insert" | "update" | "delete" = "select"
   private payload: any = null
   private filters: Filter[] = []
@@ -157,21 +178,21 @@ class QueryBuilder implements PromiseLike<Result> {
     return this
   }
 
-  single(): this {
+  single(): QueryBuilder<T, T> {
     this.singleMode = "single"
-    return this
+    return this as unknown as QueryBuilder<T, T>
   }
 
-  maybeSingle(): this {
+  maybeSingle(): QueryBuilder<T, T | null> {
     this.singleMode = "maybe"
-    return this
+    return this as unknown as QueryBuilder<T, T | null>
   }
 
-  then<TResult1 = Result, TResult2 = never>(
-    onfulfilled?: ((value: Result) => TResult1 | PromiseLike<TResult1>) | null,
+  then<TResult1 = Result<R>, TResult2 = never>(
+    onfulfilled?: ((value: Result<R>) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
-    return Promise.resolve(this.exec()).then(onfulfilled, onrejected)
+    return Promise.resolve(this.exec() as Result<R>).then(onfulfilled, onrejected)
   }
 
   private matches(row: Row): boolean {
@@ -199,7 +220,7 @@ class QueryBuilder implements PromiseLike<Result> {
     return sorted
   }
 
-  private wrapSingle(rows: Row[]): Result {
+  private wrapSingle(rows: Row[]): AnyResult {
     if (this.singleMode === "single") {
       if (rows.length === 0) {
         return { data: null, error: { code: "PGRST116", message: "No rows found" } }
@@ -212,7 +233,7 @@ class QueryBuilder implements PromiseLike<Result> {
     return { data: rows, error: null }
   }
 
-  private exec(): Result {
+  private exec(): AnyResult {
     try {
       if (this.op === "select") {
         let rows = load(this.table).filter((r) => this.matches(r))
@@ -272,7 +293,7 @@ class QueryBuilder implements PromiseLike<Result> {
 // Stand-in for Supabase Realtime channels. The app subscribes to table changes
 // to live-refresh open views; we wire those subscriptions to our local write
 // event so edits made in one screen still refresh another that's open.
-class LocalChannel {
+export class LocalChannel {
   private callbacks: Array<{ table: string | null; cb: () => void }> = []
   private unsubscribe: (() => void) | null = null
 
@@ -298,19 +319,26 @@ class LocalChannel {
   }
 }
 
-// Return type is `any` on purpose: the old code was written against Supabase's
-// generated row types. Typing the result as `any` lets those call sites keep
-// compiling unchanged (query results flow through as `any`, exactly as an
-// untyped Supabase client would behave).
-export function createClient(): any {
+/**
+ * The typed local-db client. `from()` resolves known table names to their
+ * shared row types (types/db.ts) so query results are typed at call sites;
+ * unknown tables fall back to loose records.
+ */
+export type LocalDbClient = {
+  from<T extends string>(table: T): QueryBuilder<TableRow<T>>
+  channel(name: string): LocalChannel
+  removeChannel(channel: LocalChannel): void
+}
+
+export function createClient(): LocalDbClient {
   return {
-    from(table: string) {
-      return new QueryBuilder(table)
+    from<T extends string>(table: T): QueryBuilder<TableRow<T>> {
+      return new QueryBuilder<TableRow<T>>(table)
     },
     channel(_name: string) {
       return new LocalChannel()
     },
-    removeChannel(channel: any) {
+    removeChannel(channel: LocalChannel) {
       if (channel && typeof channel.teardown === "function") channel.teardown()
     },
   }
