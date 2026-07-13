@@ -37,6 +37,33 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
   const { toast } = useToast()
 
   const handleSave = async () => {
+    // Validate before writing: an empty/garbage field parses to NaN, which
+    // persists as null and crashes every consumer of these settings
+    // (e.g. emergency_fee_fixed.toFixed in the calculators).
+    const numericFields: { label: string; value: string }[] = [
+      { label: "Electricity Cost", value: electricityCost },
+      { label: "Fuel Cost", value: fuelCost },
+      { label: "Car Fuel Consumption", value: fuelConsumption },
+      { label: "Labor Hourly Rate", value: laborRate },
+      { label: "Material Efficiency Factor", value: efficiencyFactor },
+      { label: "Cost Buffer Factor", value: bufferFactor },
+      { label: "Emergency Fee", value: emergencyFee },
+    ]
+    const invalid = numericFields.filter(({ value }) => {
+      const n = Number.parseFloat(value)
+      return !Number.isFinite(n) || n < 0
+    })
+    if (invalid.length > 0) {
+      toast({
+        title: "Invalid settings",
+        description: `${invalid.map((f) => f.label).join(", ")} must be ${
+          invalid.length > 1 ? "non-negative numbers" : "a non-negative number"
+        }.`,
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSaving(true)
     const supabase = createClient()
 

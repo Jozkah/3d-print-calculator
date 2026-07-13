@@ -75,6 +75,7 @@ interface Quote {
   // Authoritative total stored for target-price quotes (operator's exact entered total,
   // already inclusive of emergency fee and VAT). null when the quote used margin mode.
   final_price?: number | null
+  vat_enabled?: boolean
 }
 
 const sectionLabel = "text-xs uppercase tracking-[0.2em] text-slate-400 mb-4 pb-3 border-b border-slate-200"
@@ -254,23 +255,29 @@ export default function DetailedQuotePage() {
   const marginMultiplier = marginPercentage > 0 ? 1 / (1 - marginPercentage) : 1
 
   const totalLandedCost = quote.landed_cost || 0
-  const priceWithMargin = totalLandedCost * marginMultiplier
   const emergencyFeeCost = quote.is_emergency ? quote.emergency_fee || 0 : 0
-  const priceWithMarginAndEmergency = priceWithMargin + emergencyFeeCost
 
   const isBusinessQuote = quote.quote_type === "business"
+  // Honor the saved VAT toggle — quotes saved with "Include VAT" unchecked
+  // must not grow a VAT line here. Legacy rows without the flag default to
+  // VAT on (the historical behavior).
+  const vatApplies = isBusinessQuote && quote.vat_enabled !== false
   // For target-price quotes the Total is the stored (authoritative) final_price.
   // Scale the breakdown rows by an effective multiplier derived from that total so
   // the lines reconcile to it, instead of the rounded selected_margin (which drifts
   // by a rounding cent). targetExVat backs the 23% VAT out of the stored
   // VAT-inclusive business price. Margin-mode quotes keep marginMultiplier exactly.
   const targetExVat =
-    quote.final_price != null ? (isBusinessQuote ? quote.final_price / 1.23 : quote.final_price) : null
+    quote.final_price != null ? (vatApplies ? quote.final_price / 1.23 : quote.final_price) : null
   const displayMultiplier =
     targetExVat != null && totalLandedCost > 0
       ? (targetExVat - emergencyFeeCost) / totalLandedCost
       : marginMultiplier
-  const recomputedVat = isBusinessQuote ? priceWithMarginAndEmergency * 0.23 : 0
+  // The summary subtotal must scale by the same multiplier as the line items,
+  // or the printed summary rows don't add up to the Total bar below them.
+  const priceWithMargin = totalLandedCost * displayMultiplier
+  const priceWithMarginAndEmergency = priceWithMargin + emergencyFeeCost
+  const recomputedVat = vatApplies ? priceWithMarginAndEmergency * 0.23 : 0
   const recomputedFinal = priceWithMarginAndEmergency + recomputedVat
 
   // Prefer the stored authoritative final_price (set for target-price quotes) over the margin
@@ -282,7 +289,7 @@ export default function DetailedQuotePage() {
   // component (total - total/1.23) instead of re-applying 23% on top.
   const vatAmount =
     quote.final_price != null
-      ? isBusinessQuote
+      ? vatApplies
         ? quote.final_price - quote.final_price / 1.23
         : 0
       : recomputedVat
@@ -595,7 +602,7 @@ export default function DetailedQuotePage() {
               </div>
             )}
 
-            {isBusinessQuote && (
+            {vatApplies && (
               <div className="flex items-baseline justify-between gap-8 py-3">
                 <span className="text-slate-500">VAT (23%)</span>
                 <span className="tabular-nums text-slate-900 whitespace-nowrap">€ {vatAmount.toFixed(2)}</span>
@@ -622,7 +629,7 @@ export default function DetailedQuotePage() {
             <li>
               Pricing reflects current material costs and may be subject to adjustment for significant market changes.
             </li>
-            {isBusinessQuote && (
+            {vatApplies && (
               <li>VAT at 23% is included in the final price as per legal requirements for business transactions.</li>
             )}
             {quote.is_emergency && (
