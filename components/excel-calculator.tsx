@@ -338,11 +338,28 @@ export function ExcelCalculator({
         // always reset edited quotes back to "3d-print".
         setCalculatorType(quote.quote_type_mode || "3d-print") // Load calculator type
         setClientName(quote.quote_name || "")
+        // Restore the attached client — without this, saving the edit persists
+        // client_id: null and silently detaches the quote from its client.
+        setClientId(quote.client_id ?? null)
         setIsEmergency(quote.is_emergency || false)
         setDistanceTraveledKm(quote.distance_traveled_km || 0)
         // Clamp to 99 so a stored/legacy margin of >=100 can never make the
         // (1 - margin/100) price denominator 0 (which yields Infinity/NaN).
         setSelectedMargin(Math.min(99, Number(quote.selected_margin_percentage || quote.selected_margin || 50)))
+        if (quote.custom_margin_value !== undefined && quote.custom_margin_value !== null) {
+          setCustomMargin(Math.min(99, Number(quote.custom_margin_value)))
+        }
+        // Quotes saved in target-price mode store the authoritative total in
+        // final_price. Restore that mode too — otherwise re-saving writes
+        // final_price: null and the documents drift to the rounded-margin
+        // recompute.
+        if (quote.final_price !== undefined && quote.final_price !== null && Number(quote.final_price) > 0) {
+          setMarginInputMode("targetPrice")
+          setTargetPrice(Number(quote.final_price))
+        } else {
+          setMarginInputMode("percentage")
+          setTargetPrice(0)
+        }
         setVatEnabled(quote.vat_enabled !== undefined ? quote.vat_enabled : true) // Load VAT enabled state
 
         // Correctly handle legacy and new filament data
@@ -698,7 +715,10 @@ export function ExcelCalculator({
     selectedPrinterOwner = OWNER_B_KEY.toLowerCase()
   }
 
-  const totalProfit = selectedMarginValue - totalLandedCost
+  // selectedMarginValue already includes the emergency fee; strip it here so
+  // the fee is distributed only once (via ownerA/BEmergency below), otherwise
+  // the owners' payouts sum to more than the client pays.
+  const totalProfit = selectedMarginValue - emergencyFee - totalLandedCost
   const ownerAProfit = totalProfit * PROFIT_SPLIT_RATIO
   const ownerBProfit = totalProfit * (1 - PROFIT_SPLIT_RATIO)
   const ownerAEmergency = emergencyFee * EMERGENCY_SPLIT_RATIO
@@ -907,18 +927,19 @@ export function ExcelCalculator({
       // Prepare printed_parts data for saving
       const preparedPrintedParts = printedParts.map((part) => {
         if ((!part.filaments || part.filaments.length === 0) && part.filament_id && part.filament_grams !== undefined) {
-          return {
+          const normalized = {
             ...part,
             filaments: [{ id: Date.now().toString(), filament_id: part.filament_id, grams: part.filament_grams }],
-            // filament_id: undefined, // Clear legacy fields if schema is updated
-            // filament_grams: undefined,
           }
+          // Persist part_cost like handleSaveQuote does — laser/sticker part
+          // costs cannot be reconstructed from grams (weight 0), so without
+          // this the detailed view shows €0.00 per part for drafts.
+          return { ...normalized, part_cost: computePartPrintingCost(normalized) }
         }
         const { filament_id, filament_grams, ...restOfPart } = part
         return {
           ...restOfPart,
-          // filament_id: undefined,
-          // filament_grams: undefined,
+          part_cost: computePartPrintingCost(part),
         }
       })
 
