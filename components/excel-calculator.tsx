@@ -21,6 +21,7 @@ import {
   TooltipProvider, // Import TooltipProvider
 } from "@/components/ui/tooltip"
 import { PrinterPicker } from "@/components/visual/printer-picker"
+import { FilamentSpool } from "@/components/visual/filament-spool"
 
 import type { Printer, Filament, Client, GlobalSettings } from "@/types/db"
 
@@ -1456,6 +1457,7 @@ export function ExcelCalculator({
                                         key={filamentEntry.id}
                                         className="flex items-center gap-1 text-xs bg-muted/70 rounded-md p-1"
                                       >
+                                        <FilamentSpool colorHex={filament?.color_hex} size={16} />
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
@@ -1595,7 +1597,21 @@ export function ExcelCalculator({
                                             disabled={isSelected}
                                             className={isSelected ? "opacity-50" : ""}
                                           >
-                                            {filament.name}
+                                            <FilamentSpool colorHex={filament.color_hex} size={20} className="mr-2" />
+                                            <span className="min-w-0 flex-1">
+                                              <span className="block truncate">{filament.name}</span>
+                                              <span className="block truncate text-xs text-muted-foreground">
+                                                {[filament.brand, filament.material_type === "material" ? "material" : filament.type]
+                                                  .filter(Boolean)
+                                                  .join(" · ")}
+                                              </span>
+                                            </span>
+                                            {typeof filament.grams_in_stock === "number" &&
+                                              filament.grams_in_stock < (filament.low_stock_threshold_g ?? 1000) && (
+                                                <span className="mr-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                                  low
+                                                </span>
+                                              )}
                                             {isSelected && <Check className="ml-auto h-4 w-4" />}
                                           </CommandItem>
                                         )
