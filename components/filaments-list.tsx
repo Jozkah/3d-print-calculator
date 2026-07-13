@@ -17,6 +17,7 @@ import { DialogCustom } from "@/components/ui/dialog-custom"
 import { cn } from "@/lib/utils" // Import cn for conditional styling
 import { SpoolWithStock } from "@/components/visual/filament-spool"
 import { BrandBadge } from "@/components/visual/brand-badge"
+import { ColorPicker } from "@/components/visual/color-picker"
 
 type Filament = {
   id: string
@@ -932,21 +933,16 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                   <div className="flex items-center gap-4">
                     <div className="flex-1">
                       <Label>Color Hex Code (optional)</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={newFilament.color_hex}
-                          onChange={(e) => setNewFilament({ ...newFilament, color_hex: e.target.value })}
-                          placeholder="#FF5733"
-                          className="bg-card"
-                        />
-                        {newFilament.color_hex && (
-                          <div
-                            className="w-8 h-8 rounded border border-gray-300 flex-shrink-0"
-                            style={{ backgroundColor: newFilament.color_hex }}
-                            title={newFilament.color_hex}
-                          />
-                        )}
-                      </div>
+                      <ColorPicker
+                        value={newFilament.color_hex}
+                        onChange={(hex, presetName) =>
+                          setNewFilament({
+                            ...newFilament,
+                            color_hex: hex,
+                            color: presetName && !newFilament.color ? presetName : newFilament.color,
+                          })
+                        }
+                      />
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -1132,21 +1128,16 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       <div className="flex items-center gap-4">
                         <div className="flex-1">
                           <Label>Color Hex Code (optional)</Label>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              value={editData.color_hex}
-                              onChange={(e) => setEditData({ ...editData, color_hex: e.target.value })}
-                              placeholder="#FF5733"
-                              className="bg-card"
-                            />
-                            {editData.color_hex && (
-                              <div
-                                className="w-8 h-8 rounded border border-gray-300 flex-shrink-0"
-                                style={{ backgroundColor: editData.color_hex }}
-                                title={editData.color_hex}
-                              />
-                            )}
-                          </div>
+                          <ColorPicker
+                            value={editData.color_hex}
+                            onChange={(hex, presetName) =>
+                              setEditData({
+                                ...editData,
+                                color_hex: hex,
+                                color: presetName && !editData.color ? presetName : editData.color,
+                              })
+                            }
+                          />
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
