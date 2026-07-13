@@ -8,9 +8,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Save, Upload, X } from "lucide-react"
+import { Plus, Save, Trash2, Upload, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { LASER_DEFAULTS } from "@/lib/laser-pricing"
 
 // Logos are stored inline as data URIs in localStorage, so keep them small.
 const MAX_LOGO_BYTES = 200 * 1024
@@ -34,6 +35,10 @@ type GlobalSettings = {
   company_phone?: string
   company_tax_id?: string
   company_logo?: string
+  laser_min_job_price?: number
+  sticker_min_job_price?: number
+  default_setup_fee?: number
+  qty_discount_tiers?: { min_qty: number; discount_pct: number }[]
 }
 
 export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | null }) {
@@ -58,6 +63,21 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
   const [companyPhone, setCompanyPhone] = useState(settings?.company_phone || "")
   const [companyTaxId, setCompanyTaxId] = useState(settings?.company_tax_id || "")
   const [companyLogo, setCompanyLogo] = useState(settings?.company_logo || "")
+  const [laserMinJobPrice, setLaserMinJobPrice] = useState(
+    settings?.laser_min_job_price?.toString() ?? LASER_DEFAULTS.laser_min_job_price.toString(),
+  )
+  const [stickerMinJobPrice, setStickerMinJobPrice] = useState(
+    settings?.sticker_min_job_price?.toString() ?? LASER_DEFAULTS.sticker_min_job_price.toString(),
+  )
+  const [defaultSetupFee, setDefaultSetupFee] = useState(
+    settings?.default_setup_fee?.toString() ?? LASER_DEFAULTS.default_setup_fee.toString(),
+  )
+  const [qtyDiscountTiers, setQtyDiscountTiers] = useState(
+    (settings?.qty_discount_tiers ?? LASER_DEFAULTS.qty_discount_tiers).map((tier) => ({
+      min_qty: tier.min_qty.toString(),
+      discount_pct: tier.discount_pct.toString(),
+    })),
+  )
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
@@ -146,6 +166,15 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
         company_phone: companyPhone.trim(),
         company_tax_id: companyTaxId.trim(),
         company_logo: companyLogo,
+        laser_min_job_price: Number.parseFloat(laserMinJobPrice) || 0,
+        sticker_min_job_price: Number.parseFloat(stickerMinJobPrice) || 0,
+        default_setup_fee: Number.parseFloat(defaultSetupFee) || 0,
+        qty_discount_tiers: qtyDiscountTiers
+          .map((tier) => ({
+            min_qty: Number.parseInt(tier.min_qty, 10) || 0,
+            discount_pct: Number.parseFloat(tier.discount_pct) || 0,
+          }))
+          .filter((tier) => tier.min_qty > 0 && tier.discount_pct > 0),
         updated_at: new Date().toISOString(),
       })
       .eq("id", settings?.id)
@@ -483,6 +512,106 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
               className="bg-card"
             />
             <p className="text-xs text-muted-foreground mt-1.5">How long new quotes stay valid from the day they are saved (default: 30)</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Laser & Stickers */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Laser &amp; Stickers</CardTitle>
+          <CardDescription>Minimum job prices, setup fee, and quantity discounts for laser/sticker quotes</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <Label>Laser minimum job price (€)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                value={laserMinJobPrice}
+                onChange={(e) => setLaserMinJobPrice(e.target.value)}
+                className="bg-card"
+              />
+            </div>
+            <div>
+              <Label>Sticker minimum job price (€)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                value={stickerMinJobPrice}
+                onChange={(e) => setStickerMinJobPrice(e.target.value)}
+                className="bg-card"
+              />
+            </div>
+            <div>
+              <Label>Default setup fee (€)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                value={defaultSetupFee}
+                onChange={(e) => setDefaultSetupFee(e.target.value)}
+                className="bg-card"
+              />
+            </div>
+          </div>
+          <div className="mt-4">
+            <Label>Quantity discounts</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Items whose quantity reaches a tier get that discount on their line price.
+            </p>
+            {qtyDiscountTiers.map((tier, i) => (
+              <div key={i} className="flex items-center gap-2 mb-2">
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={tier.min_qty}
+                  placeholder="Min qty"
+                  className="w-28 bg-card"
+                  onChange={(e) =>
+                    setQtyDiscountTiers(
+                      qtyDiscountTiers.map((t, j) => (j === i ? { ...t, min_qty: e.target.value } : t)),
+                    )
+                  }
+                />
+                <span className="text-sm text-muted-foreground">pcs →</span>
+                <Input
+                  type="number"
+                  min="0"
+                  max="95"
+                  step="1"
+                  value={tier.discount_pct}
+                  placeholder="%"
+                  className="w-24 bg-card"
+                  onChange={(e) =>
+                    setQtyDiscountTiers(
+                      qtyDiscountTiers.map((t, j) => (j === i ? { ...t, discount_pct: e.target.value } : t)),
+                    )
+                  }
+                />
+                <span className="text-sm text-muted-foreground">% off</span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Remove tier"
+                  onClick={() => setQtyDiscountTiers(qtyDiscountTiers.filter((_, j) => j !== i))}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setQtyDiscountTiers([...qtyDiscountTiers, { min_qty: "", discount_pct: "" }])}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add tier
+            </Button>
           </div>
         </CardContent>
       </Card>

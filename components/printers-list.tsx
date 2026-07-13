@@ -27,6 +27,7 @@ type Printer = {
   average_power_consumption_watts: number
   has_enclosure: boolean
   image_key?: string | null
+  machine_type?: string
 }
 
 export function PrintersList({ printers: initialPrinters }: { printers: Printer[] }) {
@@ -45,6 +46,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
     average_power_consumption_watts: "150.00",
     has_enclosure: "false",
     image_key: "auto",
+    machine_type: "3d-printer",
   })
   const [editData, setEditData] = useState(newPrinter)
   const router = useRouter()
@@ -101,6 +103,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
       ...nums,
       has_enclosure: newPrinter.has_enclosure === "true",
       image_key: newPrinter.image_key === "auto" ? null : newPrinter.image_key,
+      machine_type: newPrinter.machine_type || "3d-printer",
     })
 
     if (error) {
@@ -122,6 +125,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
       average_power_consumption_watts: "150.00",
       has_enclosure: "false",
       image_key: "auto",
+      machine_type: "3d-printer",
     })
     setIsAdding(false)
   }
@@ -157,6 +161,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         ...nums,
         has_enclosure: editData.has_enclosure === "true",
         image_key: editData.image_key === "auto" ? null : editData.image_key,
+        machine_type: editData.machine_type || "3d-printer",
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -185,6 +190,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
       average_power_consumption_watts: printer.average_power_consumption_watts.toString(),
       has_enclosure: (printer.has_enclosure ?? false).toString(),
       image_key: printer.image_key || "auto",
+      machine_type: printer.machine_type || "3d-printer",
     })
   }
 
@@ -308,6 +314,18 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
         />
       </div>
 
+      <div>
+        <Label>Machine Type</Label>
+        <Select value={data.machine_type || "3d-printer"} onValueChange={(v) => onChange({ ...data, machine_type: v })}>
+          <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="3d-printer">3D Printer</SelectItem>
+            <SelectItem value="laser">Laser (engraver / cutter)</SelectItem>
+            <SelectItem value="sticker-printer">Sticker Printer / Cutter</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="flex items-center gap-2 md:col-span-2 pt-2">
         <Checkbox
           id="has-enclosure"
@@ -392,6 +410,8 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
                         Enclosed
                       </span>
                     )}
+                    {printer.machine_type === "laser" && <span className="text-xs text-muted-foreground">Laser</span>}
+                    {printer.machine_type === "sticker-printer" && <span className="text-xs text-muted-foreground">Sticker printer</span>}
                   </div>
                   <dl className="grid w-full grid-cols-3 gap-2 text-center">
                     <div className="rounded-lg bg-muted/60 px-1 py-2">
