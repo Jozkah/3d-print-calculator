@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
 import { Plus, Trash2, Check, X, Search, SlidersHorizontal, Upload, Pencil, Download } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -28,6 +29,9 @@ type Filament = {
   material_type: string
   thickness?: string
   size?: string
+  // Spool inventory (filament rows only). null/absent = stock not tracked.
+  grams_in_stock?: number | null
+  low_stock_threshold_g?: number
 }
 
 // CHANGE: Added materials prop
@@ -53,6 +57,8 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     material_type: "filament",
     thickness: "",
     size: "",
+    grams_in_stock: "",
+    low_stock_threshold_g: "1000",
   })
   const [editData, setEditData] = useState({
     name: "",
@@ -65,6 +71,8 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     material_type: "filament",
     thickness: "",
     size: "",
+    grams_in_stock: "",
+    low_stock_threshold_g: "1000",
   })
 
   const [searchQuery, setSearchQuery] = useState("")
@@ -94,6 +102,19 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
   })
 
   const router = useRouter()
+
+  // "" (untracked) -> null; otherwise a non-negative number. NaN -> null too,
+  // so garbage input never persists.
+  const parseStock = (value: string): number | null => {
+    if (value.trim() === "") return null
+    const n = Number.parseFloat(value)
+    return Number.isFinite(n) ? Math.max(0, n) : null
+  }
+
+  const parseThreshold = (value: string): number => {
+    const n = Number.parseFloat(value)
+    return Number.isFinite(n) && n >= 0 ? n : 1000
+  }
 
   const filterOptions = useMemo(() => {
     const brands = new Set<string>()
@@ -211,6 +232,8 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       material_type: newFilament.material_type,
       thickness: newFilament.thickness || null,
       size: newFilament.size || null,
+      grams_in_stock: newFilament.material_type === "filament" ? parseStock(newFilament.grams_in_stock) : null,
+      low_stock_threshold_g: parseThreshold(newFilament.low_stock_threshold_g),
     })
 
     if (error) {
@@ -231,6 +254,8 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         material_type: "filament",
         thickness: "",
         size: "",
+        grams_in_stock: "",
+        low_stock_threshold_g: "1000",
       })
       setIsAdding(false)
       setIsAddingMaterial(false)
@@ -277,6 +302,8 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         material_type: editData.material_type,
         thickness: editData.thickness || null,
         size: editData.size || null,
+        grams_in_stock: editData.material_type === "filament" ? parseStock(editData.grams_in_stock) : null,
+        low_stock_threshold_g: parseThreshold(editData.low_stock_threshold_g),
       })
       .eq("id", id)
 
@@ -303,6 +330,8 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       material_type: filament.material_type,
       thickness: filament.thickness || "",
       size: filament.size || "",
+      grams_in_stock: typeof filament.grams_in_stock === "number" ? filament.grams_in_stock.toString() : "",
+      low_stock_threshold_g: (filament.low_stock_threshold_g ?? 1000).toString(),
     })
   }
 
@@ -619,6 +648,8 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               material_type: "filament",
               thickness: "",
               size: "",
+              grams_in_stock: "",
+              low_stock_threshold_g: "1000",
             })
           }}
           className="shadow-sm text-sm sm:text-base"
@@ -641,6 +672,8 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
               material_type: "material", // Set to material
               thickness: "", // Initialize thickness
               size: "", // Initialize size
+              grams_in_stock: "",
+              low_stock_threshold_g: "1000",
             })
           }}
           className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm text-sm sm:text-base"
@@ -924,6 +957,33 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                     />
                     <Label htmlFor="requires-heating">Requires Heating</Label>
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="newStock">Stock (g)</Label>
+                      <Input
+                        id="newStock"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={newFilament.grams_in_stock}
+                        onChange={(e) => setNewFilament({ ...newFilament, grams_in_stock: e.target.value })}
+                        placeholder="Empty = not tracked"
+                        className="bg-card"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="newLowStock">Low Stock Alert (g)</Label>
+                      <Input
+                        id="newLowStock"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={newFilament.low_stock_threshold_g}
+                        onChange={(e) => setNewFilament({ ...newFilament, low_stock_threshold_g: e.target.value })}
+                        className="bg-card"
+                      />
+                    </div>
+                  </div>
                 </>
               )}
 
@@ -961,6 +1021,8 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       material_type: "filament",
                       thickness: "",
                       size: "",
+                      grams_in_stock: "",
+                      low_stock_threshold_g: "1000",
                     })
                   }}
                   variant="outline"
@@ -1095,6 +1157,33 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                         />
                         <Label htmlFor={`edit-heating-${filament.id}`}>Requires Heating</Label>
                       </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor={`edit-stock-${filament.id}`}>Stock (g)</Label>
+                          <Input
+                            id={`edit-stock-${filament.id}`}
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={editData.grams_in_stock}
+                            onChange={(e) => setEditData({ ...editData, grams_in_stock: e.target.value })}
+                            placeholder="Empty = not tracked"
+                            className="bg-card"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`edit-low-stock-${filament.id}`}>Low Stock Alert (g)</Label>
+                          <Input
+                            id={`edit-low-stock-${filament.id}`}
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={editData.low_stock_threshold_g}
+                            onChange={(e) => setEditData({ ...editData, low_stock_threshold_g: e.target.value })}
+                            className="bg-card"
+                          />
+                        </div>
+                      </div>
                     </>
                   )}
 
@@ -1195,6 +1284,25 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                           <span className="text-orange-600">Requires Heating</span>
                         </>
                       )}
+                      {filament.material_type === "filament" && typeof filament.grams_in_stock === "number" && (
+                        <>
+                          <span className="text-muted-foreground/50">•</span>
+                          <Badge
+                            variant="outline"
+                            className={
+                              filament.grams_in_stock <= 0
+                                ? "bg-red-100 text-red-700 border-red-300"
+                                : filament.grams_in_stock < (filament.low_stock_threshold_g ?? 1000)
+                                  ? "bg-amber-100 text-amber-700 border-amber-300"
+                                  : "bg-muted text-muted-foreground"
+                            }
+                          >
+                            {filament.grams_in_stock <= 0
+                              ? "Out of stock"
+                              : `${Math.round(filament.grams_in_stock)}g in stock`}
+                          </Badge>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -1214,6 +1322,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                           material_type: filament.material_type,
                           thickness: filament.thickness || "",
                           size: filament.size || "",
+                          grams_in_stock:
+                            typeof filament.grams_in_stock === "number" ? filament.grams_in_stock.toString() : "",
+                          low_stock_threshold_g: (filament.low_stock_threshold_g ?? 1000).toString(),
                         })
                       }}
                       className="text-primary hover:text-primary/80"
@@ -1444,6 +1555,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                             material_type: filament.material_type,
                             thickness: filament.thickness || "",
                             size: filament.size || "",
+                            grams_in_stock:
+                              typeof filament.grams_in_stock === "number" ? filament.grams_in_stock.toString() : "",
+                            low_stock_threshold_g: (filament.low_stock_threshold_g ?? 1000).toString(),
                           })
                         }}
                         className="text-emerald-600 hover:text-emerald-700"

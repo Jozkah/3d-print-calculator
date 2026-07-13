@@ -40,6 +40,8 @@ import {
   FileText,
   Search,
   CalendarRange,
+  MoreVertical,
+  LayoutTemplate,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -83,6 +85,19 @@ type Quote = {
   // ISO timestamp after which the quote is no longer valid. Absent on legacy
   // rows, which never expire.
   valid_until?: string
+  vat_enabled?: boolean
+  // VAT fraction the quote was priced with (0.23 = 23%). Absent on legacy rows.
+  vat_rate?: number
+  // Invoice fields, minted the first time the invoice document is opened.
+  // invoice_number is sequential per year ("INV-2026-001").
+  invoice_number?: string
+  invoice_date?: string
+  due_date?: string
+  // ISO timestamp when the invoice was marked paid; null/absent = unpaid.
+  paid_at?: string | null
+  // Set once the quote reached "finished" and filament stock was decremented,
+  // so repeated status flips never double-deduct inventory.
+  stock_deducted?: boolean
 }
 
 const STATUS_CONFIG = {
@@ -109,8 +124,8 @@ function QuoteHistory({
   printers?: any[],
   filaments?: any[]
 }) {
-  // Fully controlled: props are the source of truth. The parent page reloads
-  // on every local-db change (including this component's own mutations), so
+  // Fully controlled: props are the source of truth. The server page refetches
+  // and this list re-renders on every router.refresh() after a mutation, so
   // copying props into state here only created a second, stale copy.
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -156,7 +171,19 @@ function QuoteHistory({
     // `client_name`) as payload keys, and PostgREST rejects any unknown column
     // ("Could not find the 'clients' column of 'quotes'..."), so duplicate always failed.
     // Strip those join artifacts so the insert only contains real `quotes` columns.
-    const { id, clients, client_name, ...quoteData } = duplicatedQuote as any
+    // Also drop per-quote lifecycle fields: a copy must mint its own invoice
+    // and hasn't consumed any filament stock yet.
+    const {
+      id,
+      clients,
+      client_name,
+      invoice_number,
+      invoice_date,
+      due_date,
+      paid_at,
+      stock_deducted,
+      ...quoteData
+    } = duplicatedQuote as any
     
     const { data, error } = await supabase.from("quotes").insert([quoteData]).select()
     
@@ -175,6 +202,128 @@ function QuoteHistory({
       toast({
         title: "Success",
         description: "Quote duplicated successfully",
+      })
+    }
+  }
+
+  // Save the quote's structure as a reusable template. Identity, pricing
+  // outcome and lifecycle fields are stripped — only the buildable structure
+  // (parts, batches, materials, labor, packaging, margins) is kept, so costs
+  // recompute from current rates when the template is used.
+  const handleSaveAsTemplate = async (quote: Quote) => {
+    const supabase = createClient()
+    const {
+      id,
+      clients: _clients,
+      client_name,
+      client_id,
+      status,
+      final_price,
+      invoice_number,
+      invoice_date,
+      due_date,
+      paid_at,
+      stock_deducted,
+      created_at,
+      is_draft,
+      ...payload
+    } = quote as any
+
+    const { error } = await supabase.from("quote_templates").insert([
+      {
+        id: crypto.randomUUID(),
+        name: quote.quote_name,
+        payload,
+      },
+    ])
+
+    if (!error) {
+      toast({
+        title: "Template saved",
+        description: `"${quote.quote_name}" can now be used to start new quotes.`,
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to save template",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Build a self-contained share link: a minimal quote payload (plus client
+  // contact and the display-relevant settings) serialized into the URL
+  // fragment. Fragments never reach a server, and the recipient's browser
+  // needs no local data to render /quote/view.
+  const handleCopyShareLink = async (quote: Quote) => {
+    const supabase = createClient()
+
+    let client: Record<string, any> | null = null
+    if (quote.client_id) {
+      const { data } = await supabase.from("clients").select("*").eq("id", quote.client_id).maybeSingle()
+      if (data) {
+        client = { name: data.name, email: data.email, phone: data.phone, address: data.address }
+      }
+    }
+
+    const { data: settingsRow } = await supabase.from("global_settings").select("*").limit(1).maybeSingle()
+    const settings = settingsRow
+      ? {
+          currency_symbol: settingsRow.currency_symbol,
+          vat_rate: settingsRow.vat_rate,
+          company_name: settingsRow.company_name,
+          company_address: settingsRow.company_address,
+          company_email: settingsRow.company_email,
+          company_phone: settingsRow.company_phone,
+          company_tax_id: settingsRow.company_tax_id,
+          company_logo: settingsRow.company_logo,
+        }
+      : null
+
+    // Only the fields the standard quotation document reads.
+    const payload = {
+      quote: {
+        quote_name: quote.quote_name,
+        quote_type: quote.quote_type,
+        created_at: quote.created_at,
+        valid_until: quote.valid_until,
+        is_emergency: quote.is_emergency,
+        emergency_fee: quote.emergency_fee,
+        landed_cost: quote.landed_cost,
+        labor_cost: quote.labor_cost,
+        packaging_cost: quote.packaging_cost,
+        fuel_cost: quote.fuel_cost,
+        selected_margin: quote.selected_margin,
+        selected_margin_percentage: quote.selected_margin_percentage,
+        final_price: quote.final_price,
+        vat_enabled: quote.vat_enabled,
+        vat_rate: quote.vat_rate,
+      },
+      client,
+      settings,
+    }
+
+    try {
+      // Unicode-safe btoa (encodeURIComponent escape trick), then base64url so
+      // the fragment survives URLs unescaped.
+      const json = JSON.stringify(payload)
+      const base64 = btoa(
+        encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, hex) =>
+          String.fromCharCode(Number.parseInt(hex, 16)),
+        ),
+      )
+      const base64url = base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+      const url = `${window.location.origin}/quote/view#d=${base64url}`
+      await navigator.clipboard.writeText(url)
+      toast({
+        title: "Link copied",
+        description: "Anyone with the link can view this quotation — no account or data needed.",
+      })
+    } catch {
+      toast({
+        title: "Error",
+        description: "Could not copy the share link.",
+        variant: "destructive",
       })
     }
   }
@@ -228,8 +377,64 @@ function QuoteHistory({
     return filament?.name || "N/A"
   }
 
+  // Sum grams used per filament id across printed parts, supporting both the
+  // legacy single-filament shape (filament_id + filament_grams) and the newer
+  // multi-filament shape (filaments[] of {filament_id, grams}).
+  const gramsPerFilament = (quote: Quote): Map<string, number> => {
+    const usage = new Map<string, number>()
+    for (const part of quote.printed_parts || []) {
+      if (part?.filaments && Array.isArray(part.filaments)) {
+        for (const entry of part.filaments) {
+          if (!entry?.filament_id) continue
+          usage.set(entry.filament_id, (usage.get(entry.filament_id) || 0) + (Number(entry.grams) || 0))
+        }
+      } else if (part?.filament_id) {
+        usage.set(part.filament_id, (usage.get(part.filament_id) || 0) + (Number(part.filament_grams) || 0))
+      }
+    }
+    return usage
+  }
+
+  // When a quote is first finished, decrement spool stock for every tracked
+  // filament it used and flag the quote so a status round-trip can't deduct
+  // twice.
+  const deductStock = async (quote: Quote) => {
+    const supabase = createClient()
+    const usage = gramsPerFilament(quote)
+    const ids = [...usage.keys()]
+    const summaries: string[] = []
+
+    if (ids.length > 0) {
+      // Read fresh rows: the filaments prop can lag behind a just-saved edit.
+      const { data: filamentRows } = await supabase.from("filaments").select("*").in("id", ids)
+      for (const filament of filamentRows || []) {
+        const grams = usage.get(filament.id) || 0
+        // null/absent grams_in_stock means the spool isn't tracked.
+        if (grams <= 0 || typeof filament.grams_in_stock !== "number") continue
+        const remaining = Math.max(0, filament.grams_in_stock - grams)
+        await supabase.from("filaments").update({ grams_in_stock: remaining }).eq("id", filament.id)
+        summaries.push(`${filament.name}: -${Math.round(grams)}g (${Math.round(remaining)}g left)`)
+      }
+    }
+
+    await supabase.from("quotes").update({ stock_deducted: true }).eq("id", quote.id)
+
+    // The server page owns the data; refresh so the updated stock levels and
+    // the stock_deducted flag reach the props.
+    router.refresh()
+
+    toast({
+      title: "Stock updated",
+      description:
+        summaries.length > 0
+          ? summaries.join(" · ")
+          : "No tracked filament spools were affected by this quote.",
+    })
+  }
+
   const updateStatus = async (quoteId: string, newStatus: string) => {
     const supabase = createClient()
+    const quote = quotes.find((q) => q.id === quoteId)
     const { error } = await supabase.from("quotes").update({ status: newStatus }).eq("id", quoteId)
 
     if (!error) {
@@ -238,10 +443,35 @@ function QuoteHistory({
         title: "Status Updated",
         description: `Quote status changed to ${STATUS_CONFIG[newStatus as keyof typeof STATUS_CONFIG]?.label || newStatus}`,
       })
+      // First transition to finished: consume filament stock (once per quote).
+      if (newStatus === "finished" && quote && !quote.stock_deducted) {
+        await deductStock(quote)
+      }
     } else {
       toast({
         title: "Error",
         description: "Failed to update status",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Flip the invoice paid flag (quotes that have an invoice_number only).
+  const togglePaid = async (quote: Quote) => {
+    const supabase = createClient()
+    const paid_at = quote.paid_at ? null : new Date().toISOString()
+    const { error } = await supabase.from("quotes").update({ paid_at }).eq("id", quote.id)
+
+    if (!error) {
+      router.refresh()
+      toast({
+        title: paid_at ? "Marked as paid" : "Marked as unpaid",
+        description: `Invoice ${quote.invoice_number} is now ${paid_at ? "paid" : "unpaid"}.`,
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to update invoice",
         variant: "destructive",
       })
     }
@@ -458,10 +688,10 @@ function QuoteHistory({
           </div>
 
           {/* Dropdown Filters Row */}
-          <div className="flex items-center gap-3">
-            <div className="flex flex-wrap items-center gap-3 flex-1">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex w-full flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 flex-1">
               {/* Status Dropdown */}
-              <div className="flex items-center gap-2">
+              <div className="flex w-full sm:w-auto items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium text-muted-foreground">Status:</span>
               <Select
@@ -474,7 +704,7 @@ function QuoteHistory({
                   }
                 }}
               >
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full sm:w-[200px]">
                   <SelectValue placeholder="Any Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -495,7 +725,7 @@ function QuoteHistory({
             </div>
             {/* Client Dropdown */}
             {clients.length > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex w-full sm:w-auto items-center gap-2">
                 <User className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground">Client:</span>
                 <Select
@@ -508,7 +738,7 @@ function QuoteHistory({
                     }
                   }}
                 >
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="w-full sm:w-[200px]">
                     <SelectValue placeholder="All Clients" />
                   </SelectTrigger>
                   <SelectContent>
@@ -531,7 +761,7 @@ function QuoteHistory({
 
             {/* Machine Dropdown */}
             {printers.length > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex w-full sm:w-auto items-center gap-2">
                 <Printer className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground">Machine:</span>
                 <Select
@@ -544,7 +774,7 @@ function QuoteHistory({
                     }
                   }}
                 >
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="w-full sm:w-[200px]">
                     <SelectValue placeholder="All Machines" />
                   </SelectTrigger>
                   <SelectContent>
@@ -569,7 +799,7 @@ function QuoteHistory({
 
             {/* Material Dropdown */}
             {filaments.length > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex w-full sm:w-auto items-center gap-2">
                 <Package className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground">Material:</span>
                 <Select
@@ -582,7 +812,7 @@ function QuoteHistory({
                     }
                   }}
                 >
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="w-full sm:w-[200px]">
                     <SelectValue placeholder="All Materials" />
                   </SelectTrigger>
                   <SelectContent>
@@ -713,69 +943,99 @@ function QuoteHistory({
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
-                  {/* Action Buttons */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-9 w-9 p-0 bg-transparent"
-                        title="Share Quote"
-                        aria-label="Share quote"
-                      >
-                        <Share2 className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}`)}>
-                        Standard Quotation
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}/detailed`)}>
-                        Fully Detailed Quotation
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {/* Full action button row — desktop only; mobile gets the kebab below */}
+                  <div className="hidden sm:flex flex-wrap gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 w-9 p-0 bg-transparent"
+                          title="Share Quote"
+                          aria-label="Share quote"
+                        >
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}`)}>
+                          Standard Quotation
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}/detailed`)}>
+                          Fully Detailed Quotation
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}/invoice`)}>
+                          Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleCopyShareLink(quote)}>
+                          Copy share link
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDownload(quote.id)}
-                    className="h-9 w-9 p-0"
-                    title="Download Quote"
-                    aria-label="Download quote"
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(quote)}
-                    className="h-9 w-9 p-0"
-                    title="Edit Quote"
-                    aria-label="Edit quote"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDuplicate(quote)}
-                    className="h-9 w-9 p-0"
-                    title="Duplicate Quote"
-                    aria-label="Duplicate quote"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => convertQuoteType(quote.id, quote.quote_type)}
-                    className="h-9 w-9 p-0"
-                    title={`Convert to ${quote.quote_type === "personal" ? "Business" : "Personal"}`}
-                    aria-label={`Convert to ${quote.quote_type === "personal" ? "business" : "personal"} quote`}
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownload(quote.id)}
+                      className="h-9 w-9 p-0"
+                      title="Download Quote"
+                      aria-label="Download quote"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(quote)}
+                      className="h-9 w-9 p-0"
+                      title="Edit Quote"
+                      aria-label="Edit quote"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDuplicate(quote)}
+                      className="h-9 w-9 p-0"
+                      title="Duplicate Quote"
+                      aria-label="Duplicate quote"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSaveAsTemplate(quote)}
+                      className="h-9 w-9 p-0"
+                      title="Save as Template"
+                      aria-label="Save quote as template"
+                    >
+                      <LayoutTemplate className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => convertQuoteType(quote.id, quote.quote_type)}
+                      className="h-9 w-9 p-0"
+                      title={`Convert to ${quote.quote_type === "personal" ? "Business" : "Personal"}`}
+                      aria-label={`Convert to ${quote.quote_type === "personal" ? "business" : "personal"} quote`}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(quote.id)}
+                      className="h-9 w-9 p-0"
+                      title="Delete Quote"
+                      aria-label="Delete quote"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Expand toggle — always visible */}
                   <Button
                     variant="outline"
                     size="sm"
@@ -787,22 +1047,102 @@ function QuoteHistory({
                   >
                     {expandedId === quote.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(quote.id)}
-                    className="h-9 w-9 p-0"
-                    title="Delete Quote"
-                    aria-label="Delete quote"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+
+                  {/* Mobile: all actions collapse into a kebab menu */}
+                  <div className="sm:hidden">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 w-9 p-0"
+                          title="Quote actions"
+                          aria-label="Quote actions"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}`)}>
+                          <Share2 className="h-4 w-4 mr-2" />
+                          Standard Quotation
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}/detailed`)}>
+                          <Share2 className="h-4 w-4 mr-2" />
+                          Detailed Quotation
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}/invoice`)}>
+                          <Share2 className="h-4 w-4 mr-2" />
+                          Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleCopyShareLink(quote)}>
+                          <Share2 className="h-4 w-4 mr-2" />
+                          Copy share link
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDownload(quote.id)}>
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEdit(quote)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDuplicate(quote)}>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Duplicate
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleSaveAsTemplate(quote)}>
+                          <LayoutTemplate className="h-4 w-4 mr-2" />
+                          Save as template
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => convertQuoteType(quote.id, quote.quote_type)}>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Convert to {quote.quote_type === "personal" ? "business" : "personal"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleDelete(quote.id)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </div>
             </CardHeader>
 
             {expandedId === quote.id && (
               <CardContent className="pt-6 bg-muted/20">
+                {quote.invoice_number && (
+                  <div className="mb-6 flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Invoice {quote.invoice_number}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => togglePaid(quote)}
+                      aria-label={quote.paid_at ? "Mark invoice as unpaid" : "Mark invoice as paid"}
+                    >
+                      <Badge
+                        variant="outline"
+                        className={`cursor-pointer border transition-opacity hover:opacity-80 ${
+                          quote.paid_at
+                            ? "bg-green-100 text-green-700 border-green-300"
+                            : "bg-gray-100 text-gray-700 border-gray-300"
+                        }`}
+                      >
+                        {quote.paid_at ? (
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                        ) : (
+                          <Clock className="h-3 w-3 mr-1" />
+                        )}
+                        {quote.paid_at ? "Paid" : "Unpaid"}
+                      </Badge>
+                    </button>
+                  </div>
+                )}
                 {quote.printed_parts && quote.printed_parts.length > 0 && (
                   <div className="mb-6">
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Printed Parts</h3>

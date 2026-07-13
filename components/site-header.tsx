@@ -1,6 +1,6 @@
 import type React from "react"
 import Link from "next/link"
-import { ArrowLeft, Box, Calculator, Briefcase, History, Settings } from "lucide-react"
+import { ArrowLeft, BarChart3, Box, Calculator, Briefcase, History, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SignOutButton } from "@/components/sign-out-button"
 
@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { href: "/personal", label: "Personal", icon: Calculator },
   { href: "/business", label: "Business", icon: Briefcase },
   { href: "/history", label: "History", icon: History },
+  { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const
 
