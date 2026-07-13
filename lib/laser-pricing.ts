@@ -142,3 +142,128 @@ export function resolveMinJobPrice(
   if (hasSticker) return pos(stickerMinJobPrice)
   return pos(laserMinJobPrice)
 }
+
+export interface LaserQuoteInput {
+  items: LaserItem[]
+  materialsById: ReadonlyMap<string, LaserMaterialLike>
+  machinesById: ReadonlyMap<string, LaserMachineLike>
+  electricityCostPerKwh: number
+  materialEfficiencyFactor: number
+  laborCost: number
+  packagingCost: number
+  fuelCost: number
+  setupFee: number
+  marginPct: number
+  qtyDiscountTiers: QtyDiscountTier[]
+  /** false in target-price mode — the operator sets the exact total. */
+  applyDiscountsAndMinimum: boolean
+  laserMinJobPrice: number
+  stickerMinJobPrice: number
+  emergencyFee: number
+  /** 0 when VAT is not charged. */
+  vatRate: number
+}
+
+export interface LaserItemBreakdown {
+  id: string
+  directCost: number
+  costPerPiece: number
+  discountPct: number
+  sellPerPiece: number
+  lineSell: number
+}
+
+export interface LaserQuoteBreakdown {
+  materialCost: number
+  machineCost: number
+  /** labor + packaging + fuel — allocated into item lines by direct-cost share. */
+  overheadCost: number
+  setupFee: number
+  /** Setup fee with margin applied — rendered as its own document line. */
+  setupFeeSell: number
+  baseCost: number
+  marginPct: number
+  sellBeforeMinimum: number
+  discountAmount: number
+  minJobPrice: number
+  minPriceApplied: boolean
+  minPriceAdjustment: number
+  sellExVat: number
+  totalExVat: number
+  vatAmount: number
+  total: number
+  items: LaserItemBreakdown[]
+}
+
+export function computeLaserQuote(input: LaserQuoteInput): LaserQuoteBreakdown {
+  const marginPct = Math.min(95, pos(input.marginPct))
+  const multiplier = 1 / (1 - marginPct / 100)
+
+  const directs = input.items.map((it) => ({
+    it,
+    material: itemMaterialCost(it, input.materialsById.get(it.material_id), input.materialEfficiencyFactor),
+    machine: itemMachineCost(it, input.machinesById.get(it.machine_id), input.electricityCostPerKwh),
+  }))
+  const materialCost = directs.reduce((s, d) => s + d.material, 0)
+  const machineCost = directs.reduce((s, d) => s + d.machine, 0)
+  const directTotal = materialCost + machineCost
+  const overheadCost = pos(input.laborCost) + pos(input.packagingCost) + pos(input.fuelCost)
+  const setupFee = pos(input.setupFee)
+  const baseCost = directTotal + overheadCost + setupFee
+  const setupFeeSell = setupFee * multiplier
+
+  const items: LaserItemBreakdown[] = directs.map(({ it, material, machine }) => {
+    const direct = material + machine
+    const share = directTotal > 0 ? direct / directTotal : input.items.length > 0 ? 1 / input.items.length : 0
+    const allocated = direct + overheadCost * share
+    const qty = itemQty(it)
+    const discountPct = input.applyDiscountsAndMinimum ? discountPctForQty(qty, input.qtyDiscountTiers) : 0
+    const lineSell = allocated * multiplier * (1 - discountPct / 100)
+    return {
+      id: it.id,
+      directCost: direct,
+      costPerPiece: qty > 0 ? allocated / qty : 0,
+      discountPct,
+      sellPerPiece: qty > 0 ? lineSell / qty : 0,
+      lineSell,
+    }
+  })
+
+  const itemsSell = items.reduce((s, i) => s + i.lineSell, 0)
+  // With no items there are no lines to carry the overhead — sell it directly.
+  const overheadSell = input.items.length === 0 ? overheadCost * multiplier : 0
+  const sellBeforeMinimum = itemsSell + overheadSell + setupFeeSell
+  const discountAmount = items.reduce(
+    (s, i) => s + (i.discountPct > 0 ? i.lineSell / (1 - i.discountPct / 100) - i.lineSell : 0),
+    0,
+  )
+
+  const minJobPrice = input.applyDiscountsAndMinimum
+    ? resolveMinJobPrice(input.items, input.machinesById, input.laserMinJobPrice, input.stickerMinJobPrice)
+    : 0
+  const minPriceApplied = baseCost > 0 && sellBeforeMinimum < minJobPrice
+  const sellExVat = minPriceApplied ? minJobPrice : sellBeforeMinimum
+  const minPriceAdjustment = minPriceApplied ? minJobPrice - sellBeforeMinimum : 0
+
+  const totalExVat = sellExVat + pos(input.emergencyFee)
+  const vatAmount = totalExVat * pos(input.vatRate)
+  return {
+    materialCost,
+    machineCost,
+    overheadCost,
+    setupFee,
+    setupFeeSell,
+    baseCost,
+    marginPct,
+    sellBeforeMinimum,
+    discountAmount,
+    minJobPrice,
+    minPriceApplied,
+    minPriceAdjustment,
+    sellExVat,
+    totalExVat,
+    vatAmount,
+    total: totalExVat + vatAmount,
+    items,
+  }
+}

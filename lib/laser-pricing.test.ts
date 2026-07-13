@@ -5,10 +5,12 @@ import {
   itemMachineCost,
   discountPctForQty,
   resolveMinJobPrice,
+  computeLaserQuote,
   LASER_DEFAULTS,
   type LaserMachineLike,
   type LaserItem,
   type LaserMaterialLike,
+  type LaserQuoteInput,
 } from "./laser-pricing"
 
 const machine = (over: Partial<LaserMachineLike> = {}): LaserMachineLike => ({
@@ -105,5 +107,111 @@ describe("resolveMinJobPrice", () => {
   })
   it("uses the higher minimum when both machine kinds appear", () => {
     expect(resolveMinJobPrice([item({ machine_id: "laser1" }), item({ machine_id: "stick1" })], machines, 15, 10)).toBe(15)
+  })
+})
+
+/** Machine with capital 0 and exactly €1.3/hr electricity-buffered cost. */
+const simpleMachine = machine({
+  id: "laser1",
+  machine_type: "laser",
+  printer_cost: 0,
+  estimated_annual_maintenance: 0,
+  average_power_consumption_watts: 1000,
+  estimated_printer_uptime_percent: 1,
+  estimated_life_years: 1,
+})
+
+const pieceMaterial: LaserMaterialLike = { id: "mat1", name: "Blank", pricing_unit: "piece", price: 1 }
+
+const baseInput = (over: Partial<LaserQuoteInput> = {}): LaserQuoteInput => ({
+  items: [item({ machine_id: "laser1", machine_minutes: 6, usage: 1, quantity: 1 })],
+  materialsById: new Map([["mat1", pieceMaterial]]),
+  machinesById: new Map([["laser1", simpleMachine]]),
+  electricityCostPerKwh: 1,
+  materialEfficiencyFactor: 1,
+  laborCost: 0,
+  packagingCost: 0,
+  fuelCost: 0,
+  setupFee: 0,
+  marginPct: 50,
+  qtyDiscountTiers: LASER_DEFAULTS.qty_discount_tiers,
+  applyDiscountsAndMinimum: true,
+  laserMinJobPrice: 15,
+  stickerMinJobPrice: 10,
+  emergencyFee: 0,
+  vatRate: 0,
+  ...over,
+})
+
+describe("computeLaserQuote", () => {
+  it("bumps a small job to the minimum job price and reports the adjustment", () => {
+    // direct = material 1 + machine 0.13 = 1.13; ×2 (50% margin) = 2.26 < 15
+    const b = computeLaserQuote(baseInput())
+    expect(b.baseCost).toBeCloseTo(1.13, 5)
+    expect(b.sellBeforeMinimum).toBeCloseTo(2.26, 5)
+    expect(b.minPriceApplied).toBe(true)
+    expect(b.minPriceAdjustment).toBeCloseTo(12.74, 5)
+    expect(b.total).toBeCloseTo(15, 5)
+  })
+
+  it("does not bump above-minimum jobs and applies VAT + emergency on top", () => {
+    const b = computeLaserQuote(baseInput({
+      items: [item({ machine_id: "laser1", machine_minutes: 60, usage: 10, quantity: 2 })],
+      emergencyFee: 10,
+      vatRate: 0.23,
+    }))
+    // material 10*1*2=20, machine 1.3*2=2.6 → base 22.6 → sell 45.2 (no discount, qty 2)
+    expect(b.minPriceApplied).toBe(false)
+    expect(b.totalExVat).toBeCloseTo(55.2, 5)
+    expect(b.total).toBeCloseTo(55.2 * 1.23, 4)
+  })
+
+  it("applies the qty discount per item and reports per-piece figures", () => {
+    const b = computeLaserQuote(baseInput({
+      items: [item({ machine_id: "laser1", machine_minutes: 0, usage: 1, quantity: 10 })],
+    }))
+    // material 10 → sell full 20, 5% tier → line 19; per piece 1.9
+    expect(b.items[0].discountPct).toBe(5)
+    expect(b.items[0].lineSell).toBeCloseTo(19, 5)
+    expect(b.items[0].sellPerPiece).toBeCloseTo(1.9, 5)
+    expect(b.discountAmount).toBeCloseTo(1, 5)
+    expect(b.sellExVat).toBeCloseTo(19, 5)
+  })
+
+  it("sells the setup fee with margin as its own line (not allocated to items)", () => {
+    const b = computeLaserQuote(baseInput({ setupFee: 5 }))
+    expect(b.setupFeeSell).toBeCloseTo(10, 5)
+    expect(b.baseCost).toBeCloseTo(6.13, 5)
+    // items keep their own sell: 2.26 + setup 10 = 12.26 < 15 → still bumped
+    expect(b.sellBeforeMinimum).toBeCloseTo(12.26, 5)
+    expect(b.minPriceApplied).toBe(true)
+  })
+
+  it("allocates labor/packaging/fuel overhead across items by direct-cost share", () => {
+    const b = computeLaserQuote(baseInput({
+      laborCost: 10,
+      items: [
+        item({ id: "a", machine_id: "laser1", machine_minutes: 0, usage: 3, quantity: 1 }),
+        item({ id: "b", machine_id: "laser1", machine_minutes: 0, usage: 1, quantity: 1 }),
+      ],
+    }))
+    // direct a=3, b=1 → overhead splits 7.5/2.5 → allocated 10.5/3.5 → sell 21/7
+    expect(b.items[0].lineSell).toBeCloseTo(21, 5)
+    expect(b.items[1].lineSell).toBeCloseTo(7, 5)
+  })
+
+  it("skips discounts and minimum in target-price mode", () => {
+    const b = computeLaserQuote(baseInput({
+      applyDiscountsAndMinimum: false,
+      items: [item({ machine_id: "laser1", machine_minutes: 0, usage: 1, quantity: 50 })],
+    }))
+    expect(b.items[0].discountPct).toBe(0)
+    expect(b.minPriceApplied).toBe(false)
+  })
+
+  it("sells pure-overhead quotes (no items) directly", () => {
+    const b = computeLaserQuote(baseInput({ items: [], laborCost: 20 }))
+    expect(b.sellBeforeMinimum).toBeCloseTo(40, 5)
+    expect(b.minPriceApplied).toBe(false) // 40 > 15
   })
 })
