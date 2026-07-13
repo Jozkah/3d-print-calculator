@@ -145,6 +145,9 @@ export function QuotationDocument({
 
   const contactLine = issuerContactLine(settings)
 
+  const isLaserQuote = quote.quote_type_mode === "laser"
+  const laserItems: any[] = isLaserQuote ? quote.laser_items || [] : []
+
   return (
     <div className="min-h-screen print:min-h-0 bg-white font-sans text-slate-900">
       {/* Print button - hidden when printing */}
@@ -198,51 +201,112 @@ export function QuotationDocument({
             Cost Breakdown
           </p>
 
-          <div className="divide-y divide-slate-100">
-            <div className="flex items-baseline justify-between gap-8 py-4">
-              <div>
-                <p className="text-slate-900">3D Printing &amp; Materials</p>
-                <p className="text-sm text-slate-400 mt-0.5">Printing time, machine cost and material usage</p>
-              </div>
-              <p className="tabular-nums text-slate-900 whitespace-nowrap">
-                {money(printingAndMaterialsWithMargin)}
-              </p>
+          {isLaserQuote ? (
+            <div className="divide-y divide-slate-100">
+              {laserItems.map((it: any, i: number) => (
+                <div key={it.id || i} className="flex items-baseline justify-between gap-8 py-4">
+                  <div>
+                    <p className="text-slate-900">
+                      {it.name || "Unnamed item"} × {Number(it.quantity) || 0}
+                    </p>
+                    <p className="text-sm text-slate-400 mt-0.5">
+                      {it.material_name}
+                      {it.machine_name ? ` · ${it.machine_name}` : ""}
+                      {Number(it.discount_pct) > 0 ? ` · ${it.discount_pct}% quantity discount` : ""}
+                      {` · ${money(Number(it.sell_per_piece) || 0)} each`}
+                    </p>
+                  </div>
+                  <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(Number(it.line_sell) || 0)}</p>
+                </div>
+              ))}
+              {Number(quote.setup_fee) > 0 && (
+                <div className="flex items-baseline justify-between gap-8 py-4">
+                  <div>
+                    <p className="text-slate-900">Design &amp; setup fee</p>
+                    <p className="text-sm text-slate-400 mt-0.5">Artwork preparation and machine setup</p>
+                  </div>
+                  <p className="tabular-nums text-slate-900 whitespace-nowrap">
+                    {money(Number(quote.setup_fee_sell ?? (Number(quote.setup_fee) || 0) * displayMultiplier) || 0)}
+                  </p>
+                </div>
+              )}
+              {(Number(quote.labor_cost) > 0 || Number(quote.packaging_cost) + Number(quote.fuel_cost) > 0) && (
+                <div className="flex items-baseline justify-between gap-8 py-4">
+                  <div>
+                    <p className="text-slate-900">Labor, Packaging &amp; Transport</p>
+                    <p className="text-sm text-slate-400 mt-0.5">Included in the item prices above</p>
+                  </div>
+                  <p className="tabular-nums text-slate-400 whitespace-nowrap">included</p>
+                </div>
+              )}
+              {quote.min_price_applied && (
+                <div className="flex items-baseline justify-between gap-8 py-4">
+                  <p className="text-slate-900">Minimum job price adjustment</p>
+                  <p className="tabular-nums text-slate-900 whitespace-nowrap">
+                    {money(Number(quote.min_price_adjustment) || 0)}
+                  </p>
+                </div>
+              )}
+              {quote.is_emergency && emergencyFeeCost > 0 && (
+                <div className="flex items-baseline justify-between gap-8 py-4">
+                  <p className="text-slate-900">Emergency Fee</p>
+                  <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(emergencyFeeCost)}</p>
+                </div>
+              )}
+              {vatApplies && (
+                <div className="flex items-baseline justify-between gap-8 py-4">
+                  <p className="text-slate-900">VAT ({vatPercentLabel}%)</p>
+                  <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(vatAmount)}</p>
+                </div>
+              )}
             </div>
-
-            <div className="flex items-baseline justify-between gap-8 py-4">
-              <div>
-                <p className="text-slate-900">Labor</p>
-                <p className="text-sm text-slate-400 mt-0.5">Assembly, post-processing, or design work</p>
-              </div>
-              <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(laborWithMargin)}</p>
-            </div>
-
-            <div className="flex items-baseline justify-between gap-8 py-4">
-              <div>
-                <p className="text-slate-900">Packaging, Shipping &amp; Transport</p>
-                <p className="text-sm text-slate-400 mt-0.5">Packaging materials, courier, and transportation</p>
-              </div>
-              <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(packagingWithMargin)}</p>
-            </div>
-
-            {quote.is_emergency && emergencyFeeCost > 0 && (
+          ) : (
+            <div className="divide-y divide-slate-100">
               <div className="flex items-baseline justify-between gap-8 py-4">
                 <div>
-                  <p className="text-slate-900">Emergency Fee</p>
-                  <p className="text-sm text-slate-400 mt-0.5">Urgent order surcharge</p>
+                  <p className="text-slate-900">3D Printing &amp; Materials</p>
+                  <p className="text-sm text-slate-400 mt-0.5">Printing time, machine cost and material usage</p>
                 </div>
-                <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(emergencyFeeCost)}</p>
+                <p className="tabular-nums text-slate-900 whitespace-nowrap">
+                  {money(printingAndMaterialsWithMargin)}
+                </p>
               </div>
-            )}
 
-            {/* VAT - Only for business quotes that charged it */}
-            {vatApplies && (
               <div className="flex items-baseline justify-between gap-8 py-4">
-                <p className="text-slate-900">VAT ({vatPercentLabel}%)</p>
-                <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(vatAmount)}</p>
+                <div>
+                  <p className="text-slate-900">Labor</p>
+                  <p className="text-sm text-slate-400 mt-0.5">Assembly, post-processing, or design work</p>
+                </div>
+                <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(laborWithMargin)}</p>
               </div>
-            )}
-          </div>
+
+              <div className="flex items-baseline justify-between gap-8 py-4">
+                <div>
+                  <p className="text-slate-900">Packaging, Shipping &amp; Transport</p>
+                  <p className="text-sm text-slate-400 mt-0.5">Packaging materials, courier, and transportation</p>
+                </div>
+                <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(packagingWithMargin)}</p>
+              </div>
+
+              {quote.is_emergency && emergencyFeeCost > 0 && (
+                <div className="flex items-baseline justify-between gap-8 py-4">
+                  <div>
+                    <p className="text-slate-900">Emergency Fee</p>
+                    <p className="text-sm text-slate-400 mt-0.5">Urgent order surcharge</p>
+                  </div>
+                  <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(emergencyFeeCost)}</p>
+                </div>
+              )}
+
+              {/* VAT - Only for business quotes that charged it */}
+              {vatApplies && (
+                <div className="flex items-baseline justify-between gap-8 py-4">
+                  <p className="text-slate-900">VAT ({vatPercentLabel}%)</p>
+                  <p className="tabular-nums text-slate-900 whitespace-nowrap">{money(vatAmount)}</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Total */}
           <div
@@ -261,8 +325,9 @@ export function QuotationDocument({
           </p>
           <ul className="text-sm text-slate-500 space-y-2 list-disc list-outside pl-4">
             <li>
-              This quotation includes all costs associated with the 3D printing service, including materials, machine
-              time, labor, packaging, and delivery.
+              {isLaserQuote
+                ? "This quotation includes all costs associated with the laser cutting, engraving and printing service, including materials, machine time, labor, packaging, and delivery."
+                : "This quotation includes all costs associated with the 3D printing service, including materials, machine time, labor, packaging, and delivery."}
             </li>
             <li>
               All costs include a {quote.selected_margin}% profit margin to cover business operations and overhead.
