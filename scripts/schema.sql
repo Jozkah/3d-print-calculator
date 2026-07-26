@@ -27,6 +27,25 @@ CREATE TABLE IF NOT EXISTS global_settings (
   cost_buffer_factor DECIMAL(10, 2) NOT NULL DEFAULT 1.3,
   emergency_fee_fixed DECIMAL(10, 2) NOT NULL DEFAULT 10.00,
   double_heating_cost BOOLEAN DEFAULT TRUE,
+  vat_rate NUMERIC DEFAULT 0.23,
+  currency_symbol TEXT DEFAULT '€',
+  validity_days INTEGER DEFAULT 30,
+  -- Business identity rendered as a letterhead on quote/invoice documents.
+  company_name TEXT,
+  company_address TEXT,
+  company_lat NUMERIC,
+  company_lon NUMERIC,
+  company_email TEXT,
+  company_phone TEXT,
+  company_tax_id TEXT,
+  company_logo TEXT,
+  -- Laser / sticker / UV pricing levers.
+  laser_min_job_price NUMERIC DEFAULT 15,
+  sticker_min_job_price NUMERIC DEFAULT 10,
+  uv_min_job_price NUMERIC DEFAULT 15,
+  default_setup_fee NUMERIC DEFAULT 5,
+  qty_discount_tiers JSONB DEFAULT '[{"min_qty":10,"discount_pct":5},{"min_qty":50,"discount_pct":10}]'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -46,6 +65,10 @@ CREATE TABLE IF NOT EXISTS printers (
   estimated_printer_uptime_percent DECIMAL(10, 4) NOT NULL DEFAULT 0.50,
   average_power_consumption_watts DECIMAL(10, 2) NOT NULL DEFAULT 150.00,
   has_enclosure BOOLEAN DEFAULT FALSE,
+  -- "3d-printer" | "laser" | "sticker-printer" | "uv-printer". Not a CHECK
+  -- constraint: legacy rows may have no value, which the app reads as 3D.
+  machine_type TEXT DEFAULT '3d-printer',
+  image_key TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -70,6 +93,9 @@ CREATE TABLE IF NOT EXISTS filaments (
   color_hex TEXT,
   thickness TEXT,
   size TEXT,
+  -- Spool inventory. NULL = stock not tracked for that spool.
+  grams_in_stock NUMERIC,
+  low_stock_threshold_g NUMERIC DEFAULT 1000,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -86,19 +112,69 @@ ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS laser_materials (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
-  material_type TEXT NOT NULL,
+  color TEXT,
+  -- How the material is bought and charged.
+  pricing_unit TEXT NOT NULL DEFAULT 'sheet'
+    CHECK (pricing_unit IN ('sheet', 'area', 'length', 'piece')),
+  price NUMERIC NOT NULL DEFAULT 0,
+  -- Sheets only: enables the W x H to sheet-fraction conversion in the form.
+  sheet_width_cm NUMERIC,
+  sheet_height_cm NUMERIC,
+  stock_qty NUMERIC,
+  notes TEXT,
+  -- Pre-rework columns, kept nullable so old rows and backups still load.
+  material_type TEXT,
   price_per_unit NUMERIC,
-  unit TEXT DEFAULT 'sheet',
+  unit TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-INSERT INTO laser_materials (name, material_type, price_per_unit, unit) VALUES
-  ('Plywood Sheet', 'PLYWOOD', NULL, 'sheet'),
-  ('Basswood Sheet', 'BASSWOOD', NULL, 'sheet'),
-  ('Vinyl Roll', 'VINYL', NULL, 'roll'),
-  ('Custom Item', 'CUSTOM ITEM', NULL, 'unit')
-ON CONFLICT DO NOTHING;
+-- UV ink catalogue ------------------------------------------------------------
+-- One row per ink channel, each with two prices. The client is always billed at
+-- the OEM price; the refill price only ever affects internal cost. oem_volume_ml
+-- counts PRINTING ml only, which is what folds the kit's cleaner cost into every
+-- ml of ink sold.
+CREATE TABLE IF NOT EXISTS uv_inks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  color_key TEXT NOT NULL UNIQUE
+    CHECK (color_key IN ('cyan', 'magenta', 'yellow', 'black', 'white', 'gloss')),
+  name TEXT NOT NULL,
+  hex TEXT NOT NULL DEFAULT '#000000',
+  oem_price NUMERIC NOT NULL DEFAULT 0,
+  oem_volume_ml NUMERIC NOT NULL DEFAULT 0,
+  refill_price NUMERIC,
+  refill_volume_ml NUMERIC,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Seeded at 0 so the settings page warns until a real kit price is entered.
+INSERT INTO uv_inks (color_key, name, hex, sort_order) VALUES
+  ('cyan',    'Cyan',            '#00AEEF', 1),
+  ('magenta', 'Magenta',         '#EC008C', 2),
+  ('yellow',  'Yellow',          '#FFF200', 3),
+  ('black',   'Black',           '#231F20', 4),
+  ('white',   'White',           '#FFFFFF', 5),
+  ('gloss',   'Gloss / varnish', '#C9D4DD', 6)
+ON CONFLICT (color_key) DO NOTHING;
+
+-- UV substrate catalogue ------------------------------------------------------
+CREATE TABLE IF NOT EXISTS uv_materials (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  color TEXT,
+  pricing_unit TEXT NOT NULL DEFAULT 'piece'
+    CHECK (pricing_unit IN ('sheet', 'area', 'length', 'piece')),
+  price NUMERIC NOT NULL DEFAULT 0,
+  sheet_width_cm NUMERIC,
+  sheet_height_cm NUMERIC,
+  stock_qty NUMERIC,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- Clients ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS clients (
@@ -132,6 +208,11 @@ CREATE TABLE IF NOT EXISTS quotes (
   materials JSONB DEFAULT '[]'::jsonb,
   labor_items JSONB DEFAULT '[]'::jsonb,
   packaging_items JSONB DEFAULT '[]'::jsonb,
+  -- Laser/sticker and UV line items, denormalized at save time so historical
+  -- quotes render without their catalogues.
+  laser_items JSONB DEFAULT '[]'::jsonb,
+  uv_items JSONB DEFAULT '[]'::jsonb,
+  uv_operations JSONB DEFAULT '[]'::jsonb,
   is_emergency BOOLEAN DEFAULT FALSE,
   -- Roll-up costs
   machine_cost NUMERIC,
@@ -143,6 +224,33 @@ CREATE TABLE IF NOT EXISTS quotes (
   electricity_cost NUMERIC,
   emergency_fee NUMERIC,
   landed_cost NUMERIC,
+  -- UV ink: billed at OEM (drives the client price) vs what it actually cost
+  -- with refills loaded (internal only, never rendered on a document).
+  uv_ink_cost NUMERIC DEFAULT 0,
+  uv_ink_cost_actual NUMERIC DEFAULT 0,
+  setup_fee NUMERIC DEFAULT 0,
+  setup_fee_sell NUMERIC DEFAULT 0,
+  discount_amount NUMERIC DEFAULT 0,
+  min_job_price NUMERIC DEFAULT 0,
+  min_price_applied BOOLEAN DEFAULT FALSE,
+  min_price_adjustment NUMERIC DEFAULT 0,
+  -- The VAT fraction the quote was priced at, so documents re-render historically.
+  vat_rate NUMERIC,
+  valid_until TIMESTAMPTZ,
+  -- Invoice fields, minted the first time the invoice document is opened.
+  invoice_number TEXT,
+  invoice_date TIMESTAMPTZ,
+  due_date TIMESTAMPTZ,
+  paid_at TIMESTAMPTZ,
+  -- Set once the quote reached "finished" and filament stock was decremented,
+  -- so repeated status flips never double-deduct inventory.
+  stock_deducted BOOLEAN DEFAULT FALSE,
+  -- Route behind distance_traveled_km; the distance stays the single source of
+  -- truth for the fuel-cost math either way.
+  route_origin JSONB,
+  route_destination JSONB,
+  route_is_round_trip BOOLEAN,
+  route_one_way_km NUMERIC,
   -- Profit split
   owner_a_receives NUMERIC DEFAULT 0,
   owner_b_receives NUMERIC DEFAULT 0,
@@ -205,6 +313,23 @@ CREATE TABLE IF NOT EXISTS imported_csv_files (
   filament_count INTEGER
 );
 
+-- Per-year sequential counters (invoice numbering: key "invoice-2026") --------
+CREATE TABLE IF NOT EXISTS counters (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  key TEXT UNIQUE NOT NULL,
+  value INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Reusable quote structures saved from an existing quote ----------------------
+CREATE TABLE IF NOT EXISTS quote_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes ---------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_quote_parts_header ON quote_parts(quote_header_id);
 CREATE INDEX IF NOT EXISTS idx_quote_headers_type ON quote_headers(quote_type);
@@ -213,4 +338,10 @@ CREATE INDEX IF NOT EXISTS idx_quotes_is_draft ON quotes(is_draft);
 CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name);
 CREATE INDEX IF NOT EXISTS idx_filaments_material_type ON filaments(material_type);
 CREATE INDEX IF NOT EXISTS idx_laser_materials_type ON laser_materials(material_type);
+CREATE INDEX IF NOT EXISTS idx_quotes_type_mode ON quotes(quote_type_mode);
+CREATE INDEX IF NOT EXISTS idx_quotes_invoice_number ON quotes(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_printers_machine_type ON printers(machine_type);
+CREATE INDEX IF NOT EXISTS idx_quote_templates_name ON quote_templates(name);
+CREATE INDEX IF NOT EXISTS idx_uv_inks_sort_order ON uv_inks(sort_order);
+CREATE INDEX IF NOT EXISTS idx_uv_materials_name ON uv_materials(name);
 CREATE INDEX IF NOT EXISTS idx_imported_csv_files_hash ON imported_csv_files(file_hash);

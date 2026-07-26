@@ -22,7 +22,8 @@ DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
     'global_settings','printers','filaments','laser_materials',
-    'clients','quotes','quote_headers','quote_parts','imported_csv_files'
+    'uv_inks','uv_materials','clients','quotes','quote_headers','quote_parts',
+    'imported_csv_files','counters','quote_templates'
   ]
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
@@ -44,7 +45,8 @@ END $$;
 -- BEGIN
 --   FOREACH t IN ARRAY ARRAY[
 --     'global_settings','printers','filaments','laser_materials',
---     'clients','quotes','quote_headers','quote_parts','imported_csv_files'
+--     'uv_inks','uv_materials','clients','quotes','quote_headers','quote_parts',
+--     'imported_csv_files','counters','quote_templates'
 --   ]
 --   LOOP
 --     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
