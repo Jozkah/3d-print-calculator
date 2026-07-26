@@ -14,6 +14,7 @@
 import type { Tables } from "@/types/db"
 import { migrateLegacyLaserMaterials } from "@/lib/laser-materials-migration"
 import { LASER_DEFAULTS } from "@/lib/laser-pricing"
+import { UV_DEFAULTS, UV_INK_SEED } from "@/lib/uv-pricing"
 
 type Row = Record<string, any>
 
@@ -54,6 +55,7 @@ const SEED: Record<string, () => Row[]> = {
       currency_symbol: "€",
       validity_days: 30,
       ...LASER_DEFAULTS,
+      ...UV_DEFAULTS,
       company_name: "",
       company_address: "",
       company_email: "",
@@ -65,6 +67,20 @@ const SEED: Record<string, () => Row[]> = {
     },
   ],
   laser_materials: () => migrateLegacyLaserMaterials(load("filaments") as any[], []),
+  // Six ink channels, priced at 0 until the operator runs "Fill from kit" on
+  // /settings/uv-inks. A visible €0/ml is safer than guessing a kit price on
+  // their behalf — a wrong guess would silently under-quote every job.
+  uv_inks: () =>
+    UV_INK_SEED.map((ink) => ({
+      id: uuid(),
+      ...ink,
+      oem_price: 0,
+      oem_volume_ml: 0,
+      refill_price: null,
+      refill_volume_ml: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })),
 }
 
 function uuid(): string {
