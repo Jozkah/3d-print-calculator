@@ -159,6 +159,9 @@ export type GlobalSettings = {
 export type Quote = {
   id: string
   quote_type: string
+  // Which calculator produced the quote: "laser" | "uv" | a legacy laser mode,
+  // or absent for 3D-print quotes. See lib/quote-modes.ts.
+  quote_type_mode?: string
   quote_name: string
   client_id?: string | null
   printer_id?: string

@@ -47,6 +47,7 @@ import {
   LayoutTemplate,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { isLaserQuote, isUvQuote } from "@/lib/quote-modes"
 import { useRouter } from "next/navigation"
 
 import type { Quote as QuoteRow } from "@/types/db"
@@ -112,11 +113,6 @@ function QuoteHistory({
   // this list on every data change, and expiry granularity is a whole day.
   const [now] = useState(() => Date.now())
 
-  // Laser/stickers quotes save quote_type_mode "laser" (legacy rows may still
-  // carry "laser-engraving", "laser-cutting", or "stickers"), with item names
-  // in a laser_items array instead of printed_parts.
-  const isLaserQuote = (q: any) =>
-    q.quote_type_mode === "laser" || ["laser-engraving", "laser-cutting", "stickers"].includes(q.quote_type_mode)
 
   const handleDownload = (id: string) => {
     // The quote document page opens the browser's print dialog when ?print=1
@@ -522,7 +518,10 @@ function QuoteHistory({
       const laserNames = (quote.laser_items || [])
         .map((it: any) => it.name || "")
         .join(" ")
-      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames}`.toLowerCase()
+      const uvNames = (quote.uv_items || [])
+        .map((it: any) => it?.name || "")
+        .join(" ")
+      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames} ${uvNames}`.toLowerCase()
       if (!haystack.includes(query)) return false
     }
 
@@ -839,12 +838,18 @@ function QuoteHistory({
         // printed_parts/materials, so the generic 3D-print counts below would
         // always read zero for them — count laser_items as "items" instead.
         const isLaser = isLaserQuote(quote)
+        const isUv = isUvQuote(quote)
+        // Laser and UV quotes are both counted as "items"; only 3D quotes have
+        // parts + materials.
+        const isItemised = isLaser || isUv
         // Legacy laser quotes ("laser-engraving"/"laser-cutting"/"stickers") were saved
         // before laser_items existed, so their line items still live in printed_parts —
         // fall back to that count instead of showing 0.
-        const totalParts = isLaser
-          ? quote.laser_items?.length || quote.printed_parts?.length || 0
-          : (quote.printed_parts || []).length
+        const totalParts = isUv
+          ? quote.uv_items?.length || 0
+          : isLaser
+            ? quote.laser_items?.length || quote.printed_parts?.length || 0
+            : (quote.printed_parts || []).length
         const totalMaterials = (quote.materials || []).length || (quote.materials_cost > 0 ? 1 : 0)
         const totalLabor = (quote.labor_items || []).length
         const totalPackaging = (quote.packaging_items || []).length
@@ -885,6 +890,11 @@ function QuoteHistory({
                     {isLaserQuote(quote) && (
                       <span className="ml-2 inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                         Laser
+                      </span>
+                    )}
+                    {isUvQuote(quote) && (
+                      <span className="ml-2 inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        UV
                       </span>
                     )}
                     {quote.is_draft && <Badge variant="secondary">Draft</Badge>}
@@ -951,7 +961,7 @@ function QuoteHistory({
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground break-words mt-1">
-                    {isLaser ? (
+                    {isItemised ? (
                       <>
                         {totalParts} item{totalParts !== 1 ? "s" : ""} | {totalLabor} labor item
                         {totalLabor !== 1 ? "s" : ""} | {totalPackaging} packaging item

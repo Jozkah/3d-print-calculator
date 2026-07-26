@@ -70,6 +70,50 @@ const tdMuted = "py-3 pr-4 text-slate-500"
 const tdNum = "py-3 pl-4 text-right tabular-nums text-slate-500 whitespace-nowrap"
 const tdNumStrong = "py-3 pl-4 text-right tabular-nums text-slate-900 whitespace-nowrap"
 
+function UvItemsSection({ quote, money }: { quote: any; money: (n: number) => string }) {
+  const items: any[] = quote.uv_items || []
+  if (items.length === 0) return null
+  return (
+    <section className="mb-12">
+      <p className={sectionLabel}>UV Printed Items</p>
+      <table className="w-full">
+        <thead>
+          <tr>
+            <th className={th}>Item</th>
+            <th className={th}>Material</th>
+            <th className={th}>Machine</th>
+            <th className={thRight}>Qty</th>
+            <th className={thRight}>Runs</th>
+            <th className={thRight}>Cost / pc</th>
+            <th className={thRight}>Sell / pc</th>
+            <th className={thRight}>Line Total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {items.map((it, i) => (
+            <tr key={it.id || i}>
+              <td className={td}>{it.name || "Unnamed item"}</td>
+              <td className={tdMuted}>{it.material_name || "—"}</td>
+              <td className={tdMuted}>
+                {it.machine_name || "—"}
+                {it.minutes_per_run ? ` · ${it.minutes_per_run} min/run` : ""}
+              </td>
+              <td className={tdNum}>{Number(it.quantity) || 0}</td>
+              <td className={tdNum}>{Number(it.runs) || 0}</td>
+              <td className={tdNum}>{money(Number(it.cost_per_piece) || 0)}</td>
+              <td className={tdNum}>
+                {money(Number(it.sell_per_piece) || 0)}
+                {Number(it.discount_pct) > 0 ? ` (−${it.discount_pct}%)` : ""}
+              </td>
+              <td className={tdNumStrong}>{money(Number(it.line_sell) || 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
 function LaserItemsSection({ quote, money }: { quote: any; money: (n: number) => string }) {
   const items: any[] = quote.laser_items || []
   return (
@@ -160,7 +204,7 @@ export default function DetailedQuotePage() {
     // Laser quotes persist a denormalized laser_items array with per-piece figures
     // already computed at save time; they have no printed_parts to enrich, and
     // running this block against them would be a no-op that only wastes a fetch.
-    if (data.quote_type_mode !== "laser" && data.printed_parts && data.printed_parts.length > 0) {
+    if (data.quote_type_mode !== "laser" && data.quote_type_mode !== "uv" && data.printed_parts && data.printed_parts.length > 0) {
       // Handle both old and new data structures
       const allFilamentIds: string[] = []
       data.printed_parts.forEach((p: any) => {
@@ -303,6 +347,7 @@ export default function DetailedQuotePage() {
   const emergencyFeeCost = quote.is_emergency ? quote.emergency_fee || 0 : 0
 
   const isLaserMode = quote.quote_type_mode === "laser"
+  const isUvMode = quote.quote_type_mode === "uv"
 
   const isBusinessQuote = quote.quote_type === "business"
   // Honor the saved VAT toggle — quotes saved with "Include VAT" unchecked
@@ -399,7 +444,9 @@ export default function DetailedQuotePage() {
 
         {isLaserMode && <LaserItemsSection quote={quote} money={money} />}
 
-        {!isLaserMode && quote.printed_parts && quote.printed_parts.length > 0 && (
+        {isUvMode && <UvItemsSection quote={quote} money={money} />}
+
+        {!isLaserMode && !isUvMode && quote.printed_parts && quote.printed_parts.length > 0 && (
           <section className="mb-12">
             <p className={sectionLabel}>Printed Parts &amp; Materials</p>
             <div className="overflow-x-auto">
@@ -451,6 +498,13 @@ export default function DetailedQuotePage() {
                 </tr>
               </thead>
               <tbody>
+                {isUvMode && (
+                  <tr className="border-b border-slate-100">
+                    <td className={td}>Ink</td>
+                    <td className={tdNum}>{money(quote.uv_ink_cost ?? 0)}</td>
+                    <td className={tdNumStrong}>{money(((quote.uv_ink_cost || 0) * displayMultiplier))}</td>
+                  </tr>
+                )}
                 <tr className="border-b border-slate-100">
                   <td className={td}>Machine depreciation and maintenance cost</td>
                   <td className={tdNum}>{money(quote.machine_cost ?? 0)}</td>
@@ -475,7 +529,7 @@ export default function DetailedQuotePage() {
           </div>
         </section>
 
-        {!isLaserMode && quote.dried_batches && quote.dried_batches.length > 0 && (
+        {!isLaserMode && !isUvMode && quote.dried_batches && quote.dried_batches.length > 0 && (
           <section className="mb-12">
             <p className={sectionLabel}>Filament Drying &amp; Preparation</p>
             <div className="overflow-x-auto">

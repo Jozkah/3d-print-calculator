@@ -146,7 +146,11 @@ export function QuotationDocument({
   const contactLine = issuerContactLine(settings)
 
   const isLaserQuote = quote.quote_type_mode === "laser"
-  const laserItems: any[] = isLaserQuote ? quote.laser_items || [] : []
+  const isUvQuote = quote.quote_type_mode === "uv"
+  // Laser and UV quotes both persist denormalized line items with the same
+  // field names, so one branch renders either.
+  const isItemisedQuote = isLaserQuote || isUvQuote
+  const laserItems: any[] = isUvQuote ? quote.uv_items || [] : isLaserQuote ? quote.laser_items || [] : []
 
   return (
     <div className="min-h-screen print:min-h-0 bg-white font-sans text-slate-900">
@@ -201,7 +205,7 @@ export function QuotationDocument({
             Cost Breakdown
           </p>
 
-          {isLaserQuote ? (
+          {isItemisedQuote ? (
             <div className="divide-y divide-slate-100">
               {laserItems.map((it: any, i: number) => (
                 <div key={it.id || i} className="flex items-baseline justify-between gap-8 py-4">
@@ -325,9 +329,11 @@ export function QuotationDocument({
           </p>
           <ul className="text-sm text-slate-500 space-y-2 list-disc list-outside pl-4">
             <li>
-              {isLaserQuote
-                ? "This quotation includes all costs associated with the laser cutting, engraving and printing service, including materials, machine time, labor, packaging, and delivery."
-                : "This quotation includes all costs associated with the 3D printing service, including materials, machine time, labor, packaging, and delivery."}
+              {isUvQuote
+                ? "This quotation includes all costs associated with the UV printing service, including materials, ink, machine time, labor, packaging, and delivery."
+                : isLaserQuote
+                  ? "This quotation includes all costs associated with the laser cutting, engraving and printing service, including materials, machine time, labor, packaging, and delivery."
+                  : "This quotation includes all costs associated with the 3D printing service, including materials, machine time, labor, packaging, and delivery."}
             </li>
             <li>
               All costs include a {quote.selected_margin}% profit margin to cover business operations and overhead.
