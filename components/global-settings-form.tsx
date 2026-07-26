@@ -13,6 +13,7 @@ import { Plus, Save, Trash2, Upload, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { LASER_DEFAULTS } from "@/lib/laser-pricing"
+import { UV_DEFAULTS } from "@/lib/uv-pricing"
 
 // Logos are stored inline as data URIs in localStorage, so keep them small.
 const MAX_LOGO_BYTES = 200 * 1024
@@ -38,6 +39,7 @@ type GlobalSettings = {
   company_logo?: string
   laser_min_job_price?: number
   sticker_min_job_price?: number
+  uv_min_job_price?: number
   default_setup_fee?: number
   qty_discount_tiers?: { min_qty: number; discount_pct: number }[]
   company_lat?: number | null
@@ -71,6 +73,9 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
   )
   const [stickerMinJobPrice, setStickerMinJobPrice] = useState(
     settings?.sticker_min_job_price?.toString() ?? LASER_DEFAULTS.sticker_min_job_price.toString(),
+  )
+  const [uvMinJobPrice, setUvMinJobPrice] = useState(
+    settings?.uv_min_job_price?.toString() ?? UV_DEFAULTS.uv_min_job_price.toString(),
   )
   const [defaultSetupFee, setDefaultSetupFee] = useState(
     settings?.default_setup_fee?.toString() ?? LASER_DEFAULTS.default_setup_fee.toString(),
@@ -194,6 +199,7 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
         company_logo: companyLogo,
         laser_min_job_price: Number.parseFloat(laserMinJobPrice) || 0,
         sticker_min_job_price: Number.parseFloat(stickerMinJobPrice) || 0,
+        uv_min_job_price: Number.parseFloat(uvMinJobPrice) || 0,
         default_setup_fee: Number.parseFloat(defaultSetupFee) || 0,
         qty_discount_tiers: qtyDiscountTiers
           .map((tier) => ({
@@ -545,8 +551,8 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
       {/* Laser & Stickers */}
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Laser &amp; Stickers</CardTitle>
-          <CardDescription>Minimum job prices, setup fee, and quantity discounts for laser/sticker quotes</CardDescription>
+          <CardTitle>Laser, Stickers &amp; UV</CardTitle>
+          <CardDescription>Minimum job prices, setup fee, and quantity discounts for laser, sticker and UV quotes</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -569,6 +575,17 @@ export function GlobalSettingsForm({ settings }: { settings: GlobalSettings | nu
                 step="0.5"
                 value={stickerMinJobPrice}
                 onChange={(e) => setStickerMinJobPrice(e.target.value)}
+                className="bg-card"
+              />
+            </div>
+            <div>
+              <Label>UV minimum job price (€)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                value={uvMinJobPrice}
+                onChange={(e) => setUvMinJobPrice(e.target.value)}
                 className="bg-card"
               />
             </div>

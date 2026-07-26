@@ -322,6 +322,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
             <SelectItem value="3d-printer">3D Printer</SelectItem>
             <SelectItem value="laser">Laser (engraver / cutter)</SelectItem>
             <SelectItem value="sticker-printer">Sticker Printer / Cutter</SelectItem>
+            <SelectItem value="uv-printer">UV Printer</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -412,6 +413,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
                     )}
                     {printer.machine_type === "laser" && <span className="text-xs text-muted-foreground">Laser</span>}
                     {printer.machine_type === "sticker-printer" && <span className="text-xs text-muted-foreground">Sticker printer</span>}
+                    {printer.machine_type === "uv-printer" && <span className="text-xs text-muted-foreground">UV printer</span>}
                   </div>
                   <dl className="grid w-full grid-cols-3 gap-2 text-center">
                     <div className="rounded-lg bg-muted/60 px-1 py-2">
