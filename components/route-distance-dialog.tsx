@@ -72,7 +72,6 @@ function AddressField({ id, label, point, initialQuery, placeholder, onSelect }:
       return
     }
     if (query.trim().length < MIN_QUERY_LENGTH) {
-      setSuggestions([])
       return
     }
     const handle = setTimeout(async () => {
@@ -114,7 +113,7 @@ function AddressField({ id, label, point, initialQuery, placeholder, onSelect }:
       />
       {isSearching && <p className="text-xs text-muted-foreground">Searching…</p>}
       {searchError && <p className="text-xs text-destructive">{searchError}</p>}
-      {suggestions.length > 0 && (
+      {query.trim().length >= MIN_QUERY_LENGTH && suggestions.length > 0 && (
         <ul className="max-h-40 overflow-y-auto rounded-md border bg-popover text-sm shadow-md">
           {suggestions.map((s) => (
             <li key={`${s.lat},${s.lon}`}>
@@ -167,40 +166,43 @@ function RouteDialogBody({
 
   useEffect(() => {
     if (!origin || !destination) {
-      setRoute(null)
-      setRouteError(null)
       return
     }
     let cancelled = false
-    setIsRouting(true)
-    setRouteError(null)
-    fetchRoute(origin, destination)
-      .then((result) => {
+    const run = async () => {
+      setIsRouting(true)
+      setRouteError(null)
+      try {
+        const result = await fetchRoute(origin, destination)
         if (!cancelled) setRoute(result)
-      })
-      .catch((err) => {
+      } catch (err) {
         if (!cancelled) {
           setRoute(null)
           setRouteError(
             err instanceof Error ? `${err.message} — you can still enter the km manually.` : "Route lookup failed",
           )
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setIsRouting(false)
-      })
+      }
+    }
+    run()
     return () => {
       cancelled = true
     }
   }, [origin, destination])
 
-  const oneWayKm = route ? Math.round(route.distanceKm * 10) / 10 : 0
+  // A route is only valid for the currently selected origin/destination pair.
+  // Once either point is cleared, any previously fetched route is stale and
+  // must not be treated as usable — even though state still holds it.
+  const hasValidRoute = route !== null && origin !== null && destination !== null
+  const oneWayKm = hasValidRoute ? Math.round(route.distanceKm * 10) / 10 : 0
   // Derive the total from the already-rounded one-way value so the displayed
   // math stays consistent (never "12.3 km × 2 = 24.7 km").
-  const totalKm = route ? roundTripKm(oneWayKm, isRoundTrip) : 0
+  const totalKm = hasValidRoute ? roundTripKm(oneWayKm, isRoundTrip) : 0
 
   const handleConfirm = () => {
-    if (!origin || !destination || !route) return
+    if (!origin || !destination || !hasValidRoute) return
     onConfirm({ origin, destination, oneWayKm, isRoundTrip, totalKm })
     onClose()
   }
@@ -226,7 +228,7 @@ function RouteDialogBody({
         />
 
         {isRouting && <p className="text-sm text-muted-foreground">Calculating route…</p>}
-        {routeError && <p className="text-sm text-destructive">{routeError}</p>}
+        {routeError && origin && destination && <p className="text-sm text-destructive">{routeError}</p>}
 
         {route && origin && destination && (
           <div className="space-y-2">
@@ -268,8 +270,8 @@ function RouteDialogBody({
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="button" onClick={handleConfirm} disabled={!route || isRouting}>
-          Use this distance{route ? ` (${totalKm} km)` : ""}
+        <Button type="button" onClick={handleConfirm} disabled={!hasValidRoute || isRouting}>
+          Use this distance{hasValidRoute ? ` (${totalKm} km)` : ""}
         </Button>
       </DialogFooter>
     </>
