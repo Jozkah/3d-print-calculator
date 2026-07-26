@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import dynamic from "next/dynamic"
 import { createClient } from "@/lib/supabase/client"
 import { OWNER_A_KEY, OWNER_B_KEY, PROFIT_SPLIT_RATIO, EMERGENCY_SPLIT_RATIO } from "@/lib/business-config"
 import { Button } from "@/components/ui/button"
@@ -9,9 +10,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, ChevronsUpDown, Check, X, Copy, Upload } from "lucide-react"
+import { Plus, Trash2, ChevronsUpDown, Check, X, Copy, Upload, MapPin } from "lucide-react"
 import { parseGcode } from "@/lib/gcode"
+import type { GeoPoint } from "@/lib/geo"
+import type { RouteSelection } from "@/components/route-distance-dialog"
+
+// Leaflet touches `window` at import time — load the dialog only in the
+// browser, and only when a quote actually needs a route.
+const RouteDistanceDialog = dynamic(() => import("@/components/route-distance-dialog"), { ssr: false })
 import { useToast } from "@/hooks/use-toast" // Must match the copy <Toaster /> subscribes to
 import { DialogCustom } from "@/components/ui/dialog-custom" // Import DialogCustom
 import { cn } from "@/lib/utils" // Assuming cn utility is available
@@ -21,57 +27,12 @@ import {
   TooltipTrigger,
   TooltipProvider, // Import TooltipProvider
 } from "@/components/ui/tooltip"
+import { PrinterPicker } from "@/components/visual/printer-picker"
+import { FilamentSpool, SpoolWithStock } from "@/components/visual/filament-spool"
+import { resolveFilamentColor } from "@/lib/filament-color"
+import { BrandBadge } from "@/components/visual/brand-badge"
 
-type Printer = {
-  id: string
-  name: string
-  owner: string | null
-  printer_cost: number
-  estimated_life_years: number
-  average_power_consumption_watts: number
-  additional_upfront_cost: number
-  estimated_annual_maintenance: number
-  estimated_printer_uptime_percent: number
-  has_enclosure?: boolean
-  material_type?: string
-}
-
-type Filament = {
-  id: string
-  name: string
-  price_per_kg: number
-  requires_heating: boolean
-  heating_time_hours: number
-  material_type?: string
-  brand?: string
-  color?: string
-  color_hex?: string | null
-}
-
-type Client = {
-  id: string
-  name: string
-  email: string | null
-  phone: string | null
-  address: string | null
-  notes: string | null
-}
-
-type GlobalSettings = {
-  id: string
-  electricity_cost_per_kwh: number
-  fuel_cost_per_liter: number
-  car_fuel_consumption_per_100km: number
-  emergency_fee_fixed: number
-  labor_hourly_rate: number
-  double_heating_cost?: boolean
-  // VAT rate stored as a fraction (0.23 = 23%). Rows written before this
-  // field existed fall back to 0.23 at every read site.
-  vat_rate?: number
-  currency_symbol?: string
-  // How many days a new quote stays valid (drives quotes.valid_until).
-  validity_days?: number
-}
+import type { Printer, Filament, Client, GlobalSettings } from "@/types/db"
 
 type FilamentEntry = {
   id: string
@@ -150,11 +111,6 @@ export function ExcelCalculator({
   // re-subscribing every render.
   const supabase = useMemo(() => createClient(), [])
 
-  // ADDED STATE FOR CALCULATION TYPE SELECTION
-  const [calculatorType, setCalculatorType] = useState<
-    "3d-print" | "laser-engraving" | "laser-cutting" | "stickers"
-  >("3d-print")
-
   const [printedParts, setPrintedParts] = useState<PrintedPart[]>([
     {
       id: "1",
@@ -179,6 +135,15 @@ export function ExcelCalculator({
   const [filaments, setFilaments] = useState<Filament[]>(initialFilaments)
   const [distanceTraveledKm, setDistanceTraveledKm] = useState(0)
 
+  // Route metadata backing the km field when it was filled via the route
+  // dialog. Manual km entry leaves these untouched; they exist so a reopened
+  // quote can show and redo its route.
+  const [routeDialogOpen, setRouteDialogOpen] = useState(false)
+  const [routeOrigin, setRouteOrigin] = useState<GeoPoint | null>(null)
+  const [routeDestination, setRouteDestination] = useState<GeoPoint | null>(null)
+  const [routeIsRoundTrip, setRouteIsRoundTrip] = useState(true)
+  const [routeOneWayKm, setRouteOneWayKm] = useState<number | null>(null)
+
   // ADDED STATE FOR MARGIN SELECTION
   const [selectedMargin, setSelectedMargin] = useState<number>(propSelectedMargin || 50)
   const [customMargin, setCustomMargin] = useState<number>(65)
@@ -201,13 +166,7 @@ export function ExcelCalculator({
   const filamentById = useMemo(() => new Map(filaments.map((f) => [f.id, f])), [filaments])
   const printerById = useMemo(() => new Map(printers.map((p) => [p.id, p])), [printers])
 
-  const availableFilaments = filaments.filter((f) => {
-    if (calculatorType === "3d-print") {
-      return !f.material_type || f.material_type === "filament"
-    }
-    // If not 3d-print, consider any material type as available
-    return true
-  })
+  const availableFilaments = filaments.filter((f) => !f.material_type || f.material_type === "filament")
 
   // ADDED STATE FOR REAL-TIME UPDATES
   useEffect(() => {
@@ -318,16 +277,16 @@ export function ExcelCalculator({
 
 
         // Load all quote data into state
-        // Read the same column the save paths write (`quote_type_mode`); the
-        // legacy `calculator_type` field is never persisted, so reading it
-        // always reset edited quotes back to "3d-print".
-        setCalculatorType(quote.quote_type_mode || "3d-print") // Load calculator type
         setClientName(quote.quote_name || "")
         // Restore the attached client — without this, saving the edit persists
         // client_id: null and silently detaches the quote from its client.
         setClientId(quote.client_id ?? null)
         setIsEmergency(quote.is_emergency || false)
         setDistanceTraveledKm(quote.distance_traveled_km || 0)
+        setRouteOrigin(quote.route_origin ?? null)
+        setRouteDestination(quote.route_destination ?? null)
+        setRouteIsRoundTrip(quote.route_is_round_trip ?? true)
+        setRouteOneWayKm(quote.route_one_way_km ?? null)
         // Clamp to 99 so a stored/legacy margin of >=100 can never make the
         // (1 - margin/100) price denominator 0 (which yields Infinity/NaN).
         setSelectedMargin(Math.min(99, Number(quote.selected_margin_percentage || quote.selected_margin || 50)))
@@ -415,11 +374,16 @@ export function ExcelCalculator({
       }
 
       const payload: any = template.payload || {}
-      setCalculatorType(payload.quote_type_mode || "3d-print")
       setClientName("")
       setClientId(null)
       setIsEmergency(payload.is_emergency || false)
       setDistanceTraveledKm(payload.distance_traveled_km || 0)
+      // Templates carry structure only — a route belongs to the original
+      // quote's client, so a template-started quote begins with no route.
+      setRouteOrigin(null)
+      setRouteDestination(null)
+      setRouteIsRoundTrip(true)
+      setRouteOneWayKm(null)
       setSelectedMargin(Math.min(99, Number(payload.selected_margin_percentage || payload.selected_margin || 50)))
       if (payload.custom_margin_value !== undefined && payload.custom_margin_value !== null) {
         setCustomMargin(Math.min(99, Number(payload.custom_margin_value)))
@@ -525,8 +489,7 @@ export function ExcelCalculator({
 
   // Per-part printing/material cost. Single source of truth so the live total, the
   // per-row display, AND the value persisted on each saved part (read back by the
-  // detailed quote view) all agree. Laser/sticker: (material + electricity) * 11;
-  // 3D-print: price_per_kg * grams / 1000.
+  // detailed quote view) all agree.
   const computePartPrintingCost = useCallback(
     (part: (typeof printedParts)[number]): number => {
       if (!part.filaments || part.filaments.length === 0 || !globalSettings) return 0
@@ -536,19 +499,11 @@ export function ExcelCalculator({
         const filament = filamentById.get(filamentEntry.filament_id)
         if (!filament) return
 
-        if (calculatorType !== "3d-print") {
-          const materialCost = filament.price_per_kg
-          // Electricity computed fresh per filament (not accumulated) so the summary
-          // total matches the per-row table cell.
-          const electricityCost = part.printing_time_hr * globalSettings.electricity_cost_per_kwh
-          partFilamentCost += (materialCost + electricityCost) * 11
-        } else {
-          partFilamentCost += (filament.price_per_kg * filamentEntry.grams) / 1000
-        }
+        partFilamentCost += (filament.price_per_kg * filamentEntry.grams) / 1000
       })
       return partFilamentCost
     },
-    [filamentById, globalSettings, calculatorType],
+    [filamentById, globalSettings],
   )
 
   const totalPrintingCost = useMemo(
@@ -855,8 +810,7 @@ export function ExcelCalculator({
             filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
           }
           // Persist the computed per-part cost so the detailed view can show it
-          // directly (esp. laser/sticker quotes, whose weight is 0 and so cannot
-          // be reconstructed from grams afterwards).
+          // directly instead of recomputing it.
           return { ...normalized, part_cost: computePartPrintingCost(normalized) }
         }
         // Ensure legacy fields are undefined if the new structure is primary and complete
@@ -874,13 +828,17 @@ export function ExcelCalculator({
         quote_type: mode, // Should be 'personal' or 'business'
         quote_name: clientName,
         client_id: clientId,
-        quote_type_mode: calculatorType, // Should be '3d-print', 'laser-engraving', etc.
+        quote_type_mode: "3d-print",
         printed_parts: preparedPrintedParts,
         dried_batches: driedBatchesWithCost, // Save batches with cost included
         materials: materials,
         labor_items: labor,
         packaging_items: packaging,
         distance_traveled_km: distanceTraveledKm,
+        route_origin: routeOrigin,
+        route_destination: routeDestination,
+        route_is_round_trip: routeIsRoundTrip,
+        route_one_way_km: routeOneWayKm,
         is_emergency: isEmergency,
         total_printing_cost: totalPrintingCost,
         machine_cost: machineCost, // This is the total machine cost, not per owner
@@ -989,9 +947,8 @@ export function ExcelCalculator({
             ...part,
             filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
           }
-          // Persist part_cost like handleSaveQuote does — laser/sticker part
-          // costs cannot be reconstructed from grams (weight 0), so without
-          // this the detailed view shows €0.00 per part for drafts.
+          // Persist part_cost like handleSaveQuote does so the detailed view
+          // reads an authoritative value instead of recomputing it for drafts.
           return { ...normalized, part_cost: computePartPrintingCost(normalized) }
         }
         const { filament_id, filament_grams, ...restOfPart } = part
@@ -1005,13 +962,17 @@ export function ExcelCalculator({
         quote_type: mode, // 'personal' or 'business'
         quote_name: clientName,
         client_id: clientId,
-        quote_type_mode: calculatorType, // '3d-print', 'laser-engraving', etc.
+        quote_type_mode: "3d-print",
         printed_parts: preparedPrintedParts,
         dried_batches: driedBatchesWithCost,
         materials: materials,
         labor_items: labor,
         packaging_items: packaging,
         distance_traveled_km: distanceTraveledKm,
+        route_origin: routeOrigin,
+        route_destination: routeDestination,
+        route_is_round_trip: routeIsRoundTrip,
+        route_one_way_km: routeOneWayKm,
         is_emergency: isEmergency,
         total_printing_cost: totalPrintingCost,
         machine_cost: machineCost, // Total machine cost
@@ -1082,21 +1043,8 @@ export function ExcelCalculator({
     )
   }
 
-  // Dynamically set labels based on calculator type
-  const partsLabel =
-    calculatorType === "laser-engraving"
-      ? "Laser Engraved Items"
-      : calculatorType === "laser-cutting"
-        ? "Laser Cut Items"
-        : calculatorType === "stickers"
-          ? "Printed Stickers"
-          : "Printed Parts (Filament Input)"
-
-  // Update batches label based on calculator type
-  const batchesLabel =
-    calculatorType === "3d-print"
-      ? "Dried Batches"
-      : "Processing Batches"
+  const partsLabel = "Printed Parts (Filament Input)"
+  const batchesLabel = "Dried Batches"
 
   // ADDED FUNCTIONS FOR FILAMENT MANAGEMENT
   // Build new objects immutably instead of mutating nested state in place
@@ -1280,41 +1228,6 @@ export function ExcelCalculator({
           showCancel={false}
         />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-          {mode === "business" && (
-            <div className="mb-6 -mx-4 px-4 overflow-x-auto">
-              <div className="flex gap-2 min-w-max pb-2">
-                <Button
-                  variant={calculatorType === "3d-print" ? "default" : "outline"}
-                  onClick={() => setCalculatorType("3d-print")}
-                  className="whitespace-nowrap min-w-[120px] rounded-full"
-                >
-                  3D Printing
-                </Button>
-                <Button
-                  variant={calculatorType === "laser-engraving" ? "default" : "outline"}
-                  onClick={() => setCalculatorType("laser-engraving")}
-                  className="whitespace-nowrap min-w-[120px] rounded-full"
-                >
-                  Laser Engraving
-                </Button>
-                <Button
-                  variant={calculatorType === "laser-cutting" ? "default" : "outline"}
-                  onClick={() => setCalculatorType("laser-cutting")}
-                  className="whitespace-nowrap min-w-[120px] rounded-full"
-                >
-                  Laser Cutting
-                </Button>
-                <Button
-                  variant={calculatorType === "stickers" ? "default" : "outline"}
-                  onClick={() => setCalculatorType("stickers")}
-                  className="whitespace-nowrap min-w-[120px] rounded-full"
-                >
-                  Stickers
-                </Button>
-              </div>
-            </div>
-          )}
-
           {/* Quote Details */}
           <Card className="p-5 sm:p-6 shadow-sm">
             <h2 className="text-lg font-semibold tracking-tight text-foreground mb-2">Quote Details</h2>
@@ -1345,18 +1258,54 @@ export function ExcelCalculator({
                 <Label htmlFor="distance">
                   Distance Traveled (km)
                 </Label>
-                <Input
-                  id="distance"
-                  type="number"
-                  min="0" // Added min="0"
-                  inputMode="numeric"
-                  step="0.1"
-                  value={distanceTraveledKm || ""}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    setDistanceTraveledKm(value === "" ? 0 : Number.parseFloat(value) || 0)
+                <div className="flex gap-2">
+                  <Input
+                    id="distance"
+                    type="number"
+                    min="0" // Added min="0"
+                    inputMode="numeric"
+                    step="0.1"
+                    value={distanceTraveledKm || ""}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setDistanceTraveledKm(value === "" ? 0 : Number.parseFloat(value) || 0)
+                    }}
+                    className="bg-card"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    title="Calculate from route"
+                    onClick={() => setRouteDialogOpen(true)}
+                  >
+                    <MapPin className="h-4 w-4" />
+                  </Button>
+                </div>
+                <RouteDistanceDialog
+                  open={routeDialogOpen}
+                  onOpenChange={setRouteDialogOpen}
+                  initialOrigin={
+                    routeOrigin ??
+                    (globalSettings?.company_lat != null && globalSettings?.company_lon != null
+                      ? {
+                          address: globalSettings.company_address || "",
+                          lat: globalSettings.company_lat,
+                          lon: globalSettings.company_lon,
+                        }
+                      : null)
+                  }
+                  initialOriginAddress={globalSettings?.company_address || ""}
+                  initialDestination={routeDestination}
+                  initialIsRoundTrip={routeIsRoundTrip}
+                  onConfirm={(selection: RouteSelection) => {
+                    setRouteOrigin(selection.origin)
+                    setRouteDestination(selection.destination)
+                    setRouteIsRoundTrip(selection.isRoundTrip)
+                    setRouteOneWayKm(selection.oneWayKm)
+                    setDistanceTraveledKm(selection.totalKm)
                   }}
-                  className="bg-card"
                 />
               </div>
             </div>
@@ -1403,11 +1352,9 @@ export function ExcelCalculator({
                 <thead>
                   <tr className="bg-muted/60 border-b border-border">
                     <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[120px]">Part Name</th>
-                    {calculatorType === "3d-print" && (
-                      <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[120px]">Printer</th>
-                    )}
+                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[120px]">Printer</th>
                     <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[120px]">
-                      {calculatorType === "3d-print" ? "Filament" : "Material"}
+                      Filament
                     </th>
                     <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[100px]">Print Time (hr)</th>
                     <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground min-w-[100px]">Cost (€)</th>
@@ -1443,8 +1390,7 @@ export function ExcelCalculator({
                             placeholder="Part name"
                           />
                         </td>
-                        {calculatorType === "3d-print" && (
-                          <td className="p-2">
+                        <td className="p-2">
                             {(() => {
                               const selPrinter = part.printer_id ? printerById.get(part.printer_id) : null
                               let costPerHr = 0
@@ -1457,26 +1403,14 @@ export function ExcelCalculator({
                                   : 0
                               }
                               const selectEl = (
-                                <Select
+                                <PrinterPicker
+                                  printers={printers}
                                   value={part.printer_id === "" ? undefined : part.printer_id}
-                                  onValueChange={(value) => {
+                                  onSelect={(value) => {
                                     // Immutable update via helper instead of mutating state in place.
                                     updatePartField(index, "printer_id", value)
                                   }}
-                                >
-                                  <SelectTrigger className="bg-card">
-                                    <SelectValue placeholder="Select printer" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[...printers]
-                                      .sort((a, b) => a.name.localeCompare(b.name))
-                                      .map((printer) => (
-                                        <SelectItem key={printer.id} value={printer.id}>
-                                          {printer.name}
-                                        </SelectItem>
-                                      ))}
-                                  </SelectContent>
-                                </Select>
+                                />
                               )
                               if (!selPrinter) return selectEl
                               return (
@@ -1499,8 +1433,7 @@ export function ExcelCalculator({
                                 </TooltipProvider>
                               )
                             })()}
-                          </td>
-                        )}
+                        </td>
                         {/* Update filament cell to show individual filament entries with weight and remove button */}
                         <td className="p-2">
                           <div className="space-y-2">
@@ -1517,6 +1450,7 @@ export function ExcelCalculator({
                                         key={filamentEntry.id}
                                         className="flex items-center gap-1 text-xs bg-muted/70 rounded-md p-1"
                                       >
+                                        <FilamentSpool colorHex={filament ? resolveFilamentColor(filament) : null} size={16} />
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
@@ -1556,27 +1490,25 @@ export function ExcelCalculator({
                                             </TooltipContent>
                                           </Tooltip>
                                         </TooltipProvider>
-                                        {calculatorType === "3d-print" && (
-                                          <Input
-                                            type="number"
-                                            min="0"
-                                            inputMode="numeric"
-                                            step="0.1"
-                                            value={filamentEntry.grams || ""}
-                                            onChange={(e) => {
-                                              // Immutable update via helper instead of mutating state in place.
-                                              const value = e.target.value
-                                              updateFilamentInPart(
-                                                index,
-                                                originalIndex,
-                                                "grams",
-                                                value === "" ? 0 : Number.parseFloat(value) || 0,
-                                              )
-                                            }}
-                                            className="w-16 h-6 text-xs bg-card px-1"
-                                            placeholder="g"
-                                          />
-                                        )}
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          inputMode="numeric"
+                                          step="0.1"
+                                          value={filamentEntry.grams || ""}
+                                          onChange={(e) => {
+                                            // Immutable update via helper instead of mutating state in place.
+                                            const value = e.target.value
+                                            updateFilamentInPart(
+                                              index,
+                                              originalIndex,
+                                              "grams",
+                                              value === "" ? 0 : Number.parseFloat(value) || 0,
+                                            )
+                                          }}
+                                          className="w-16 h-6 text-xs bg-card px-1"
+                                          placeholder="g"
+                                        />
                                         <Button
                                           variant="ghost"
                                           size="sm"
@@ -1602,7 +1534,7 @@ export function ExcelCalculator({
                                 >
                                   <span className="flex items-center gap-1">
                                     <Plus className="h-3 w-3" />
-                                    Add {calculatorType === "3d-print" ? "Filament" : "Material"}
+                                    Add Filament
                                   </span>
                                   <ChevronsUpDown className="h-3 w-3 opacity-50" />
                                 </Button>
@@ -1620,12 +1552,12 @@ export function ExcelCalculator({
                                   }}
                                 >
                                   <CommandInput
-                                    placeholder={`Search ${calculatorType === "3d-print" ? "filaments" : "materials"}...`}
+                                    placeholder="Search filaments..."
                                     className="h-9"
                                   />
                                   <CommandList>
                                     <CommandEmpty>
-                                      No {calculatorType === "3d-print" ? "filament" : "material"} found.
+                                      No filament found.
                                     </CommandEmpty>
                                     <CommandGroup>
                                       {partAvailableFilaments.map((filament) => {
@@ -1656,7 +1588,31 @@ export function ExcelCalculator({
                                             disabled={isSelected}
                                             className={isSelected ? "opacity-50" : ""}
                                           >
-                                            {filament.name}
+                                            <span className="mr-2 shrink-0">
+                                              <SpoolWithStock
+                                                colorHex={resolveFilamentColor(filament)}
+                                                stockGrams={filament.material_type === "material" ? null : filament.grams_in_stock}
+                                                lowThresholdGrams={filament.low_stock_threshold_g ?? 1000}
+                                                size={28}
+                                              />
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                              <span className="block truncate">{filament.name}</span>
+                                              <span className="flex items-center gap-1 min-w-0 text-xs text-muted-foreground">
+                                                <BrandBadge brand={filament.brand} size={14} className="mr-1" />
+                                                <span className="truncate">
+                                                  {[filament.brand, filament.material_type === "material" ? "material" : filament.type]
+                                                    .filter(Boolean)
+                                                    .join(" · ")}
+                                                </span>
+                                              </span>
+                                            </span>
+                                            {typeof filament.grams_in_stock === "number" &&
+                                              filament.grams_in_stock < (filament.low_stock_threshold_g ?? 1000) && (
+                                                <span className="mr-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                                  low
+                                                </span>
+                                              )}
                                             {isSelected && <Check className="ml-auto h-4 w-4" />}
                                           </CommandItem>
                                         )
@@ -1736,12 +1692,8 @@ export function ExcelCalculator({
             </div>
           </Card>
 
-          {/* Dried Batches / Processing Batches Table */}
-          {/* Hide for laser-engraving, laser-cutting, and stickers */}
-          {calculatorType !== "laser-engraving" &&
-            calculatorType !== "laser-cutting" &&
-            calculatorType !== "stickers" && (
-              <Card className="p-5 sm:p-6 shadow-sm">
+          {/* Dried Batches Table */}
+          <Card className="p-5 sm:p-6 shadow-sm">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold tracking-tight text-foreground">{batchesLabel}</h2>
               <Button
@@ -1892,7 +1844,6 @@ export function ExcelCalculator({
               <span className="font-semibold tabular-nums text-foreground">Total Drying Cost: €{totalDryingCost.toFixed(2)}</span>
             </div>
           </Card>
-            )}
 
           {/* Materials Table */}
           <Card className="p-5 sm:p-6 shadow-sm">

@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
-import { QuotationDocument, type GlobalSettings, type Quote } from "@/components/quotation-document"
+import { QuotationDocument } from "@/components/quotation-document"
+import type { GlobalSettings, Quote } from "@/types/db"
 
 // Self-contained quotation view: the whole document payload travels in the
 // URL fragment (#d=<base64url JSON>), which never reaches any server. The
-// recipient needs no local data or account — decoding happens entirely in
-// their browser (this route is a PUBLIC exception in middleware.ts).
+// recipient needs no local data — decoding happens entirely in their browser.
 
 type SharePayload = {
   quote: Partial<Quote>

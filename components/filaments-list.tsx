@@ -15,6 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ComboboxCreatable } from "@/components/ui/combobox-creatable"
 import { DialogCustom } from "@/components/ui/dialog-custom"
 import { cn } from "@/lib/utils" // Import cn for conditional styling
+import { SpoolWithStock } from "@/components/visual/filament-spool"
+import { resolveFilamentColor } from "@/lib/filament-color"
+import { BrandBadge } from "@/components/visual/brand-badge"
+import { ColorPicker } from "@/components/visual/color-picker"
 
 type Filament = {
   id: string
@@ -34,17 +38,13 @@ type Filament = {
   low_stock_threshold_g?: number
 }
 
-// CHANGE: Added materials prop
 type FilamentsListProps = {
   filaments: Filament[]
-  materials: Filament[]
 }
 
-// CHANGE: Merge both filaments and materials into initial state
-export function FilamentsList({ filaments: initialFilaments, materials: initialMaterials }: FilamentsListProps) {
-  const [filaments, setFilaments] = useState([...initialFilaments, ...initialMaterials])
+export function FilamentsList({ filaments: initialFilaments }: FilamentsListProps) {
+  const [filaments, setFilaments] = useState(initialFilaments)
   const [isAdding, setIsAdding] = useState(false)
-  const [isAddingMaterial, setIsAddingMaterial] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [newFilament, setNewFilament] = useState({
     name: "",
@@ -144,9 +144,9 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     const filtered = filaments.filter((f) => {
       const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase())
 
-      const matchesBrand = f.material_type === "material" || filterBrand === "all" || f.brand === filterBrand
-      const matchesType = f.material_type === "material" || filterType === "all" || f.type === filterType
-      const matchesColor = f.material_type === "material" || filterColor === "all" || f.color === filterColor
+      const matchesBrand = filterBrand === "all" || f.brand === filterBrand
+      const matchesType = filterType === "all" || f.type === filterType
+      const matchesColor = filterColor === "all" || f.color === filterColor
       const matchesHeating =
         filterHeating === "all" ||
         (filterHeating === "heating" && f.requires_heating) ||
@@ -188,18 +188,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     showDuplicatesOnly,
   ])
 
-  const filamentItems = filteredAndSortedFilaments.filter((f) => {
-    const isFil = f.material_type === "filament" || !f.material_type
-    return isFil
-  })
-
-  const materialItems = filteredAndSortedFilaments.filter((f) => {
-    const isMat = f.material_type === "material"
-    return isMat
-  })
-
-  const displayFilaments = filamentItems
-  const displayMaterials = materialItems
+  const displayFilaments = filteredAndSortedFilaments
 
   const resetFilters = () => {
     setSearchQuery("")
@@ -258,7 +247,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         low_stock_threshold_g: "1000",
       })
       setIsAdding(false)
-      setIsAddingMaterial(false)
       const { data } = await supabase.from("filaments").select("*").order("name")
       if (data) {
         setFilaments(data)
@@ -367,9 +355,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         color: string
         price_per_kg: number | null
         requires_heating: boolean
-        material_type: string
-        thickness?: string
-        size?: string
       }> = []
       // </CHANGE>
 
@@ -385,9 +370,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         const color = columns[2] || ""
         const priceStr = columns[3] || "" // Column D (index 3) - Price
         const heatingStr = columns[4] || "false" // Column E (index 4) - Heating
-        const materialType = columns[5] || "filament" // Column F (index 5) - Material Type
-        const thickness = columns[6] || "" // Column G (index 6) - Thickness
-        const size = columns[7] || "" // Column H (index 7) - Size
         // </CHANGE>
 
         // Parse European price format (comma as decimal, remove € symbol)
@@ -411,9 +393,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
             color,
             price_per_kg: price,
             requires_heating: requiresHeating,
-            material_type: materialType,
-            thickness: thickness || undefined,
-            size: size || undefined,
           })
         }
       }
@@ -430,17 +409,14 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       // Insert filaments
       const { error: insertError } = await supabase.from("filaments").insert(
         filamentData.map((f) => ({
-          name:
-            f.material_type === "material" ? `${f.brand} ${f.type}`.trim() : `${f.brand} ${f.type} ${f.color}`.trim(),
+          name: `${f.brand} ${f.type} ${f.color}`.trim(),
           brand: f.brand,
           type: f.type,
           color: f.color || null,
           price_per_kg: f.price_per_kg,
           requires_heating: f.requires_heating,
           heating_time_hours: f.requires_heating ? 4 : 0, // Default to 4 hours if heating required
-          material_type: f.material_type,
-          thickness: f.thickness || null,
-          size: f.size || null,
+          material_type: "filament",
         })),
       )
       // </CHANGE>
@@ -578,7 +554,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     }
 
     // Updated headers to include Heating and remove Weight/Spools
-    const headers = ["Brand", "Type", "Color", "Price", "Heating", "Material Type", "Thickness", "Size"]
+    const headers = ["Brand", "Type", "Color", "Price", "Heating"]
     const csvRows = [headers.join(";")]
 
     filamentsToExport.forEach((filament) => {
@@ -586,16 +562,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
       // Added true/false for requires_heating
       const heating = filament.requires_heating ? "true" : "false"
 
-      const row = [
-        filament.brand || "",
-        filament.type || "",
-        filament.color || "",
-        price,
-        heating,
-        filament.material_type || "filament",
-        filament.thickness || "",
-        filament.size || "",
-      ]
+      const row = [filament.brand || "", filament.type || "", filament.color || "", price, heating]
       csvRows.push(row.map(csvCell).join(";"))
     })
 
@@ -612,9 +579,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
     link.click()
     document.body.removeChild(link)
   }
-
-  const uniqueSizes = Array.from(new Set(filaments.map((f) => f.size).filter(Boolean))) as string[]
-  const uniqueThicknesses = Array.from(new Set(filaments.map((f) => f.thickness).filter(Boolean))) as string[]
 
   // Define uniqueBrands, uniqueTypes, uniqueColors to be used in ComboboxCreatable
   const uniqueBrands = Array.from(new Set(filaments.map((f) => f.brand).filter(Boolean) as string[])).sort()
@@ -657,30 +621,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
           <Plus className="w-4 h-4 mr-2" />
           <span className="hidden sm:inline">Add Filament</span>
           <span className="sm:hidden">Filament</span>
-        </Button>
-        <Button
-          onClick={() => {
-            setIsAddingMaterial(true)
-            setNewFilament({
-              name: "",
-              price_per_kg: "",
-              requires_heating: false, // Not relevant for materials, but keep for consistency
-              brand: "",
-              type: "",
-              color: "",
-              color_hex: "",
-              material_type: "material", // Set to material
-              thickness: "", // Initialize thickness
-              size: "", // Initialize size
-              grams_in_stock: "",
-              low_stock_threshold_g: "1000",
-            })
-          }}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm text-sm sm:text-base"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          <span className="hidden sm:inline">Add Material</span>
-          <span className="sm:hidden">Material</span>
         </Button>
       </div>
       {/* </CHANGE> */}
@@ -838,67 +778,22 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
 
       <div className="mb-4 text-sm text-muted-foreground">Showing {displayFilaments.length} filament(s)</div>
 
-      {(isAdding || isAddingMaterial) && (
+      {isAdding && (
         <Card className="mb-4 border-primary/30 shadow-md">
           <CardContent className="p-4">
-            <h3 className="text-lg font-semibold tracking-tight mb-4 text-foreground">
-              {newFilament.material_type === "material" ? "Add New Material" : "Add New Filament"}
-            </h3>
+            <h3 className="text-lg font-semibold tracking-tight mb-4 text-foreground">Add New Filament</h3>
             <div className="space-y-4">
               <div>
                 <Label>Name</Label>
                 <Input
                   value={newFilament.name}
                   onChange={(e) => setNewFilament({ ...newFilament, name: e.target.value })}
-                  placeholder={newFilament.material_type === "material" ? "Material name" : "Filament name"}
+                  placeholder="Filament name"
                 />
               </div>
 
-              {newFilament.material_type === "material" ? (
-                <>
-                  <div className="grid grid-cols-4 gap-4">
-                    <div>
-                      <Label>Brand</Label>
-                      <ComboboxCreatable
-                        value={newFilament.brand}
-                        onChange={(value) => setNewFilament({ ...newFilament, brand: value })}
-                        options={uniqueBrands}
-                        placeholder="Select or create brand"
-                      />
-                    </div>
-                    <div>
-                      <Label>Type</Label>
-                      <ComboboxCreatable
-                        value={newFilament.type}
-                        onChange={(value) => setNewFilament({ ...newFilament, type: value })}
-                        options={uniqueTypes}
-                        placeholder="Select or create type"
-                      />
-                    </div>
-                    <div>
-                      <Label>Thickness</Label>
-                      <ComboboxCreatable
-                        value={newFilament.thickness}
-                        onChange={(value) => setNewFilament({ ...newFilament, thickness: value })}
-                        options={uniqueThicknesses}
-                        placeholder="Select or create thickness"
-                      />
-                    </div>
-                    <div>
-                      <Label>Size</Label>
-                      <ComboboxCreatable
-                        value={newFilament.size}
-                        onChange={(value) => setNewFilament({ ...newFilament, size: value })}
-                        options={uniqueSizes}
-                        placeholder="Select or create size"
-                      />
-                    </div>
-                  </div>
-                </>
-              ) : (
-                // Filament-specific fields
-                <>
-                  <div className="grid grid-cols-3 gap-4">
+              <>
+                <div className="grid grid-cols-3 gap-4">
                     <div>
                       <Label>Brand</Label>
                       <ComboboxCreatable
@@ -930,21 +825,16 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                   <div className="flex items-center gap-4">
                     <div className="flex-1">
                       <Label>Color Hex Code (optional)</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={newFilament.color_hex}
-                          onChange={(e) => setNewFilament({ ...newFilament, color_hex: e.target.value })}
-                          placeholder="#FF5733"
-                          className="bg-card"
-                        />
-                        {newFilament.color_hex && (
-                          <div
-                            className="w-8 h-8 rounded border border-gray-300 flex-shrink-0"
-                            style={{ backgroundColor: newFilament.color_hex }}
-                            title={newFilament.color_hex}
-                          />
-                        )}
-                      </div>
+                      <ColorPicker
+                        value={newFilament.color_hex}
+                        onChange={(hex, presetName) =>
+                          setNewFilament({
+                            ...newFilament,
+                            color_hex: hex,
+                            color: presetName && !newFilament.color ? presetName : newFilament.color,
+                          })
+                        }
+                      />
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -985,7 +875,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                     </div>
                   </div>
                 </>
-              )}
 
               <div>
                 <Label htmlFor="newPrice">
@@ -1009,7 +898,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                 <Button
                   onClick={() => {
                     setIsAdding(false)
-                    setIsAddingMaterial(false)
                     setNewFilament({
                       name: "",
                       price_per_kg: "",
@@ -1054,50 +942,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                     <Input value={editData.name} onChange={(e) => setEditData({ ...editData, name: e.target.value })} />
                   </div>
 
-                  {filament.material_type === "material" ? (
-                    <>
-                      <div className="grid grid-cols-4 gap-4">
-                        <div>
-                          <Label>Brand</Label>
-                          <ComboboxCreatable
-                            value={editData.brand}
-                            onChange={(value) => setEditData({ ...editData, brand: value })}
-                            options={uniqueBrands}
-                            placeholder="Select or create brand"
-                          />
-                        </div>
-                        <div>
-                          <Label>Type</Label>
-                          <ComboboxCreatable
-                            value={editData.type}
-                            onChange={(value) => setEditData({ ...editData, type: value })}
-                            options={uniqueTypes}
-                            placeholder="Select or create type"
-                          />
-                        </div>
-                        <div>
-                          <Label>Thickness</Label>
-                          <ComboboxCreatable
-                            value={editData.thickness}
-                            onChange={(value) => setEditData({ ...editData, thickness: value })}
-                            options={uniqueThicknesses}
-                            placeholder="Select or create thickness"
-                          />
-                        </div>
-                        <div>
-                          <Label>Size</Label>
-                          <ComboboxCreatable
-                            value={editData.size}
-                            onChange={(value) => setEditData({ ...editData, size: value })}
-                            options={uniqueSizes}
-                            placeholder="Select or create size"
-                          />
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    // Filament edit fields
-                    <>
+                  <>
                       <div className="grid grid-cols-3 gap-4">
                         <div>
                           <Label>Brand</Label>
@@ -1130,21 +975,16 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       <div className="flex items-center gap-4">
                         <div className="flex-1">
                           <Label>Color Hex Code (optional)</Label>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              value={editData.color_hex}
-                              onChange={(e) => setEditData({ ...editData, color_hex: e.target.value })}
-                              placeholder="#FF5733"
-                              className="bg-card"
-                            />
-                            {editData.color_hex && (
-                              <div
-                                className="w-8 h-8 rounded border border-gray-300 flex-shrink-0"
-                                style={{ backgroundColor: editData.color_hex }}
-                                title={editData.color_hex}
-                              />
-                            )}
-                          </div>
+                          <ColorPicker
+                            value={editData.color_hex}
+                            onChange={(hex, presetName) =>
+                              setEditData({
+                                ...editData,
+                                color_hex: hex,
+                                color: presetName && !editData.color ? presetName : editData.color,
+                              })
+                            }
+                          />
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -1185,7 +1025,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                         </div>
                       </div>
                     </>
-                  )}
 
                   <div>
                     <Label htmlFor="editPrice">
@@ -1231,78 +1070,66 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       className="mt-1 mr-3"
                     />
                   )}
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg">{filament.name}</h3>
-                    <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
-                      <span className={filament.price_per_kg === null ? "text-red-600 font-semibold" : ""}>
-                        {filament.price_per_kg !== null
-                          ? `€${filament.price_per_kg.toFixed(2)}/${filament.material_type === "material" ? "sheet" : "kg"}`
-                          : "No Price"}
-                      </span>
-                      {filament.type && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span>{filament.type}</span>
-                        </>
-                      )}
-                      {filament.brand && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span>{filament.brand}</span>
-                        </>
-                      )}
-                      {filament.material_type === "filament" && filament.color && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span className="flex items-center gap-1">
-                            {filament.color}
-                            {filament.color_hex && (
-                              <div
-                                className="w-4 h-4 rounded border border-gray-300 inline-block"
-                                style={{ backgroundColor: filament.color_hex }}
-                                title={filament.color_hex}
-                              />
-                            )}
-                          </span>
-                        </>
-                      )}
-                      {filament.material_type === "material" && filament.thickness && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span>{filament.thickness}</span>
-                        </>
-                      )}
-                      {filament.material_type === "material" && filament.size && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span>{filament.size}</span>
-                        </>
-                      )}
-                      {filament.material_type === "filament" && filament.requires_heating && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <span className="text-orange-600">Requires Heating</span>
-                        </>
-                      )}
-                      {filament.material_type === "filament" && typeof filament.grams_in_stock === "number" && (
-                        <>
-                          <span className="text-muted-foreground/50">•</span>
-                          <Badge
-                            variant="outline"
-                            className={
-                              filament.grams_in_stock <= 0
-                                ? "bg-red-100 text-red-700 border-red-300"
-                                : filament.grams_in_stock < (filament.low_stock_threshold_g ?? 1000)
-                                  ? "bg-amber-100 text-amber-700 border-amber-300"
-                                  : "bg-muted text-muted-foreground"
-                            }
-                          >
-                            {filament.grams_in_stock <= 0
-                              ? "Out of stock"
-                              : `${Math.round(filament.grams_in_stock)}g in stock`}
-                          </Badge>
-                        </>
-                      )}
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <SpoolWithStock
+                      colorHex={resolveFilamentColor(filament)}
+                      stockGrams={filament.material_type === "material" ? null : filament.grams_in_stock}
+                      lowThresholdGrams={filament.low_stock_threshold_g ?? 1000}
+                      size={56}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-lg">{filament.name}</h3>
+                      <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
+                        <span className={filament.price_per_kg === null ? "text-red-600 font-semibold" : ""}>
+                          {filament.price_per_kg !== null
+                            ? `€${filament.price_per_kg.toFixed(2)}/kg`
+                            : "No Price"}
+                        </span>
+                        {filament.type && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <span>{filament.type}</span>
+                          </>
+                        )}
+                        {filament.brand && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <BrandBadge brand={filament.brand} size={16} className="mr-1" />
+                            <span>{filament.brand}</span>
+                          </>
+                        )}
+                        {filament.color && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <span>{filament.color}</span>
+                          </>
+                        )}
+                        {filament.requires_heating && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <span className="text-orange-600">Requires Heating</span>
+                          </>
+                        )}
+                        {typeof filament.grams_in_stock === "number" && (
+                          <>
+                            <span className="text-muted-foreground/50">•</span>
+                            <Badge
+                              variant="outline"
+                              className={
+                                filament.grams_in_stock <= 0
+                                  ? "bg-red-100 text-red-700 border-red-300"
+                                  : filament.grams_in_stock < (filament.low_stock_threshold_g ?? 1000)
+                                    ? "bg-amber-100 text-amber-700 border-amber-300"
+                                    : "bg-muted text-muted-foreground"
+                              }
+                            >
+                              {filament.grams_in_stock <= 0
+                                ? "Out of stock"
+                                : `${Math.round(filament.grams_in_stock)}g in stock`}
+                            </Badge>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -1328,7 +1155,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                         })
                       }}
                       className="text-primary hover:text-primary/80"
-                      disabled={isAdding || isAddingMaterial}
+                      disabled={isAdding}
                     >
                       <Pencil className="w-4 h-4" />
                     </Button>
@@ -1337,7 +1164,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
                       size="icon"
                       onClick={() => handleDelete(filament.id)}
                       className="text-red-600 hover:text-red-900"
-                      disabled={isAdding || isAddingMaterial}
+                      disabled={isAdding}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -1347,240 +1174,6 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
             </CardContent>
           </Card>
         ))}
-      </div>
-
-      <div className="mt-12">
-        <h2 className="text-xl font-semibold tracking-tight text-foreground mb-6">Laser Materials</h2>
-
-        <div className="mb-4 text-sm text-muted-foreground">Showing {displayMaterials.length} material(s)</div>
-
-        <div className="grid gap-4">
-          {displayMaterials.map((filament) => (
-            <Card
-              key={filament.id}
-              className={`shadow-sm transition-all hover:border-emerald-400/70 hover:shadow-md ${
-                filament.price_per_kg === null ? "border-red-400" : "border-emerald-200/80 dark:border-emerald-900"
-              } ${bulkUpdateMode && selectedFilaments.has(filament.id) ? "bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-400/70" : ""}`}
-            >
-              <CardContent className="p-4">
-                {editingId === filament.id ? (
-                  // Edit form
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Name</Label>
-                      <Input
-                        value={editData.name}
-                        onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                      />
-                    </div>
-
-                    {filament.material_type === "material" ? (
-                      <>
-                        <div className="grid grid-cols-4 gap-4">
-                          <div>
-                            <Label>Brand</Label>
-                            <ComboboxCreatable
-                              value={editData.brand}
-                              onChange={(value) => setEditData({ ...editData, brand: value })}
-                              options={uniqueBrands}
-                              placeholder="Select or create brand"
-                            />
-                          </div>
-                          <div>
-                            <Label>Type</Label>
-                            <ComboboxCreatable
-                              value={editData.type}
-                              onChange={(value) => setEditData({ ...editData, type: value })}
-                              options={uniqueTypes}
-                              placeholder="Select or create type"
-                            />
-                          </div>
-                          <div>
-                            <Label>Thickness</Label>
-                            <ComboboxCreatable
-                              value={editData.thickness}
-                              onChange={(value) => setEditData({ ...editData, thickness: value })}
-                              options={uniqueThicknesses}
-                              placeholder="Select or create thickness"
-                            />
-                          </div>
-                          <div>
-                            <Label>Size</Label>
-                            <ComboboxCreatable
-                              value={editData.size}
-                              onChange={(value) => setEditData({ ...editData, size: value })}
-                              options={uniqueSizes}
-                              placeholder="Select or create size"
-                            />
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      // Filament edit fields
-                      <>
-                        <div className="grid grid-cols-3 gap-4">
-                          <div>
-                            <Label>Brand</Label>
-                            <ComboboxCreatable
-                              value={editData.brand}
-                              onChange={(value) => setEditData({ ...editData, brand: value })}
-                              options={uniqueBrands}
-                              placeholder="Select or create brand"
-                            />
-                          </div>
-                          <div>
-                            <Label>Type</Label>
-                            <ComboboxCreatable
-                              value={editData.type}
-                              onChange={(value) => setEditData({ ...editData, type: value })}
-                              options={uniqueTypes}
-                              placeholder="Select or create type"
-                            />
-                          </div>
-                          <div>
-                            <Label>Color</Label>
-                            <ComboboxCreatable
-                              value={editData.color}
-                              onChange={(value) => setEditData({ ...editData, color: value })}
-                              options={uniqueColors}
-                              placeholder="Select or create color"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`edit-heating-${filament.id}`}
-                            checked={editData.requires_heating}
-                            onCheckedChange={(checked) =>
-                              setEditData({ ...editData, requires_heating: checked as boolean })
-                            }
-                          />
-                          <Label htmlFor={`edit-heating-${filament.id}`}>Requires Heating</Label>
-                        </div>
-                      </>
-                    )}
-
-                    <div>
-                      <Label htmlFor="editPrice">
-                        Price per kg (€)
-                      </Label>
-                      <Input
-                        id="editPrice"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={editData.price_per_kg}
-                        onChange={(e) => setEditData({ ...editData, price_per_kg: e.target.value })}
-                        className="bg-card"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => handleEdit(filament.id)}
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
-                        <Check className="w-4 h-4 mr-2" />
-                        Save
-                      </Button>
-                      <Button
-                        onClick={() => setEditingId(null)}
-                        size="sm"
-                        variant="outline"
-                        className="bg-card"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  // Display mode
-                  <div className="flex items-start justify-between">
-                    {bulkUpdateMode && (
-                      <Checkbox
-                        checked={selectedFilaments.has(filament.id)}
-                        onCheckedChange={() => toggleFilamentSelection(filament.id)}
-                        className="mt-1 mr-3"
-                      />
-                    )}
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{filament.name}</h3>
-                      <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
-                        <span className={filament.price_per_kg === null ? "text-red-600 font-semibold" : ""}>
-                          {filament.price_per_kg !== null
-                            ? `€${filament.price_per_kg.toFixed(2)}/${filament.material_type === "material" ? "sheet" : "kg"}`
-                            : "No Price"}
-                        </span>
-                        {filament.type && (
-                          <>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span>{filament.type}</span>
-                          </>
-                        )}
-                        {filament.brand && (
-                          <>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span>{filament.brand}</span>
-                          </>
-                        )}
-                        {filament.material_type === "material" && filament.thickness && (
-                          <>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span>{filament.thickness}</span>
-                          </>
-                        )}
-                        {filament.material_type === "material" && filament.size && (
-                          <>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span>{filament.size}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditingId(filament.id)
-                          setEditData({
-                            name: filament.name,
-                            price_per_kg: filament.price_per_kg?.toString() || "",
-                            requires_heating: filament.requires_heating,
-                            brand: filament.brand || "",
-                            type: filament.type || "",
-                            color: filament.color || "",
-                            color_hex: filament.color_hex || "",
-                            material_type: filament.material_type,
-                            thickness: filament.thickness || "",
-                            size: filament.size || "",
-                            grams_in_stock:
-                              typeof filament.grams_in_stock === "number" ? filament.grams_in_stock.toString() : "",
-                            low_stock_threshold_g: (filament.low_stock_threshold_g ?? 1000).toString(),
-                          })
-                        }}
-                        className="text-emerald-600 hover:text-emerald-700"
-                        disabled={isAdding || isAddingMaterial}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(filament.id)}
-                        className="text-red-600 hover:text-red-900"
-                        disabled={isAdding || isAddingMaterial}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
@@ -1691,8 +1284,7 @@ export function FilamentsList({ filaments: initialFilaments, materials: initialM
         </div>
       </DialogCustom>
 
-      {(filteredAndSortedFilaments.length === 0 || (displayFilaments.length === 0 && displayMaterials.length === 0)) &&
-        filaments.length > 0 && (
+      {filteredAndSortedFilaments.length === 0 && filaments.length > 0 && (
           <Card className="border-dashed shadow-none bg-card/50">
             <CardContent className="p-8 text-center">
               <p className="text-muted-foreground">No filaments match your current filters.</p>

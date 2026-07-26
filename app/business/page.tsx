@@ -1,54 +1,85 @@
-import { createClient } from "@/lib/supabase/server"
+"use client"
+
+import { Suspense, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
+import { onLocalDbChange } from "@/lib/local-db"
 import { ExcelCalculator } from "@/components/excel-calculator"
-import { AlertCircle } from "lucide-react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { LaserCalculator } from "@/components/laser-calculator"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SiteHeader, PageHeader } from "@/components/site-header"
-import { TemplatePicker } from "@/components/template-picker"
+import { PageLoading, PageLoadError } from "@/components/page-loading"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 
-export default async function BusinessPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ edit?: string; template?: string }>
-}) {
-  const params = await searchParams
-  const supabase = await createClient()
+const LEGACY_LASER_MODES = ["laser-engraving", "laser-cutting", "stickers"]
 
-  let printers = []
-  let filaments = []
-  let globalSettingsData = null
-  let clients = []
-  let templates: { id: string; name: string }[] = []
-  let error = null
+function BusinessPageInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const editingQuoteId = searchParams.get("edit") ?? undefined
+  const templateId = searchParams.get("template") ?? undefined
+  const typeParam = searchParams.get("type")
 
-  try {
-    const [printersResult, filamentsResult, globalSettingsResult, clientsResult, templatesResult] = await Promise.all([
-      supabase.from("printers").select("*").order("name", { ascending: true }),
-      supabase.from("filaments").select("*").order("created_at", { ascending: true }),
-      // Use maybeSingle() so a 0-row global_settings table returns { data: null, error: null }
-      // instead of a PGRST116 error. The downstream ExcelCalculator already handles a null
-      // globalSettings prop, so a missing settings row must not blank the whole calculator.
-      supabase.from("global_settings").select("*").limit(1).maybeSingle(),
-      supabase.from("clients").select("*").order("name"),
-      supabase.from("quote_templates").select("id, name").order("name"),
-    ])
+  const [printers, setPrinters] = useState<any[]>([])
+  const [filaments, setFilaments] = useState<any[]>([])
+  const [laserMaterials, setLaserMaterials] = useState<any[]>([])
+  const [globalSettings, setGlobalSettings] = useState<any>(null)
+  const [clients, setClients] = useState<any[]>([])
+  const [templates, setTemplates] = useState<any[]>([])
+  const [editingQuote, setEditingQuote] = useState<any | null | undefined>(undefined)
+  const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-    printers = printersResult.data || []
-    filaments = filamentsResult.data || []
-    globalSettingsData = globalSettingsResult.data
-    clients = clientsResult.data || []
-    // Templates are optional sugar: ignore templatesResult.error so a missing
-    // quote_templates table (pre-migration) doesn't blank the calculator.
-    templates = templatesResult.data || []
-
-    // Check for Supabase errors
-    if (printersResult.error || filamentsResult.error || globalSettingsResult.error || clientsResult.error) {
-      error = printersResult.error || filamentsResult.error || globalSettingsResult.error || clientsResult.error
+  useEffect(() => {
+    const loadData = async () => {
+      const supabase = createClient()
+      const { data: printersData, error: printersError } = await supabase.from("printers").select("*").order("name", { ascending: true })
+      const { data: filamentsData, error: filamentsError } = await supabase.from("filaments").select("*").order("created_at", { ascending: true })
+      const { data: globalSettingsData, error: settingsError } = await supabase.from("global_settings").select("*").limit(1).maybeSingle()
+      const { data: clientsData, error: clientsError } = await supabase.from("clients").select("*").order("name")
+      const { data: templatesData } = await supabase.from("quote_templates").select("*").order("name")
+      const { data: laserMaterialsData, error: laserMaterialsError } = await supabase.from("laser_materials").select("*").order("created_at", { ascending: true })
+      setLaserMaterials(laserMaterialsData || [])
+      let quoteError: { message?: string } | null = null
+      if (editingQuoteId) {
+        const { data: quoteRow, error } = await supabase.from("quotes").select("*").eq("id", editingQuoteId).maybeSingle()
+        setEditingQuote(quoteRow ?? null)
+        quoteError = error
+      } else {
+        setEditingQuote(null)
+      }
+      const firstError = printersError || filamentsError || settingsError || clientsError || laserMaterialsError || quoteError
+      setLoadError(firstError ? firstError.message || "Could not read saved data." : null)
+      setPrinters(printersData || [])
+      setFilaments(filamentsData || [])
+      setGlobalSettings(globalSettingsData ?? null)
+      setClients(clientsData || [])
+      setTemplates(templatesData || [])
+      setLoaded(true)
     }
-  } catch (e) {
-    error = e
-    console.error("Database connection error:", e)
-  }
+    loadData()
+    return onLocalDbChange(loadData)
+  }, [editingQuoteId])
+
+  const editingMode = editingQuote?.quote_type_mode as string | undefined
+  const calcType: "3d-print" | "laser" | "legacy-laser" =
+    editingQuoteId && editingQuote != null
+      ? editingMode === "laser"
+        ? "laser"
+        : LEGACY_LASER_MODES.includes(editingMode ?? "")
+          ? "legacy-laser"
+          : "3d-print"
+      : typeParam === "laser"
+        ? "laser"
+        : "3d-print"
+
+  const printers3d = printers.filter((p) => !p.machine_type || p.machine_type === "3d-printer")
+  const laserMachines = printers.filter((p) => p.machine_type === "laser" || p.machine_type === "sticker-printer")
+
+  const isLoading = !loaded || Boolean(editingQuoteId && editingQuote === undefined)
+  const quoteNotFound = Boolean(editingQuoteId) && editingQuote === null
 
   return (
     <div className="min-h-screen bg-background">
@@ -59,38 +90,90 @@ export default async function BusinessPage({
         description="Client quotes with margins, VAT and automatic owner profit split"
       />
 
-      {error ? (
-        <div className="max-w-7xl mx-auto p-4 sm:p-6">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Database Connection Error</AlertTitle>
-            <AlertDescription>
-              Unable to connect to the database. This could be due to:
-              <ul className="list-disc ml-5 mt-2">
-                <li>Your Supabase instance may be paused or experiencing downtime</li>
-                <li>Network connectivity issues</li>
-                <li>Configuration problems</li>
-              </ul>
-              <p className="mt-2">Please check your Supabase dashboard and try again in a few minutes.</p>
-            </AlertDescription>
-          </Alert>
-        </div>
-      ) : (
+      {isLoading && <PageLoading />}
+      {!isLoading && loadError && <PageLoadError message={loadError} />}
+      {!isLoading && !loadError && quoteNotFound && (
+        <PageLoadError message="This quote no longer exists — it may have been deleted." />
+      )}
+      {!isLoading && !loadError && !quoteNotFound && (
         <>
-          {!params.edit && <TemplatePicker templates={templates} value={params.template} basePath="/business" />}
-          <TooltipProvider>
-            <ExcelCalculator
+          {!editingQuoteId && (
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6">
+              <div className="inline-flex rounded-lg border border-border bg-card p-1 gap-1">
+                <Button size="sm" variant={calcType === "3d-print" ? "default" : "ghost"}
+                  onClick={() => router.push("/business")}>3D Print</Button>
+                <Button size="sm" variant={calcType === "laser" ? "default" : "ghost"}
+                  onClick={() => router.push("/business?type=laser")}>Laser &amp; Stickers</Button>
+              </div>
+            </div>
+          )}
+          {templates.length > 0 && !editingQuoteId && calcType === "3d-print" && (
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                <span className="text-sm font-medium text-muted-foreground shrink-0">Start from template:</span>
+                <Select
+                  value={templateId ?? ""}
+                  onValueChange={(value) => router.push(`/business?template=${value}`)}
+                >
+                  <SelectTrigger className="w-full sm:w-[300px] bg-card" aria-label="Start from template">
+                    <SelectValue placeholder="Choose a template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          {calcType === "legacy-laser" && (
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6">
+              <Card className="p-6 space-y-3">
+                <h2 className="text-lg font-semibold">This quote uses the old laser format</h2>
+                <p className="text-sm text-muted-foreground">
+                  Quotes saved before the laser rework can still be viewed in history and as documents, but can't be
+                  edited here. Start a fresh laser quote instead — your client is one click away.
+                </p>
+                <Button onClick={() => router.push("/business?type=laser")}>Start new laser quote</Button>
+              </Card>
+            </div>
+          )}
+          {calcType === "laser" && (
+            <LaserCalculator
               mode="business"
-              printers={printers}
-              filaments={filaments}
-              globalSettings={globalSettingsData}
+              machines={laserMachines}
+              materials={laserMaterials}
+              globalSettings={globalSettings}
               clients={clients}
-              editingQuoteId={params.edit}
-              templateId={params.template}
+              editingQuoteId={editingQuoteId}
             />
-          </TooltipProvider>
+          )}
+          {calcType === "3d-print" && (
+            <TooltipProvider>
+              <ExcelCalculator
+                mode="business"
+                printers={printers3d}
+                filaments={filaments}
+                globalSettings={globalSettings}
+                clients={clients}
+                editingQuoteId={editingQuoteId}
+                templateId={templateId}
+              />
+            </TooltipProvider>
+          )}
         </>
       )}
     </div>
+  )
+}
+
+export default function BusinessPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <BusinessPageInner />
+    </Suspense>
   )
 }

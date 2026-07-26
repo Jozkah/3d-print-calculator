@@ -18,6 +18,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ClientAvatar } from "@/components/visual/client-avatar"
+import { FilamentSpool } from "@/components/visual/filament-spool"
+import { resolveFilamentColor } from "@/lib/filament-color"
 import {
   Trash2,
   ChevronDown,
@@ -46,58 +49,12 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 
-type Quote = {
-  id: string
-  quote_type: string
-  quote_name: string
-  client_name: string // Added client_name field
-  client_id?: string // Added client_id field
-  printer_id?: string // Added printer_id field
-  printed_parts: any[]
-  dried_batches: any[]
-  materials: any[]
-  labor_items: any[]
-  packaging_items: any[]
-  distance_traveled_km: number
-  is_emergency: boolean
-  total_printing_cost: number
-  machine_cost: number
-  drying_cost: number
-  materials_cost: number
-  labor_cost: number
-  packaging_cost: number
-  fuel_cost: number
-  emergency_fee: number
-  electricity_cost: number
-  landed_cost: number
-  margin_30: number
-  margin_40: number
-  margin_50: number
-  margin_60: number
-  selected_margin: string // Updated to string
-  selected_margin_percentage: number | null // Updated to number | null
-  owner_a_receives: number
-  owner_b_receives: number
-  created_at: string
-  is_draft?: boolean
-  status?: string // Added status field
-  final_price?: number // Added final_price field
-  // ISO timestamp after which the quote is no longer valid. Absent on legacy
-  // rows, which never expire.
-  valid_until?: string
-  vat_enabled?: boolean
-  // VAT fraction the quote was priced with (0.23 = 23%). Absent on legacy rows.
-  vat_rate?: number
-  // Invoice fields, minted the first time the invoice document is opened.
-  // invoice_number is sequential per year ("INV-2026-001").
-  invoice_number?: string
-  invoice_date?: string
-  due_date?: string
-  // ISO timestamp when the invoice was marked paid; null/absent = unpaid.
-  paid_at?: string | null
-  // Set once the quote reached "finished" and filament stock was decremented,
-  // so repeated status flips never double-deduct inventory.
-  stock_deducted?: boolean
+import type { Quote as QuoteRow } from "@/types/db"
+
+// History rows carry a derived join artifact (`client_name`, resolved from the
+// client_id at load time) on top of the stored quote columns.
+type Quote = QuoteRow & {
+  client_name?: string
 }
 
 const STATUS_CONFIG = {
@@ -133,8 +90,8 @@ function QuoteHistory({
   printers?: any[],
   filaments?: any[]
 }) {
-  // Fully controlled: props are the source of truth. The server page refetches
-  // and this list re-renders on every router.refresh() after a mutation, so
+  // Fully controlled: props are the source of truth. The parent page reloads
+  // on every local-db change (including this component's own mutations), so
   // copying props into state here only created a second, stale copy.
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -150,10 +107,16 @@ function QuoteHistory({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [quoteToDelete, setQuoteToDelete] = useState<string | null>(null)
 
-  // Captured once per mount so render stays pure (no Date.now() in render).
-  // Fresh enough: the server page refreshes and remounts this list on every
-  // data change, and expiry granularity is a whole day.
+  // Captured once per mount so render stays pure (the react-hooks/purity rule
+  // forbids Date.now() in render). Fresh enough: the parent remounts/reloads
+  // this list on every data change, and expiry granularity is a whole day.
   const [now] = useState(() => Date.now())
+
+  // Laser/stickers quotes save quote_type_mode "laser" (legacy rows may still
+  // carry "laser-engraving", "laser-cutting", or "stickers"), with item names
+  // in a laser_items array instead of printed_parts.
+  const isLaserQuote = (q: any) =>
+    q.quote_type_mode === "laser" || ["laser-engraving", "laser-cutting", "stickers"].includes(q.quote_type_mode)
 
   const handleDownload = (id: string) => {
     // The quote document page opens the browser's print dialog when ?print=1
@@ -206,8 +169,7 @@ function QuoteHistory({
     }
     
     if (data && data.length > 0) {
-      // The server page owns the data; refresh it to show the new row.
-      router.refresh()
+      // Parent refetches via the local-db change event; no local copy to update.
       toast({
         title: "Success",
         description: "Quote duplicated successfully",
@@ -355,7 +317,6 @@ function QuoteHistory({
     const { error } = await supabase.from("quotes").delete().eq("id", quoteToDelete)
 
     if (!error) {
-      router.refresh()
       toast({
         title: "Success",
         description: "Quote deleted successfully",
@@ -428,10 +389,6 @@ function QuoteHistory({
 
     await supabase.from("quotes").update({ stock_deducted: true }).eq("id", quote.id)
 
-    // The server page owns the data; refresh so the updated stock levels and
-    // the stock_deducted flag reach the props.
-    router.refresh()
-
     toast({
       title: "Stock updated",
       description:
@@ -447,7 +404,6 @@ function QuoteHistory({
     const { error } = await supabase.from("quotes").update({ status: newStatus }).eq("id", quoteId)
 
     if (!error) {
-      router.refresh()
       toast({
         title: "Status Updated",
         description: `Quote status changed to ${STATUS_CONFIG[newStatus as keyof typeof STATUS_CONFIG]?.label || newStatus}`,
@@ -472,7 +428,6 @@ function QuoteHistory({
     const { error } = await supabase.from("quotes").update({ paid_at }).eq("id", quote.id)
 
     if (!error) {
-      router.refresh()
       toast({
         title: paid_at ? "Marked as paid" : "Marked as unpaid",
         description: `Invoice ${quote.invoice_number} is now ${paid_at ? "paid" : "unpaid"}.`,
@@ -492,7 +447,6 @@ function QuoteHistory({
     const { error } = await supabase.from("quotes").update({ quote_type: newType }).eq("id", quoteId)
 
     if (!error) {
-      router.refresh()
       toast({
         title: "Quote Converted",
         description: `Quote converted from ${currentType} to ${newType}`,
@@ -565,7 +519,10 @@ function QuoteHistory({
       const partNames = (quote.printed_parts || [])
         .map((part: any) => part?.name || "")
         .join(" ")
-      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames}`.toLowerCase()
+      const laserNames = (quote.laser_items || [])
+        .map((it: any) => it.name || "")
+        .join(" ")
+      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames}`.toLowerCase()
       if (!haystack.includes(query)) return false
     }
 
@@ -878,7 +835,16 @@ function QuoteHistory({
       </div>
 
       {filteredQuotes.map((quote) => {
-        const totalParts = (quote.printed_parts || []).length
+        // Laser/sticker quotes keep their line items in laser_items, not
+        // printed_parts/materials, so the generic 3D-print counts below would
+        // always read zero for them — count laser_items as "items" instead.
+        const isLaser = isLaserQuote(quote)
+        // Legacy laser quotes ("laser-engraving"/"laser-cutting"/"stickers") were saved
+        // before laser_items existed, so their line items still live in printed_parts —
+        // fall back to that count instead of showing 0.
+        const totalParts = isLaser
+          ? quote.laser_items?.length || quote.printed_parts?.length || 0
+          : (quote.printed_parts || []).length
         const totalMaterials = (quote.materials || []).length || (quote.materials_cost > 0 ? 1 : 0)
         const totalLabor = (quote.labor_items || []).length
         const totalPackaging = (quote.packaging_items || []).length
@@ -888,6 +854,27 @@ function QuoteHistory({
         const statusConfig = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending
         const StatusIcon = statusConfig.icon
 
+        // Resolved client name, same lookup the search filter uses (line ~500).
+        const clientName = quote.client_id
+          ? quote.client_name || clients.find((c) => c.id === quote.client_id)?.name || "Unknown client"
+          : null
+
+        // Up to 4 distinct filament colors used across this quote's parts,
+        // supporting both the legacy single-filament shape and the newer
+        // multi-filament shape (mirrors gramsPerFilament's part-shape handling).
+        const usedFilamentIds = new Set<string>()
+        for (const part of quote.printed_parts || []) {
+          if (Array.isArray(part?.filaments)) {
+            part.filaments.forEach((entry: any) => entry?.filament_id && usedFilamentIds.add(entry.filament_id))
+          } else if (part?.filament_id) {
+            usedFilamentIds.add(part.filament_id)
+          }
+        }
+        const usedFilaments = [...usedFilamentIds]
+          .map((id) => filaments.find((f) => f.id === id))
+          .filter(Boolean)
+          .slice(0, 4)
+
         return (
           <Card key={quote.id} className="overflow-hidden shadow-sm transition-shadow hover:shadow-md">
             <CardHeader className={expandedId === quote.id ? "border-b border-border" : ""}>
@@ -895,6 +882,11 @@ function QuoteHistory({
                 <div className="min-w-0 flex-1">
                   <CardTitle className="text-lg sm:text-xl flex flex-wrap items-center gap-2">
                     <span className="break-words">{quote.quote_name}</span>
+                    {isLaserQuote(quote) && (
+                      <span className="ml-2 inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        Laser
+                      </span>
+                    )}
                     {quote.is_draft && <Badge variant="secondary">Draft</Badge>}
                     <Badge variant={quote.quote_type === "business" ? "default" : "secondary"}>
                       {quote.quote_type}
@@ -941,11 +933,37 @@ function QuoteHistory({
                         })}
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    {usedFilaments.length > 0 && (
+                      <span
+                        className="ml-1 inline-flex items-center gap-0.5"
+                        title={usedFilaments.map((f: any) => f.name).join(", ")}
+                      >
+                        {usedFilaments.map((f: any) => (
+                          <FilamentSpool key={f.id} colorHex={resolveFilamentColor(f)} size={14} />
+                        ))}
+                      </span>
+                    )}
                   </CardTitle>
+                  {quote.client_id && (
+                    <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                      <ClientAvatar id={quote.client_id} name={clientName || "?"} size={24} className="mr-1.5" />
+                      {clientName}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground break-words mt-1">
-                    {totalParts} part{totalParts !== 1 ? "s" : ""} | {totalMaterials} material
-                    {totalMaterials !== 1 ? "s" : ""} | {totalLabor} labor item{totalLabor !== 1 ? "s" : ""} |{" "}
-                    {totalPackaging} packaging item{totalPackaging !== 1 ? "s" : ""}
+                    {isLaser ? (
+                      <>
+                        {totalParts} item{totalParts !== 1 ? "s" : ""} | {totalLabor} labor item
+                        {totalLabor !== 1 ? "s" : ""} | {totalPackaging} packaging item
+                        {totalPackaging !== 1 ? "s" : ""}
+                      </>
+                    ) : (
+                      <>
+                        {totalParts} part{totalParts !== 1 ? "s" : ""} | {totalMaterials} material
+                        {totalMaterials !== 1 ? "s" : ""} | {totalLabor} labor item{totalLabor !== 1 ? "s" : ""} |{" "}
+                        {totalPackaging} packaging item{totalPackaging !== 1 ? "s" : ""}
+                      </>
+                    )}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Created: {new Date(quote.created_at).toLocaleString()}
@@ -1012,16 +1030,18 @@ function QuoteHistory({
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSaveAsTemplate(quote)}
-                      className="h-9 w-9 p-0"
-                      title="Save as Template"
-                      aria-label="Save quote as template"
-                    >
-                      <LayoutTemplate className="h-4 w-4" />
-                    </Button>
+                    {!isLaserQuote(quote) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSaveAsTemplate(quote)}
+                        className="h-9 w-9 p-0"
+                        title="Save as Template"
+                        aria-label="Save quote as template"
+                      >
+                        <LayoutTemplate className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -1100,10 +1120,12 @@ function QuoteHistory({
                           <Copy className="h-4 w-4 mr-2" />
                           Duplicate
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleSaveAsTemplate(quote)}>
-                          <LayoutTemplate className="h-4 w-4 mr-2" />
-                          Save as template
-                        </DropdownMenuItem>
+                        {!isLaserQuote(quote) && (
+                          <DropdownMenuItem onClick={() => handleSaveAsTemplate(quote)}>
+                            <LayoutTemplate className="h-4 w-4 mr-2" />
+                            Save as template
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => convertQuoteType(quote.id, quote.quote_type)}>
                           <RefreshCw className="h-4 w-4 mr-2" />
                           Convert to {quote.quote_type === "personal" ? "business" : "personal"}

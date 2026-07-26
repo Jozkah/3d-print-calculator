@@ -6,37 +6,32 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
 import { formatMoney } from "@/lib/format"
-import {
-  CompanyLetterhead,
-  issuerContactLine,
-  type GlobalSettings,
-  type Quote,
-} from "@/components/quotation-document"
+import { CompanyLetterhead, issuerContactLine } from "@/components/quotation-document"
+import type { GlobalSettings, Quote } from "@/types/db"
 
 // Invoice document for a saved quote. Clones the standard quotation layout
 // (and its exact price math) but is titled INVOICE and carries invoice
 // metadata: a sequential per-year invoice number (INV-YYYY-NNN, minted from
-// the "counters" table on first visit), the invoice date, a due date
+// the local "counters" table on first visit), the invoice date, a due date
 // (+14 days by default) and the paid flag.
 
 const DUE_DAYS = 14
 
 /**
- * Mint the next sequential invoice number for the current year from the
- * counters table (one row per year, id "invoice-YYYY"). Plain read+update —
- * acceptable race tolerance for a single-operator shop.
+ * Mint the next sequential invoice number for the current year using the
+ * counters table ("3dpc:counters" in localStorage).
  */
 async function mintInvoiceNumber(): Promise<{ invoice_number: string; invoice_date: string; due_date: string }> {
   const supabase = createClient()
   const year = new Date().getFullYear()
-  const counterId = `invoice-${year}`
-  const { data: counter } = await supabase.from("counters").select("value").eq("id", counterId).maybeSingle()
+  const key = `invoice-${year}`
+  const { data: counter } = await supabase.from("counters").select("*").eq("key", key).maybeSingle()
   let next = 1
   if (counter) {
     next = (counter.value || 0) + 1
-    await supabase.from("counters").update({ value: next }).eq("id", counterId)
+    await supabase.from("counters").update({ value: next }).eq("id", counter.id)
   } else {
-    await supabase.from("counters").insert([{ id: counterId, value: next }])
+    await supabase.from("counters").insert([{ key, value: next }])
   }
   const invoiceDate = new Date()
   const dueDate = new Date(invoiceDate.getTime() + DUE_DAYS * 86400000)

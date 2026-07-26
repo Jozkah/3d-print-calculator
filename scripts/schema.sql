@@ -6,11 +6,8 @@
 -- scripts/migrations/ (kept for history), reconciled to match what the app code
 -- actually reads/writes.
 --
--- Row-Level Security is enabled at the bottom of this file: every table is
--- restricted to the `authenticated` role, so new deployments are secure by
--- default. Create user accounts in the Supabase dashboard (Authentication →
--- Users) — the app has no public sign-up. scripts/rls_policies.sql applies
--- the same policies to an existing database.
+-- AFTER running this, apply scripts/rls_policies.sql and review the security
+-- notes in the README before exposing the app publicly.
 --
 -- NOTE: cost-calculator.tsx currently reads `global_settings.electricity_rate`
 -- and `global_settings.vat_rate`, but the settings UI persists
@@ -30,19 +27,6 @@ CREATE TABLE IF NOT EXISTS global_settings (
   cost_buffer_factor DECIMAL(10, 2) NOT NULL DEFAULT 1.3,
   emergency_fee_fixed DECIMAL(10, 2) NOT NULL DEFAULT 10.00,
   double_heating_cost BOOLEAN DEFAULT TRUE,
-  -- VAT rate stored as a fraction (0.23 = 23%), edited as a percent in the UI
-  vat_rate NUMERIC DEFAULT 0.23,
-  currency_symbol TEXT DEFAULT '€',
-  -- How many days a new quote stays valid (drives quotes.valid_until)
-  validity_days INTEGER DEFAULT 30,
-  -- Business identity rendered as a letterhead on quote/invoice documents;
-  -- all optional. company_logo holds a small (~200KB max) data-URI image.
-  company_name TEXT,
-  company_address TEXT,
-  company_email TEXT,
-  company_phone TEXT,
-  company_tax_id TEXT,
-  company_logo TEXT,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -86,9 +70,6 @@ CREATE TABLE IF NOT EXISTS filaments (
   color_hex TEXT,
   thickness TEXT,
   size TEXT,
-  -- Spool inventory (filament rows only). NULL grams_in_stock = not tracked.
-  grams_in_stock NUMERIC,
-  low_stock_threshold_g NUMERIC DEFAULT 1000,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -181,22 +162,6 @@ CREATE TABLE IF NOT EXISTS quotes (
   margin_40 NUMERIC,
   margin_50 NUMERIC,
   margin_60 NUMERIC,
-  -- VAT fraction the quote was priced with (0.23 = 23%); NULL on legacy rows,
-  -- which the document pages render at the historical 23%
-  vat_rate NUMERIC,
-  -- When the quote stops being valid (created_at + global_settings.validity_days
-  -- at save time); NULL on legacy rows, which never expire
-  valid_until TIMESTAMPTZ,
-  -- Invoice metadata, minted on first visit to the invoice view
-  -- (invoice_number is sequential per year, "INV-2026-001"); paid_at is the
-  -- Paid/Unpaid toggle
-  invoice_number TEXT,
-  invoice_date TIMESTAMPTZ,
-  due_date TIMESTAMPTZ,
-  paid_at TIMESTAMPTZ,
-  -- Set once the quote reached "finished" and filament stock was decremented,
-  -- so repeated status flips never double-deduct inventory
-  stock_deducted BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -240,21 +205,6 @@ CREATE TABLE IF NOT EXISTS imported_csv_files (
   filament_count INTEGER
 );
 
--- Per-year sequential counters, e.g. invoice numbering (id 'invoice-2026') ----
-CREATE TABLE IF NOT EXISTS counters (
-  id TEXT PRIMARY KEY,
-  value INTEGER NOT NULL DEFAULT 0
-);
-
--- Reusable quote templates: buildable structure only (parts, batches,
--- materials, labor, packaging, margins) — no client/pricing identity ----------
-CREATE TABLE IF NOT EXISTS quote_templates (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  payload JSONB NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- Indexes ---------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_quote_parts_header ON quote_parts(quote_header_id);
 CREATE INDEX IF NOT EXISTS idx_quote_headers_type ON quote_headers(quote_type);
@@ -264,26 +214,3 @@ CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name);
 CREATE INDEX IF NOT EXISTS idx_filaments_material_type ON filaments(material_type);
 CREATE INDEX IF NOT EXISTS idx_laser_materials_type ON laser_materials(material_type);
 CREATE INDEX IF NOT EXISTS idx_imported_csv_files_hash ON imported_csv_files(file_hash);
-
--- Row-Level Security ----------------------------------------------------------
--- Secure by default: enable RLS on every table and grant access to signed-in
--- users only. The public `anon` role gets no access — the app requires login
--- (accounts are created in the Supabase dashboard, Authentication → Users).
--- Keep this in sync with scripts/rls_policies.sql.
-DO $$
-DECLARE t text;
-BEGIN
-  FOREACH t IN ARRAY ARRAY[
-    'global_settings','printers','filaments','laser_materials',
-    'clients','quotes','quote_headers','quote_parts','imported_csv_files',
-    'counters','quote_templates'
-  ]
-  LOOP
-    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON %I;', t || '_authenticated_all', t);
-    EXECUTE format(
-      'CREATE POLICY %I ON %I FOR ALL TO authenticated USING (true) WITH CHECK (true);',
-      t || '_authenticated_all', t
-    );
-  END LOOP;
-END $$;

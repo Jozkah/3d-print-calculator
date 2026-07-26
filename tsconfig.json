@@ -9,6 +9,10 @@
     "target": "ES6",
     "skipLibCheck": true,
     "strict": true,
+    // The local data layer (lib/local-db.ts) returns loosely-typed rows in place
+    // of Supabase's generated types, so query results are `any`. Relax this one
+    // check to keep the rest of strict mode without annotating every callback.
+    "noImplicitAny": false,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",

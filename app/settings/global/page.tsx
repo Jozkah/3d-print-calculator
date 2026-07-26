@@ -1,10 +1,25 @@
-import { createClient } from "@/lib/supabase/server"
+"use client"
+
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
+import { onLocalDbChange } from "@/lib/local-db"
 import { GlobalSettingsForm } from "@/components/global-settings-form"
 import { SiteHeader, PageHeader } from "@/components/site-header"
 
-export default async function GlobalSettingsPage() {
-  const supabase = await createClient()
-  const { data: settings } = await supabase.from("global_settings").select("*").single()
+export default function GlobalSettingsPage() {
+  const [settings, setSettings] = useState<any>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    const loadData = async () => {
+      const supabase = createClient()
+      const { data } = await supabase.from("global_settings").select("*").single()
+      setSettings(data ?? null)
+      setLoaded(true)
+    }
+    loadData()
+    return onLocalDbChange(loadData)
+  }, [])
 
   return (
     <div className="min-h-screen bg-background">
@@ -16,7 +31,7 @@ export default async function GlobalSettingsPage() {
       />
 
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
-        <GlobalSettingsForm settings={settings} />
+        {loaded && <GlobalSettingsForm settings={settings} />}
       </main>
     </div>
   )

@@ -4,7 +4,8 @@ import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Loader2 } from "lucide-react"
-import { QuotationDocument, type GlobalSettings, type Quote } from "@/components/quotation-document"
+import { QuotationDocument } from "@/components/quotation-document"
+import type { GlobalSettings, Quote } from "@/types/db"
 
 function QuoteDocument() {
   const params = useParams()

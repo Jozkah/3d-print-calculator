@@ -7,11 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
 import { formatMoney } from "@/lib/format"
 import { CompanyLetterhead, issuerContactLine } from "@/components/quotation-document"
-
-// Only the display-relevant slice of global_settings this document reads.
-interface GlobalSettings {
-  currency_symbol?: string
-}
+import type { GlobalSettings, Quote as QuoteRow } from "@/types/db"
 
 interface PrintedPart {
   id: string
@@ -55,40 +51,15 @@ interface PackagingItem {
   total_cost?: number
 }
 
-interface Quote {
-  id: string
-  quote_name: string
-  quote_type: string
-  total_printing_cost: number
-  machine_cost: number
-  drying_cost: number
-  materials_cost: number
-  labor_cost: number
-  packaging_cost: number
-  fuel_cost: number
-  emergency_fee: number
-  electricity_cost: number
-  landed_cost: number
-  selected_margin: string
-  is_emergency: boolean
-  created_at: string
+// Shared quote row, with this page's narrowed shapes for the JSONB item
+// arrays (the shared type keeps them loose because their element shape varies
+// between quote versions).
+type Quote = QuoteRow & {
   printed_parts: PrintedPart[]
   dried_batches: DriedBatch[]
   materials: Material[]
   labor_items: LaborItem[]
   packaging_items: PackagingItem[]
-  distance_traveled_km: number
-  client_id?: string | null
-  // Authoritative total stored for target-price quotes (operator's exact entered total,
-  // already inclusive of emergency fee and VAT). null when the quote used margin mode.
-  final_price?: number | null
-  vat_enabled?: boolean
-  // VAT fraction the quote was priced with (0.23 = 23%). Absent on legacy
-  // rows, which re-render with the historical 0.23.
-  vat_rate?: number
-  // ISO timestamp after which the quote is no longer valid. Absent on legacy
-  // rows, which fall back to created_at + 30 days.
-  valid_until?: string
 }
 
 const sectionLabel = "text-xs uppercase tracking-[0.2em] text-slate-400 mb-4 pb-3 border-b border-slate-200"
@@ -98,6 +69,59 @@ const td = "py-3 pr-4 text-slate-900"
 const tdMuted = "py-3 pr-4 text-slate-500"
 const tdNum = "py-3 pl-4 text-right tabular-nums text-slate-500 whitespace-nowrap"
 const tdNumStrong = "py-3 pl-4 text-right tabular-nums text-slate-900 whitespace-nowrap"
+
+function LaserItemsSection({ quote, money }: { quote: any; money: (n: number) => string }) {
+  const items: any[] = quote.laser_items || []
+  return (
+    <section className="mb-12">
+      <p className={sectionLabel}>Laser &amp; Sticker Items</p>
+      <table className="w-full">
+        <thead>
+          <tr>
+            <th className={th}>Item</th>
+            <th className={th}>Material</th>
+            <th className={th}>Machine</th>
+            <th className={thRight}>Qty</th>
+            <th className={thRight}>Cost / pc</th>
+            <th className={thRight}>Sell / pc</th>
+            <th className={thRight}>Line Total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {items.map((it, i) => (
+            <tr key={it.id || i}>
+              <td className={td}>{it.name || "Unnamed item"}</td>
+              <td className={tdMuted}>{it.material_name || "—"}</td>
+              <td className={tdMuted}>{it.machine_name || "—"}{it.machine_minutes ? ` · ${it.machine_minutes} min/pc` : ""}</td>
+              <td className={tdNum}>{Number(it.quantity) || 0}</td>
+              <td className={tdNum}>{money(Number(it.cost_per_piece) || 0)}</td>
+              <td className={tdNum}>
+                {money(Number(it.sell_per_piece) || 0)}
+                {Number(it.discount_pct) > 0 ? ` (−${it.discount_pct}%)` : ""}
+              </td>
+              <td className={tdNumStrong}>{money(Number(it.line_sell) || 0)}</td>
+            </tr>
+          ))}
+          {Number(quote.setup_fee) > 0 && (
+            <tr>
+              <td className={td} colSpan={6}>Design / setup fee</td>
+              <td className={tdNumStrong}>{money(Number(quote.setup_fee_sell ?? quote.setup_fee) || 0)}</td>
+            </tr>
+          )}
+          {quote.min_price_applied && (
+            <tr>
+              <td className={td} colSpan={6}>Minimum job price adjustment</td>
+              <td className={tdNumStrong}>{money(Number(quote.min_price_adjustment) || 0)}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <p className="mt-3 text-xs text-slate-400">
+        Item line totals include the job's allocated labor, packaging and delivery overhead — the sections below break those costs out for reference.
+      </p>
+    </section>
+  )
+}
 
 export default function DetailedQuotePage() {
   const params = useParams()
@@ -133,7 +157,10 @@ export default function DetailedQuotePage() {
       }
     }
 
-    if (data.printed_parts && data.printed_parts.length > 0) {
+    // Laser quotes persist a denormalized laser_items array with per-piece figures
+    // already computed at save time; they have no printed_parts to enrich, and
+    // running this block against them would be a no-op that only wastes a fetch.
+    if (data.quote_type_mode !== "laser" && data.printed_parts && data.printed_parts.length > 0) {
       // Handle both old and new data structures
       const allFilamentIds: string[] = []
       data.printed_parts.forEach((p: any) => {
@@ -275,6 +302,8 @@ export default function DetailedQuotePage() {
   const totalLandedCost = quote.landed_cost || 0
   const emergencyFeeCost = quote.is_emergency ? quote.emergency_fee || 0 : 0
 
+  const isLaserMode = quote.quote_type_mode === "laser"
+
   const isBusinessQuote = quote.quote_type === "business"
   // Honor the saved VAT toggle — quotes saved with "Include VAT" unchecked
   // must not grow a VAT line here. Legacy rows without the flag default to
@@ -368,7 +397,9 @@ export default function DetailedQuotePage() {
           </section>
         )}
 
-        {quote.printed_parts && quote.printed_parts.length > 0 && (
+        {isLaserMode && <LaserItemsSection quote={quote} money={money} />}
+
+        {!isLaserMode && quote.printed_parts && quote.printed_parts.length > 0 && (
           <section className="mb-12">
             <p className={sectionLabel}>Printed Parts &amp; Materials</p>
             <div className="overflow-x-auto">
@@ -391,7 +422,7 @@ export default function DetailedQuotePage() {
                       <td className={tdNum}>{Math.round(part.filament_grams || 0)}</td>
                       <td className={tdNum}>{part.printing_time_hr?.toFixed(2) || "0.00"}</td>
                       <td className={tdNum}>{money(part.part_cost ?? 0)}</td>
-                      <td className={tdNumStrong}>{money((part.part_cost || 0) * displayMultiplier)}</td>
+                      <td className={tdNumStrong}>{money(((part.part_cost || 0) * displayMultiplier))}</td>
                     </tr>
                   ))}
                   <tr>
@@ -399,7 +430,7 @@ export default function DetailedQuotePage() {
                       Subtotal
                     </td>
                     <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                      {money(quote.total_printing_cost * displayMultiplier)}
+                      {money((quote.total_printing_cost * displayMultiplier))}
                     </td>
                   </tr>
                 </tbody>
@@ -423,20 +454,20 @@ export default function DetailedQuotePage() {
                 <tr className="border-b border-slate-100">
                   <td className={td}>Machine depreciation and maintenance cost</td>
                   <td className={tdNum}>{money(quote.machine_cost ?? 0)}</td>
-                  <td className={tdNumStrong}>{money((quote.machine_cost || 0) * displayMultiplier)}</td>
+                  <td className={tdNumStrong}>{money(((quote.machine_cost || 0) * displayMultiplier))}</td>
                 </tr>
                 <tr className="border-b border-slate-100">
                   <td className={td}>Electricity cost</td>
                   <td className={tdNum}>{money(quote.electricity_cost ?? 0)}</td>
-                  <td className={tdNumStrong}>{money((quote.electricity_cost || 0) * displayMultiplier)}</td>
+                  <td className={tdNumStrong}>{money(((quote.electricity_cost || 0) * displayMultiplier))}</td>
                 </tr>
                 <tr>
                   <td className="py-3 pr-4 text-right text-sm text-slate-500">Subtotal</td>
                   <td className="py-3 pl-4 text-right tabular-nums text-slate-500 whitespace-nowrap border-t border-slate-200">
-                    {money((quote.machine_cost || 0) + (quote.electricity_cost || 0))}
+                    {money(((quote.machine_cost || 0) + (quote.electricity_cost || 0)))}
                   </td>
                   <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                    {money(((quote.machine_cost || 0) + (quote.electricity_cost || 0)) * displayMultiplier)}
+                    {money((((quote.machine_cost || 0) + (quote.electricity_cost || 0)) * displayMultiplier))}
                   </td>
                 </tr>
               </tbody>
@@ -444,7 +475,7 @@ export default function DetailedQuotePage() {
           </div>
         </section>
 
-        {quote.dried_batches && quote.dried_batches.length > 0 && (
+        {!isLaserMode && quote.dried_batches && quote.dried_batches.length > 0 && (
           <section className="mb-12">
             <p className={sectionLabel}>Filament Drying &amp; Preparation</p>
             <div className="overflow-x-auto">
@@ -463,7 +494,7 @@ export default function DetailedQuotePage() {
                       <td className={td}>{batch.material}</td>
                       <td className={tdNum}>{batch.drying_time_hr?.toFixed(2) || "0.00"}</td>
                       <td className={tdNum}>{money(batch.cost ?? 0)}</td>
-                      <td className={tdNumStrong}>{money((batch.cost || 0) * displayMultiplier)}</td>
+                      <td className={tdNumStrong}>{money(((batch.cost || 0) * displayMultiplier))}</td>
                     </tr>
                   ))}
                   <tr>
@@ -471,7 +502,7 @@ export default function DetailedQuotePage() {
                       Subtotal
                     </td>
                     <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                      {money(quote.drying_cost * displayMultiplier)}
+                      {money((quote.drying_cost * displayMultiplier))}
                     </td>
                   </tr>
                 </tbody>
@@ -505,7 +536,7 @@ export default function DetailedQuotePage() {
                         <td className={tdNum}>{material.quantity}</td>
                         <td className={tdNum}>{money(material.unit_cost ?? 0)}</td>
                         <td className={tdNum}>{money(lineTotal)}</td>
-                        <td className={tdNumStrong}>{money(lineTotal * displayMultiplier)}</td>
+                        <td className={tdNumStrong}>{money((lineTotal * displayMultiplier))}</td>
                       </tr>
                     )
                   })}
@@ -514,7 +545,7 @@ export default function DetailedQuotePage() {
                       Subtotal
                     </td>
                     <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                      {money(quote.materials_cost * displayMultiplier)}
+                      {money((quote.materials_cost * displayMultiplier))}
                     </td>
                   </tr>
                 </tbody>
@@ -548,7 +579,7 @@ export default function DetailedQuotePage() {
                         <td className={tdNum}>{labor.hours?.toFixed(2) || "0.00"}</td>
                         <td className={tdNum}>{money(labor.hourly_cost ?? 0)}</td>
                         <td className={tdNum}>{money(lineTotal)}</td>
-                        <td className={tdNumStrong}>{money(lineTotal * displayMultiplier)}</td>
+                        <td className={tdNumStrong}>{money((lineTotal * displayMultiplier))}</td>
                       </tr>
                     )
                   })}
@@ -557,7 +588,7 @@ export default function DetailedQuotePage() {
                       Subtotal
                     </td>
                     <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                      {money(quote.labor_cost * displayMultiplier)}
+                      {money((quote.labor_cost * displayMultiplier))}
                     </td>
                   </tr>
                 </tbody>
@@ -591,7 +622,7 @@ export default function DetailedQuotePage() {
                         <td className={tdNum}>{pkg.quantity}</td>
                         <td className={tdNum}>{money(pkg.unit_cost ?? 0)}</td>
                         <td className={tdNum}>{money(lineTotal)}</td>
-                        <td className={tdNumStrong}>{money(lineTotal * displayMultiplier)}</td>
+                        <td className={tdNumStrong}>{money((lineTotal * displayMultiplier))}</td>
                       </tr>
                     )
                   })}
@@ -601,7 +632,7 @@ export default function DetailedQuotePage() {
                       <td className={tdNum}>{quote.distance_traveled_km.toFixed(2)} km</td>
                       <td className={tdNum}>—</td>
                       <td className={tdNum}>{money(quote.fuel_cost ?? 0)}</td>
-                      <td className={tdNumStrong}>{money((quote.fuel_cost || 0) * displayMultiplier)}</td>
+                      <td className={tdNumStrong}>{money(((quote.fuel_cost || 0) * displayMultiplier))}</td>
                     </tr>
                   )}
                   <tr>
@@ -609,7 +640,7 @@ export default function DetailedQuotePage() {
                       Subtotal
                     </td>
                     <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                      {money((quote.packaging_cost + quote.fuel_cost) * displayMultiplier)}
+                      {money(((quote.packaging_cost + quote.fuel_cost) * displayMultiplier))}
                     </td>
                   </tr>
                 </tbody>
