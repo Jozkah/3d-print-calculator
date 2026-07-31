@@ -98,6 +98,8 @@ components/
   cost-calculator.tsx     # main per-job pricing
   excel-calculator.tsx    # spreadsheet-style bulk entry
   laser-calculator.tsx    # laser cutting / engraving
+  uv-calculator.tsx       # UV printing (per-colour ink, runs, scoped work steps)
+  uv-inks-list.tsx · uv-materials-list.tsx
   printers-list.tsx · filaments-list.tsx · clients-list.tsx
   quote-history.tsx · global-settings-form.tsx
   ui/                     # shadcn/ui primitives
@@ -106,12 +108,13 @@ lib/
   local-db.ts         # local (localStorage) data layer — replaces the DB
   supabase/           # thin shims re-exporting local-db (kept for compatibility)
 scripts/
-  schema.sql          # legacy Postgres schema (unused — kept for reference)
-  migrations/         # historical step-by-step migrations (unused)
+  schema.sql          # Postgres/Supabase schema (not used at runtime)
+  rls_policies.sql    # row-level security to apply after schema.sql
+  migrations/         # step-by-step equivalents of the same schema
 docs/screenshot.png
 ```
 
-> **Note:** The `scripts/*.sql` files describe the old Postgres/Supabase schema and are no longer used by the app. They're kept only as documentation of the data model.
+> **Note:** The app stores everything in the browser (`lib/local-db.ts`) and never talks to Postgres at runtime — `lib/supabase/` is a compatibility shim. The `scripts/*.sql` files are the equivalent Supabase schema, kept in step with what the app reads and writes so the data model stays documented and a Postgres backend can be restored without archaeology. Run `schema.sql` once on a fresh database, or apply `migrations/` in order to an existing one, then `rls_policies.sql`.
 
 ## License
 

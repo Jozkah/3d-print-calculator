@@ -60,6 +60,47 @@ export type LaserMaterial = {
   [key: string]: any
 }
 
+/**
+ * One ink channel. Two prices: the OEM bottle we always bill at, and the
+ * cheaper third-party refill we sometimes actually load.
+ */
+export type UvInk = {
+  id: string
+  color_key: "cyan" | "magenta" | "yellow" | "black" | "white" | "gloss"
+  name: string
+  hex: string
+  // Kit price ÷ colours, and the ml that price buys. The cleaner in the kit is
+  // deliberately outside this volume, which folds its cost into printed ml.
+  oem_price: number
+  oem_volume_ml: number
+  // Third-party refill. null = none recorded; €/ml then falls back to OEM.
+  refill_price?: number | null
+  refill_volume_ml?: number | null
+  sort_order: number
+  created_at: string
+  updated_at?: string
+  [key: string]: any
+}
+
+/**
+ * Substrate for UV printing — blanks, sheet stock, customer-supplied items.
+ * Deliberately a separate catalogue from laser_materials.
+ */
+export type UvMaterial = {
+  id: string
+  name: string
+  color?: string | null
+  pricing_unit: "sheet" | "area" | "length" | "piece"
+  price: number
+  sheet_width_cm?: number | null
+  sheet_height_cm?: number | null
+  stock_qty?: number | null
+  notes?: string | null
+  created_at: string
+  updated_at?: string
+  [key: string]: any
+}
+
 export type Client = {
   id: string
   name: string
@@ -107,6 +148,9 @@ export type GlobalSettings = {
   sticker_min_job_price?: number
   default_setup_fee?: number
   qty_discount_tiers?: { min_qty: number; discount_pct: number }[]
+  // UV printing minimum job price. Absent on legacy rows; read sites fall back
+  // to UV_DEFAULTS from lib/uv-pricing.
+  uv_min_job_price?: number
   created_at?: string
   updated_at?: string
   [key: string]: any
@@ -115,6 +159,9 @@ export type GlobalSettings = {
 export type Quote = {
   id: string
   quote_type: string
+  // Which calculator produced the quote: "laser" | "uv" | a legacy laser mode,
+  // or absent for 3D-print quotes. See lib/quote-modes.ts.
+  quote_type_mode?: string
   quote_name: string
   client_id?: string | null
   printer_id?: string
@@ -208,6 +255,8 @@ export interface Tables {
   printers: Printer
   filaments: Filament
   laser_materials: LaserMaterial
+  uv_inks: UvInk
+  uv_materials: UvMaterial
   clients: Client
   quotes: Quote
   global_settings: GlobalSettings

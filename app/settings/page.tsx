@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Printer, Palette, Settings2, Users, ArrowRight, Layers } from "lucide-react"
+import { Printer, Palette, Settings2, Users, ArrowRight, Layers, Droplets } from "lucide-react"
 import { SiteHeader, PageHeader } from "@/components/site-header"
 import { DataExportCard, DataImportCard } from "@/components/seed-importer"
 
@@ -27,6 +27,18 @@ const SECTIONS = [
     icon: Layers,
     title: "Laser & Sticker Materials",
     description: "Sheets, vinyl rolls and blanks with per-sheet, per-area or per-piece pricing.",
+  },
+  {
+    href: "/settings/uv-inks",
+    icon: Droplets,
+    title: "UV Inks",
+    description: "Per-colour OEM and refill prices. Quotes always bill at the OEM price.",
+  },
+  {
+    href: "/settings/uv-materials",
+    icon: Layers,
+    title: "UV Materials",
+    description: "Blanks and sheet stock you UV print on, with per-piece or per-area pricing.",
   },
   {
     href: "/settings/clients",

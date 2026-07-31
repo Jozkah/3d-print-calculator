@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
 import { formatMoney } from "@/lib/format"
 import { CompanyLetterhead, issuerContactLine } from "@/components/quotation-document"
+import { DEFAULT_DOCUMENT_TITLE, invoiceDocumentTitle } from "@/lib/document-title"
 import type { GlobalSettings, Quote } from "@/types/db"
 
 // Invoice document for a saved quote. Clones the standard quotation layout
@@ -82,14 +83,14 @@ export default function InvoicePage() {
     loadQuote()
   }, [params.id])
 
+  // Drives the "Save as PDF" filename, so it names the document type too.
   useEffect(() => {
-    if (quote?.invoice_number) {
-      document.title = `${quote.invoice_number} - Invoice`
-    }
+    if (!quote) return
+    document.title = invoiceDocumentTitle(quote)
     return () => {
-      document.title = "3D Print Calculator"
+      document.title = DEFAULT_DOCUMENT_TITLE
     }
-  }, [quote?.invoice_number])
+  }, [quote])
 
   function handlePrint() {
     window.print()

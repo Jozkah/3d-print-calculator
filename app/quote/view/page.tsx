@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { QuotationDocument } from "@/components/quotation-document"
+import { DEFAULT_DOCUMENT_TITLE, quotationDocumentTitle } from "@/lib/document-title"
 import type { GlobalSettings, Quote } from "@/types/db"
 
 // Self-contained quotation view: the whole document payload travels in the
@@ -60,14 +61,14 @@ export default function SharedQuoteViewPage() {
     return () => clearTimeout(timer)
   }, [])
 
+  // Drives the "Save as PDF" filename, so it names the document type too.
   useEffect(() => {
-    if (payload?.quote?.quote_name) {
-      document.title = `${payload.quote.quote_name} - Quotation`
-    }
+    if (!payload?.quote) return
+    document.title = quotationDocumentTitle(payload.quote, "simple")
     return () => {
-      document.title = "3D Print Calculator"
+      document.title = DEFAULT_DOCUMENT_TITLE
     }
-  }, [payload?.quote?.quote_name])
+  }, [payload?.quote])
 
   if (loading) {
     return (

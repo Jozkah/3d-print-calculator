@@ -47,6 +47,7 @@ import {
   LayoutTemplate,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { isLaserQuote, isUvQuote } from "@/lib/quote-modes"
 import { useRouter } from "next/navigation"
 
 import type { Quote as QuoteRow } from "@/types/db"
@@ -112,11 +113,6 @@ function QuoteHistory({
   // this list on every data change, and expiry granularity is a whole day.
   const [now] = useState(() => Date.now())
 
-  // Laser/stickers quotes save quote_type_mode "laser" (legacy rows may still
-  // carry "laser-engraving", "laser-cutting", or "stickers"), with item names
-  // in a laser_items array instead of printed_parts.
-  const isLaserQuote = (q: any) =>
-    q.quote_type_mode === "laser" || ["laser-engraving", "laser-cutting", "stickers"].includes(q.quote_type_mode)
 
   const handleDownload = (id: string) => {
     // The quote document page opens the browser's print dialog when ?print=1
@@ -522,7 +518,10 @@ function QuoteHistory({
       const laserNames = (quote.laser_items || [])
         .map((it: any) => it.name || "")
         .join(" ")
-      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames}`.toLowerCase()
+      const uvNames = (quote.uv_items || [])
+        .map((it: any) => it?.name || "")
+        .join(" ")
+      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames} ${uvNames}`.toLowerCase()
       if (!haystack.includes(query)) return false
     }
 
@@ -839,14 +838,23 @@ function QuoteHistory({
         // printed_parts/materials, so the generic 3D-print counts below would
         // always read zero for them — count laser_items as "items" instead.
         const isLaser = isLaserQuote(quote)
+        const isUv = isUvQuote(quote)
+        // Laser and UV quotes are both counted as "items"; only 3D quotes have
+        // parts + materials.
+        const isItemised = isLaser || isUv
         // Legacy laser quotes ("laser-engraving"/"laser-cutting"/"stickers") were saved
         // before laser_items existed, so their line items still live in printed_parts —
         // fall back to that count instead of showing 0.
-        const totalParts = isLaser
-          ? quote.laser_items?.length || quote.printed_parts?.length || 0
-          : (quote.printed_parts || []).length
+        const totalParts = isUv
+          ? quote.uv_items?.length || 0
+          : isLaser
+            ? quote.laser_items?.length || quote.printed_parts?.length || 0
+            : (quote.printed_parts || []).length
         const totalMaterials = (quote.materials || []).length || (quote.materials_cost > 0 ? 1 : 0)
-        const totalLabor = (quote.labor_items || []).length
+        // UV quotes keep their labour in uv_operations (work steps), not
+        // labor_items, so the generic count would always read zero for them.
+        const totalLabor = isUv ? (quote.uv_operations || []).length : (quote.labor_items || []).length
+        const laborNoun = isUv ? "work step" : "labor item"
         const totalPackaging = (quote.packaging_items || []).length
         const totalDriedBatches = (quote.dried_batches || []).length
 
@@ -885,6 +893,11 @@ function QuoteHistory({
                     {isLaserQuote(quote) && (
                       <span className="ml-2 inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                         Laser
+                      </span>
+                    )}
+                    {isUvQuote(quote) && (
+                      <span className="ml-2 inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        UV
                       </span>
                     )}
                     {quote.is_draft && <Badge variant="secondary">Draft</Badge>}
@@ -951,9 +964,9 @@ function QuoteHistory({
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground break-words mt-1">
-                    {isLaser ? (
+                    {isItemised ? (
                       <>
-                        {totalParts} item{totalParts !== 1 ? "s" : ""} | {totalLabor} labor item
+                        {totalParts} item{totalParts !== 1 ? "s" : ""} | {totalLabor} {laborNoun}
                         {totalLabor !== 1 ? "s" : ""} | {totalPackaging} packaging item
                         {totalPackaging !== 1 ? "s" : ""}
                       </>
@@ -1267,6 +1280,116 @@ function QuoteHistory({
                                 </td>
                               </tr>
                             ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* UV quotes store their line items in uv_items (with denormalized
+                    material_name/machine_name/runs/costs written at save time), so this
+                    table reads the saved row directly and needs no catalogue lookup. */}
+                {quote.uv_items && quote.uv_items.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">UV Items</h3>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle">
+                        <table className="w-full text-sm border border-border rounded-lg overflow-hidden">
+                          <thead className="bg-muted/70 text-muted-foreground [&_th]:text-xs [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wider">
+                            <tr>
+                              <th className="border border-border/70 px-3 py-2 text-left">Item</th>
+                              <th className="border border-border/70 px-3 py-2 text-left">Machine</th>
+                              <th className="border border-border/70 px-3 py-2 text-left">Material</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Qty</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Runs</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Ink (ml)</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">€/pc</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Line</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-card">
+                            {quote.uv_items.map((item: any, index: number) => {
+                              const qty = Number(item.quantity) || 0
+                              const perRun = Math.max(1, Number(item.pieces_per_run) || 1)
+                              // Ink is recorded per RUN; the pieces actually printed are
+                              // qty/pieces_per_run runs' worth, matching the pricing maths.
+                              const inkMl = (item.ink || []).reduce(
+                                (sum: number, u: any) => sum + (Number(u.ml_per_run) || 0) * (qty / perRun),
+                                0,
+                              )
+                              const isBack = Boolean(item.back_of_item_id)
+                              return (
+                                <tr key={item.id || index}>
+                                  <td className="border border-border/50 px-3 py-2">
+                                    {item.name || "Unnamed item"}
+                                    {isBack && (
+                                      <span className="ml-2 text-xs text-muted-foreground">(back side)</span>
+                                    )}
+                                  </td>
+                                  <td className="border border-border/50 px-3 py-2">{item.machine_name || "N/A"}</td>
+                                  <td className="border border-border/50 px-3 py-2">{item.material_name || "—"}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">{qty}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">{item.runs ?? 0}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">{safeFixed(inkMl, 1)}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">
+                                    €{safeFixed(item.cost_per_piece)}
+                                  </td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">
+                                    €{safeFixed(item.line_sell)}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* UV labour/extra costs live in uv_operations, not labor_items. */}
+                {quote.uv_operations && quote.uv_operations.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Work Steps</h3>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle">
+                        <table className="w-full text-sm border border-border rounded-lg overflow-hidden">
+                          <thead className="bg-muted/70 text-muted-foreground [&_th]:text-xs [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wider">
+                            <tr>
+                              <th className="border border-border/70 px-3 py-2 text-left">Step</th>
+                              <th className="border border-border/70 px-3 py-2 text-left">Applies to</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Per</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">×</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Unit</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-card">
+                            {quote.uv_operations.map((op: any, index: number) => {
+                              const target = op.item_id
+                                ? (quote.uv_items || []).find((it: any) => it.id === op.item_id)?.name || "Unnamed item"
+                                : "All items"
+                              return (
+                                <tr key={op.id || index}>
+                                  <td className="border border-border/50 px-3 py-2">
+                                    {op.name || "Unnamed step"}
+                                    {op.kind === "labour" && (
+                                      <span className="ml-2 text-xs text-muted-foreground">
+                                        {Number(op.minutes) || 0} min
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="border border-border/50 px-3 py-2">{target}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right capitalize">{op.scope}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">{op.occurrences ?? 0}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">
+                                    €{safeFixed(op.unit_cost)}
+                                  </td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">€{safeFixed(op.total)}</td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>

@@ -6,14 +6,14 @@ import { createClient } from "@/lib/supabase/client"
 import { onLocalDbChange } from "@/lib/local-db"
 import { ExcelCalculator } from "@/components/excel-calculator"
 import { LaserCalculator } from "@/components/laser-calculator"
+import { UvCalculator } from "@/components/uv-calculator"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { SiteHeader, PageHeader } from "@/components/site-header"
 import { PageLoading, PageLoadError } from "@/components/page-loading"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-
-const LEGACY_LASER_MODES = ["laser-engraving", "laser-cutting", "stickers"]
+import { resolveCalcType } from "@/lib/quote-modes"
 
 function BusinessPageInner() {
   const searchParams = useSearchParams()
@@ -25,6 +25,8 @@ function BusinessPageInner() {
   const [printers, setPrinters] = useState<any[]>([])
   const [filaments, setFilaments] = useState<any[]>([])
   const [laserMaterials, setLaserMaterials] = useState<any[]>([])
+  const [uvMaterials, setUvMaterials] = useState<any[]>([])
+  const [uvInks, setUvInks] = useState<any[]>([])
   const [globalSettings, setGlobalSettings] = useState<any>(null)
   const [clients, setClients] = useState<any[]>([])
   const [templates, setTemplates] = useState<any[]>([])
@@ -41,7 +43,11 @@ function BusinessPageInner() {
       const { data: clientsData, error: clientsError } = await supabase.from("clients").select("*").order("name")
       const { data: templatesData } = await supabase.from("quote_templates").select("*").order("name")
       const { data: laserMaterialsData, error: laserMaterialsError } = await supabase.from("laser_materials").select("*").order("created_at", { ascending: true })
+      const { data: uvMaterialsData, error: uvMaterialsError } = await supabase.from("uv_materials").select("*").order("created_at", { ascending: true })
+      const { data: uvInksData, error: uvInksError } = await supabase.from("uv_inks").select("*").order("sort_order", { ascending: true })
       setLaserMaterials(laserMaterialsData || [])
+      setUvMaterials(uvMaterialsData || [])
+      setUvInks(uvInksData || [])
       let quoteError: { message?: string } | null = null
       if (editingQuoteId) {
         const { data: quoteRow, error } = await supabase.from("quotes").select("*").eq("id", editingQuoteId).maybeSingle()
@@ -50,7 +56,7 @@ function BusinessPageInner() {
       } else {
         setEditingQuote(null)
       }
-      const firstError = printersError || filamentsError || settingsError || clientsError || laserMaterialsError || quoteError
+      const firstError = printersError || filamentsError || settingsError || clientsError || laserMaterialsError || uvMaterialsError || uvInksError || quoteError
       setLoadError(firstError ? firstError.message || "Could not read saved data." : null)
       setPrinters(printersData || [])
       setFilaments(filamentsData || [])
@@ -63,20 +69,18 @@ function BusinessPageInner() {
     return onLocalDbChange(loadData)
   }, [editingQuoteId])
 
-  const editingMode = editingQuote?.quote_type_mode as string | undefined
-  const calcType: "3d-print" | "laser" | "legacy-laser" =
-    editingQuoteId && editingQuote != null
-      ? editingMode === "laser"
-        ? "laser"
-        : LEGACY_LASER_MODES.includes(editingMode ?? "")
-          ? "legacy-laser"
-          : "3d-print"
-      : typeParam === "laser"
-        ? "laser"
-        : "3d-print"
+  const calcType = resolveCalcType({
+    isEditing: Boolean(editingQuoteId) && editingQuote != null,
+    editingQuoteMode: editingQuote?.quote_type_mode as string | undefined,
+    typeParam,
+    // The template picker only puts ?template= in the URL, so the template's
+    // own mode is what tells us which calculator to open.
+    templateMode: templates.find((t) => t.id === templateId)?.payload?.quote_type_mode,
+  })
 
   const printers3d = printers.filter((p) => !p.machine_type || p.machine_type === "3d-printer")
   const laserMachines = printers.filter((p) => p.machine_type === "laser" || p.machine_type === "sticker-printer")
+  const uvMachines = printers.filter((p) => p.machine_type === "uv-printer")
 
   const isLoading = !loaded || Boolean(editingQuoteId && editingQuote === undefined)
   const quoteNotFound = Boolean(editingQuoteId) && editingQuote === null
@@ -104,10 +108,12 @@ function BusinessPageInner() {
                   onClick={() => router.push("/business")}>3D Print</Button>
                 <Button size="sm" variant={calcType === "laser" ? "default" : "ghost"}
                   onClick={() => router.push("/business?type=laser")}>Laser &amp; Stickers</Button>
+                <Button size="sm" variant={calcType === "uv" ? "default" : "ghost"}
+                  onClick={() => router.push("/business?type=uv")}>UV Printing</Button>
               </div>
             </div>
           )}
-          {templates.length > 0 && !editingQuoteId && calcType === "3d-print" && (
+          {templates.length > 0 && !editingQuoteId && (calcType === "3d-print" || calcType === "uv") && (
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                 <span className="text-sm font-medium text-muted-foreground shrink-0">Start from template:</span>
@@ -149,6 +155,18 @@ function BusinessPageInner() {
               globalSettings={globalSettings}
               clients={clients}
               editingQuoteId={editingQuoteId}
+            />
+          )}
+          {calcType === "uv" && (
+            <UvCalculator
+              mode="business"
+              machines={uvMachines}
+              materials={uvMaterials}
+              inks={uvInks}
+              globalSettings={globalSettings}
+              clients={clients}
+              editingQuoteId={editingQuoteId}
+              templateId={templateId}
             />
           )}
           {calcType === "3d-print" && (

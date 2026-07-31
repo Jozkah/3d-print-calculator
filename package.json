@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "build": "next build",
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true});require('fs').rmSync('tsconfig.tsbuildinfo',{force:true})\"",
     "dev": "next dev -p 4001",
+    "dev:fresh": "npm run clean && next dev -p 4001",
     "lint": "eslint .",
     "start": "next start -p 4001",
     "test": "vitest run",
