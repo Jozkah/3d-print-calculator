@@ -22,11 +22,17 @@ export const PRINTER_IMAGES: PrinterImageEntry[] = [
   { key: "h2d", label: "Bambu Lab H2D", src: "/printers/h2d.png", aliases: ["h2d"] },
   { key: "h2s", label: "Bambu Lab H2S", src: "/printers/h2s.png", aliases: ["h2s"] },
   { key: "h2c", label: "Bambu Lab H2C", src: "/printers/h2c.png", aliases: ["h2c"] },
+  { key: "eufymake-e1", label: "eufyMake E1 (UV)", src: "/printers/eufymake-e1.png", aliases: ["eufymakee1", "eufymake"] },
   // "a1" last among A-series so "a1mini" wins first.
   { key: "a1", label: "Bambu Lab A1", src: "/printers/a1.png", aliases: ["a1"] },
 ]
 
 const byKey = new Map(PRINTER_IMAGES.map((e) => [e.key, e]))
+
+/** True when image_key holds an operator-uploaded picture (inline data URL). */
+export function isUploadedImage(imageKey?: string | null): imageKey is string {
+  return typeof imageKey === "string" && imageKey.startsWith("data:image/")
+}
 
 function normalize(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -40,6 +46,11 @@ function normalize(name: string): string {
  */
 export function resolvePrinterImage(name: string, imageKey?: string | null): PrinterImageEntry | null {
   if (imageKey === GENERIC_PRINTER_KEY) return null
+  // Uploaded images are stored inline as data URLs, not registry keys — the
+  // caller renders them directly. Returning null here (instead of falling
+  // through to alias matching) stops a bundled render from overriding the
+  // operator's own photo.
+  if (isUploadedImage(imageKey)) return null
   if (imageKey && byKey.has(imageKey)) return byKey.get(imageKey)!
   const n = normalize(name || "")
   if (!n) return null

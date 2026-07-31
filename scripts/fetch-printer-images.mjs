@@ -1,4 +1,8 @@
-// One-shot fetch of Bambu Lab printer cutout renders into public/printers/.
+// One-shot fetch of printer cutout renders into public/printers/.
+//
+// eufymake-e1.png is not listed here: the vendor ships no isolated render, so
+// that file was cropped out of the product shot by hand and is committed
+// as-is. Re-running this script leaves it alone.
 // Run: node scripts/fetch-printer-images.mjs
 import { writeFile, mkdir } from "node:fs/promises"
 import path from "node:path"

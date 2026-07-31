@@ -89,6 +89,13 @@ export interface UvItem {
   usage_width_cm?: number | null
   usage_height_cm?: number | null
   ink: UvInkUsage[]
+  /**
+   * Id of the item this one is the reverse side of. A back side is a second
+   * pass over the SAME physical pieces: it prints its own ink and machine
+   * minutes (with its own nesting), but it neither adds pieces to the job nor
+   * consumes a second substrate. null = a normal, standalone item.
+   */
+  back_of_item_id?: string | null
 }
 
 export type UvOperationScope = "quote" | "run" | "piece"
@@ -107,6 +114,45 @@ export interface UvOperation {
 }
 
 export const itemQty = (item: UvItem): number => Math.floor(pos(item.quantity))
+
+/**
+ * Resolve reverse-side items against the list they belong to.
+ *
+ * A back side has no quantity or material of its own: it inherits the front
+ * item's piece count and rides on the substrate that item already paid for.
+ * Normalising here (rather than special-casing every cost function) keeps the
+ * per-item maths a plain function of a single item — the same numbers the card
+ * shows, and the same numbers a saved quote replays.
+ *
+ * A link to a missing or itself-linked item is dropped, so a hand-edited backup
+ * cannot produce a cycle or an item that inherits from nothing.
+ */
+export function resolveBackSides(items: readonly UvItem[]): UvItem[] {
+  const byId = new Map(items.map((it) => [it.id, it]))
+  return items.map((it) => {
+    const parentId = it.back_of_item_id
+    if (!parentId || parentId === it.id) return it
+    const parent = byId.get(parentId)
+    if (!parent || parent.back_of_item_id) return { ...it, back_of_item_id: null }
+    // Both sides of the same batch go through the printer in the same nesting,
+    // so pieces-per-run is inherited too — the two rows always agree on how
+    // many runs the job takes.
+    // The name follows the front item too: both rows describe the same product,
+    // and every surface that prints a back side appends its own "(back side)"
+    // marker rather than relying on the operator to type one.
+    return {
+      ...it,
+      name: parent.name,
+      quantity: parent.quantity,
+      pieces_per_run: parent.pieces_per_run,
+      material_id: "",
+      usage: 0,
+    }
+  })
+}
+
+/** True when this item is a reverse-side pass over another item's pieces. */
+export const isBackSide = (item: UvItem): boolean => Boolean(item.back_of_item_id)
 
 export const itemPiecesPerRun = (item: UvItem): number => Math.max(1, Math.floor(pos(item.pieces_per_run) || 1))
 
@@ -252,7 +298,11 @@ export interface UvQuoteBreakdown {
   operations: UvOperationBreakdown[]
 }
 
-export function computeUvQuote(input: UvQuoteInput): UvQuoteBreakdown {
+export function computeUvQuote(rawInput: UvQuoteInput): UvQuoteBreakdown {
+  // Back sides inherit quantity from their front item and carry no material,
+  // so every downstream calculation (including operation occurrences) works
+  // from the resolved list.
+  const input: UvQuoteInput = { ...rawInput, items: resolveBackSides(rawInput.items) }
   const marginPct = Math.min(95, pos(input.marginPct))
   const multiplier = 1 / (1 - marginPct / 100)
 

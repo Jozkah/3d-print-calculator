@@ -1,6 +1,6 @@
 import Image from "next/image"
 import { Printer as PrinterIcon } from "lucide-react"
-import { resolvePrinterImage } from "@/lib/printer-images"
+import { resolvePrinterImage, isUploadedImage } from "@/lib/printer-images"
 import { cn } from "@/lib/utils"
 
 const SIZES = { thumb: 40, card: 160, hero: 280 } as const
@@ -29,7 +29,18 @@ export function PrinterVisual({ name, imageKey, size, className }: Props) {
       )}
       style={{ width: px, height: px }}
     >
-      {entry ? (
+      {isUploadedImage(imageKey) ? (
+        // Uploaded pictures are inline data URLs: next/image cannot optimise
+        // those, so render them with a plain <img>.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageKey}
+          alt=""
+          width={px}
+          height={px}
+          className="h-[88%] w-[88%] object-contain drop-shadow-sm"
+        />
+      ) : entry ? (
         <Image
           src={entry.src}
           alt=""

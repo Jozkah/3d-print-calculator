@@ -1287,6 +1287,116 @@ function QuoteHistory({
                   </div>
                 )}
 
+                {/* UV quotes store their line items in uv_items (with denormalized
+                    material_name/machine_name/runs/costs written at save time), so this
+                    table reads the saved row directly and needs no catalogue lookup. */}
+                {quote.uv_items && quote.uv_items.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">UV Items</h3>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle">
+                        <table className="w-full text-sm border border-border rounded-lg overflow-hidden">
+                          <thead className="bg-muted/70 text-muted-foreground [&_th]:text-xs [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wider">
+                            <tr>
+                              <th className="border border-border/70 px-3 py-2 text-left">Item</th>
+                              <th className="border border-border/70 px-3 py-2 text-left">Machine</th>
+                              <th className="border border-border/70 px-3 py-2 text-left">Material</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Qty</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Runs</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Ink (ml)</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">€/pc</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Line</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-card">
+                            {quote.uv_items.map((item: any, index: number) => {
+                              const qty = Number(item.quantity) || 0
+                              const perRun = Math.max(1, Number(item.pieces_per_run) || 1)
+                              // Ink is recorded per RUN; the pieces actually printed are
+                              // qty/pieces_per_run runs' worth, matching the pricing maths.
+                              const inkMl = (item.ink || []).reduce(
+                                (sum: number, u: any) => sum + (Number(u.ml_per_run) || 0) * (qty / perRun),
+                                0,
+                              )
+                              const isBack = Boolean(item.back_of_item_id)
+                              return (
+                                <tr key={item.id || index}>
+                                  <td className="border border-border/50 px-3 py-2">
+                                    {item.name || "Unnamed item"}
+                                    {isBack && (
+                                      <span className="ml-2 text-xs text-muted-foreground">(back side)</span>
+                                    )}
+                                  </td>
+                                  <td className="border border-border/50 px-3 py-2">{item.machine_name || "N/A"}</td>
+                                  <td className="border border-border/50 px-3 py-2">{item.material_name || "—"}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">{qty}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">{item.runs ?? 0}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">{safeFixed(inkMl, 1)}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">
+                                    €{safeFixed(item.cost_per_piece)}
+                                  </td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">
+                                    €{safeFixed(item.line_sell)}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* UV labour/extra costs live in uv_operations, not labor_items. */}
+                {quote.uv_operations && quote.uv_operations.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Work Steps</h3>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle">
+                        <table className="w-full text-sm border border-border rounded-lg overflow-hidden">
+                          <thead className="bg-muted/70 text-muted-foreground [&_th]:text-xs [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wider">
+                            <tr>
+                              <th className="border border-border/70 px-3 py-2 text-left">Step</th>
+                              <th className="border border-border/70 px-3 py-2 text-left">Applies to</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Per</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">×</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Unit</th>
+                              <th className="border border-border/70 px-3 py-2 text-right">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-card">
+                            {quote.uv_operations.map((op: any, index: number) => {
+                              const target = op.item_id
+                                ? (quote.uv_items || []).find((it: any) => it.id === op.item_id)?.name || "Unnamed item"
+                                : "All items"
+                              return (
+                                <tr key={op.id || index}>
+                                  <td className="border border-border/50 px-3 py-2">
+                                    {op.name || "Unnamed step"}
+                                    {op.kind === "labour" && (
+                                      <span className="ml-2 text-xs text-muted-foreground">
+                                        {Number(op.minutes) || 0} min
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="border border-border/50 px-3 py-2">{target}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right capitalize">{op.scope}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">{op.occurrences ?? 0}</td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">
+                                    €{safeFixed(op.unit_cost)}
+                                  </td>
+                                  <td className="border border-border/50 px-3 py-2 text-right">€{safeFixed(op.total)}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                   {quote.materials && quote.materials.length > 0 && (
                     <div>

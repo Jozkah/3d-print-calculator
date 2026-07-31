@@ -19,6 +19,7 @@ import {
   computeUvQuote,
   itemQty,
   UV_DEFAULTS,
+  resolveBackSides,
   type UvItem,
   type UvOperation,
 } from "@/lib/uv-pricing"
@@ -48,6 +49,7 @@ const newItem = (): UvItem => ({
   usage_width_cm: null,
   usage_height_cm: null,
   ink: [],
+  back_of_item_id: null,
 })
 
 /** Rehydrate a persisted item, coercing every number so a hand-edited backup can't produce NaN. */
@@ -62,6 +64,7 @@ const hydrateItem = (it: any): UvItem => ({
   usage: Number(it.usage) || 0,
   usage_width_cm: it.usage_width_cm ?? null,
   usage_height_cm: it.usage_height_cm ?? null,
+  back_of_item_id: it.back_of_item_id ?? null,
   ink: Array.isArray(it.ink)
     ? it.ink.map((u: any) => ({
         color_key: u.color_key || "",
@@ -225,9 +228,14 @@ export function UvCalculator({
       }
       const payload: any = data.payload || {}
       if (payload.quote_type_mode !== "uv") return
-      const templateItems = (payload.uv_items || []).map((it: any) => ({
-        ...hydrateItem(it),
-        id: crypto.randomUUID(),
+      // Template rows get fresh ids; remap back-side links through the same
+      // table so a two-sided item survives the copy.
+      const hydrated = (payload.uv_items || []).map((it: any) => hydrateItem(it))
+      const idMap = new Map(hydrated.map((it: UvItem) => [it.id, crypto.randomUUID()]))
+      const templateItems: UvItem[] = hydrated.map((it: UvItem) => ({
+        ...it,
+        id: idMap.get(it.id)!,
+        back_of_item_id: it.back_of_item_id ? idMap.get(it.back_of_item_id) ?? null : null,
       }))
       setItems(templateItems.length > 0 ? templateItems : [newItem()])
       setOperations((payload.uv_operations || []).map((op: any) => ({ ...hydrateOperation(op), id: crypto.randomUUID() })))
@@ -272,7 +280,10 @@ export function UvCalculator({
 
   // ---- Save ----------------------------------------------------------------
   const buildQuoteData = (isDraft: boolean) => {
-    const persistedItems = items.map((it) => {
+    // Save what was priced, not what was typed: a back side's stored name,
+    // quantity, nesting and material are all inherited, and the quote/history
+    // views read these fields directly.
+    const persistedItems = resolveBackSides(items).map((it) => {
       const b = breakdown.items.find((x) => x.id === it.id)
       return {
         ...it,
@@ -457,6 +468,23 @@ export function UvCalculator({
             inks={inks}
             materials={materials}
             machines={machines}
+            // Only front sides can be a target, so back-of-a-back is impossible.
+            frontSideOptions={items
+              // Number unnamed rows by their real position in the list, not by
+              // their position after filtering, or the labels point at the
+              // wrong item.
+              .map((other, i) => ({
+                id: other.id,
+                name: other.name || `Item ${i + 1}`,
+                // The literal stored name, so a back side mirrors an empty name
+                // as empty rather than inheriting the "Item 2" placeholder.
+                rawName: other.name,
+                quantity: other.quantity,
+                pieces_per_run: other.pieces_per_run,
+                raw: other,
+              }))
+              .filter((o) => o.raw.id !== item.id && !o.raw.back_of_item_id)
+              .map(({ raw, ...option }) => option)}
             line={breakdown.items.find((b) => b.id === item.id)}
             currency={currency}
             onPatch={(patch) => patchItem(index, patch)}
@@ -468,7 +496,12 @@ export function UvCalculator({
 
       <UvOperationsTable
         operations={operations}
-        items={items.map((it) => ({ id: it.id, name: it.name }))}
+        // Resolved names so a back side is listed under its front item's name,
+        // marked so the two rows are still tellable apart.
+        items={resolveBackSides(items).map((it) => ({
+          id: it.id,
+          name: it.back_of_item_id ? `${it.name || "Unnamed item"} (back side)` : it.name,
+        }))}
         breakdown={breakdown.operations}
         currency={currency}
         onChange={setOperations}

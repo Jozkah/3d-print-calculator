@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Download, Loader2 } from "lucide-react"
 import { formatMoney } from "@/lib/format"
 import { CompanyLetterhead, issuerContactLine } from "@/components/quotation-document"
+import { DEFAULT_DOCUMENT_TITLE, quotationDocumentTitle } from "@/lib/document-title"
 import type { GlobalSettings, Quote as QuoteRow } from "@/types/db"
 
 interface PrintedPart {
@@ -174,14 +175,14 @@ export default function DetailedQuotePage() {
   const [settings, setSettings] = useState<GlobalSettings | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Drives the "Save as PDF" filename, so it names the document type too.
   useEffect(() => {
-    if (quote?.quote_name) {
-      document.title = `${quote.quote_name} - Detailed Quotation`
-    }
+    if (!quote) return
+    document.title = quotationDocumentTitle(quote, "detailed")
     return () => {
-      document.title = "3D Print Calculator"
+      document.title = DEFAULT_DOCUMENT_TITLE
     }
-  }, [quote?.quote_name])
+  }, [quote])
 
   useEffect(() => {
     const loadQuote = async () => {

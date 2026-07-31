@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Loader2 } from "lucide-react"
 import { QuotationDocument } from "@/components/quotation-document"
+import { DEFAULT_DOCUMENT_TITLE, quotationDocumentTitle } from "@/lib/document-title"
 import type { GlobalSettings, Quote } from "@/types/db"
 
 function QuoteDocument() {
@@ -42,14 +43,14 @@ function QuoteDocument() {
     loadQuote()
   }, [params.id])
 
+  // Drives the "Save as PDF" filename, so it names the document type too.
   useEffect(() => {
-    if (quote?.quote_name) {
-      document.title = `${quote.quote_name} - Quotation`
-    }
+    if (!quote) return
+    document.title = quotationDocumentTitle(quote, "simple")
     return () => {
-      document.title = "3D Print Calculator"
+      document.title = DEFAULT_DOCUMENT_TITLE
     }
-  }, [quote?.quote_name])
+  }, [quote])
 
   // The history page's Download button links here with ?print=1: once the
   // quote has rendered, open the browser's print dialog (after a short delay

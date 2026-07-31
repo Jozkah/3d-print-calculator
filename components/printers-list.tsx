@@ -6,14 +6,36 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Plus, Trash2, Edit2, Check, X, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Trash2, Edit2, Check, X, ChevronDown, ChevronUp, Upload } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DialogCustom } from "@/components/ui/dialog-custom"
 import { OWNER_A_KEY, OWNER_B_KEY, OWNER_OPTIONS } from "@/lib/business-config"
 import { PrinterVisual } from "@/components/visual/printer-visual"
-import { PRINTER_IMAGES, GENERIC_PRINTER_KEY } from "@/lib/printer-images"
+import { PRINTER_IMAGES, GENERIC_PRINTER_KEY, isUploadedImage } from "@/lib/printer-images"
+import { readImageAsDataUrl } from "@/lib/image-upload"
+
+// Machine types are shown as separate sections; anything with an unknown or
+// missing machine_type falls back to the 3D printer group, which is what the
+// rows created before machine_type existed are.
+const MACHINE_GROUPS = [
+  { type: "3d-printer", heading: "3D Printers", addLabel: "Add Printer" },
+  { type: "laser", heading: "Lasers & Engravers", addLabel: "Add Machine" },
+  { type: "sticker-printer", heading: "Sticker Printers & Cutters", addLabel: "Add Machine" },
+  { type: "uv-printer", heading: "UV Printers", addLabel: "Add Machine" },
+] as const
+
+// Sentinel for the select entry that stands in for an uploaded picture. The
+// real value is a multi-kilobyte data URL, which is not usable as an item value.
+const UPLOADED_IMAGE_OPTION = "__uploaded__"
+
+const KNOWN_MACHINE_TYPES = new Set(MACHINE_GROUPS.map((g) => g.type))
+
+function groupOf(printer: { machine_type?: string }): string {
+  const t = printer.machine_type
+  return t && KNOWN_MACHINE_TYPES.has(t as (typeof MACHINE_GROUPS)[number]["type"]) ? t : "3d-printer"
+}
 
 type Printer = {
   id: string
@@ -32,7 +54,9 @@ type Printer = {
 
 export function PrintersList({ printers: initialPrinters }: { printers: Printer[] }) {
   const [printers, setPrinters] = useState(initialPrinters)
-  const [isAdding, setIsAdding] = useState(false)
+  // Which group's "Add" button was pressed — also seeds the new machine's type
+  // so a UV printer added from the UV section never lands under 3D Printers.
+  const [addingType, setAddingType] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [newPrinter, setNewPrinter] = useState({
@@ -49,6 +73,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
     machine_type: "3d-printer",
   })
   const [editData, setEditData] = useState(newPrinter)
+  const [imageError, setImageError] = useState<string | null>(null)
   const router = useRouter()
   const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; printerId: string | null }>({
     isOpen: false,
@@ -127,7 +152,8 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
       image_key: "auto",
       machine_type: "3d-printer",
     })
-    setIsAdding(false)
+    setImageError(null)
+    setAddingType(null)
   }
 
   const handleDelete = async (id: string) => {
@@ -179,6 +205,7 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
 
   const startEdit = (printer: Printer) => {
     setEditingId(printer.id)
+    setImageError(null)
     setEditData({
       name: printer.name,
       owner: printer.owner,
@@ -224,13 +251,25 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
 
       <div className="md:col-span-2">
         <Label>Product image</Label>
-        <div className="mt-1.5 flex items-center gap-3">
+        <div className="mt-1.5 flex flex-wrap items-center gap-3">
           <PrinterVisual name={data.name} imageKey={data.image_key === "auto" ? null : data.image_key} size="thumb" />
-          <Select value={data.image_key} onValueChange={(value) => onChange({ ...data, image_key: value })}>
+          <Select
+            value={isUploadedImage(data.image_key) ? UPLOADED_IMAGE_OPTION : data.image_key}
+            onValueChange={(value) => {
+              // The "uploaded" entry only exists to label the current picture —
+              // re-selecting it must not overwrite the data URL we already hold.
+              if (value === UPLOADED_IMAGE_OPTION) return
+              setImageError(null)
+              onChange({ ...data, image_key: value })
+            }}
+          >
             <SelectTrigger className="bg-card">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              {isUploadedImage(data.image_key) && (
+                <SelectItem value={UPLOADED_IMAGE_OPTION}>Uploaded image</SelectItem>
+              )}
               <SelectItem value="auto">Auto-detect from name</SelectItem>
               <SelectItem value={GENERIC_PRINTER_KEY}>Generic (no image)</SelectItem>
               {PRINTER_IMAGES.map((e) => (
@@ -238,7 +277,32 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
               ))}
             </SelectContent>
           </Select>
+          <Button type="button" variant="outline" size="sm" asChild>
+            <label className="cursor-pointer">
+              <Upload className="mr-2 h-4 w-4" />
+              Upload image
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  // Reset the input so picking the same file twice still fires.
+                  e.target.value = ""
+                  if (!file) return
+                  setImageError(null)
+                  const result = await readImageAsDataUrl(file)
+                  if ("error" in result) {
+                    setImageError(result.error)
+                    return
+                  }
+                  onChange({ ...data, image_key: result.dataUrl })
+                }}
+              />
+            </label>
+          </Button>
         </div>
+        {imageError && <p className="mt-2 text-sm text-red-600">{imageError}</p>}
       </div>
 
       <div>
@@ -340,44 +404,27 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
     </div>
   )
 
-  return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-0 mb-6">
-        <h2 className="text-xl font-semibold tracking-tight text-foreground">3D Printers</h2>
-        <Button onClick={() => setIsAdding(true)} className="w-full sm:w-auto shadow-sm">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Printer
-        </Button>
-      </div>
+  const startAdd = (machineType: string) => {
+    setImageError(null)
+    setNewPrinter((prev) => ({ ...prev, machine_type: machineType }))
+    setAddingType(machineType)
+  }
 
-      {isAdding && (
-        <Card className="mb-6 border-primary/30 shadow-md">
-          <CardHeader>
-            <CardTitle>New Printer</CardTitle>
-            <CardDescription>Add a new printer with advanced settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {renderPrinterForm(newPrinter, setNewPrinter)}
-            <div className="flex flex-col sm:flex-row gap-2 pt-4">
-              <Button onClick={handleAdd} className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto">
-                <Check className="w-4 h-4 mr-2" />
-                Save
-              </Button>
-              <Button onClick={() => setIsAdding(false)} variant="outline" className="w-full sm:w-auto">
-                <X className="w-4 h-4 mr-2" />
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {printers.map((printer) => (
-          <Card key={printer.id} className={`shadow-sm transition-shadow hover:shadow-md ${editingId === printer.id ? "sm:col-span-2 lg:col-span-3" : ""}`}>
+  const renderPrinterCard = (printer: Printer) => (
+    <Card key={printer.id} className={`shadow-sm transition-shadow hover:shadow-md ${editingId === printer.id ? "sm:col-span-2 lg:col-span-3" : ""}`}>
             <CardContent className="p-6">
               {editingId === printer.id ? (
                 <div className="space-y-4">
+                  {/* Name the machine being edited: without this the card's
+                      identity (photo + title) is replaced by a bare form, which
+                      reads as if the printer had been deleted. */}
+                  <div className="flex items-center gap-3 border-b border-border pb-4">
+                    <PrinterVisual name={printer.name} imageKey={printer.image_key} size="thumb" />
+                    <div>
+                      <h3 className="font-semibold tracking-tight text-foreground">Editing {printer.name}</h3>
+                      <p className="text-sm text-muted-foreground">Changes apply when you press Save</p>
+                    </div>
+                  </div>
                   {renderPrinterForm(editData, setEditData)}
                   <div className="flex gap-2 pt-4">
                     <Button
@@ -459,9 +506,56 @@ export function PrintersList({ printers: initialPrinters }: { printers: Printer[
                 </div>
               )}
             </CardContent>
-          </Card>
-        ))}
-      </div>
+    </Card>
+  )
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+      {MACHINE_GROUPS.map((group) => {
+        // Every section is always shown, empty or not: its "Add" button is the
+        // only way to create a machine already typed for that section.
+        const rows = printers.filter((p) => groupOf(p) === group.type)
+
+        return (
+          <section key={group.type}>
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-0 mb-6">
+              <h2 className="text-xl font-semibold tracking-tight text-foreground">{group.heading}</h2>
+              <Button onClick={() => startAdd(group.type)} className="w-full sm:w-auto shadow-sm">
+                <Plus className="w-4 h-4 mr-2" />
+                {group.addLabel}
+              </Button>
+            </div>
+
+            {addingType === group.type && (
+              <Card className="mb-6 border-primary/30 shadow-md">
+                <CardHeader>
+                  <CardTitle>New {group.heading.replace(/s$/, "")}</CardTitle>
+                  <CardDescription>Add a new machine with advanced settings</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {renderPrinterForm(newPrinter, setNewPrinter)}
+                  <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                    <Button onClick={handleAdd} className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto">
+                      <Check className="w-4 h-4 mr-2" />
+                      Save
+                    </Button>
+                    <Button onClick={() => setAddingType(null)} variant="outline" className="w-full sm:w-auto">
+                      <X className="w-4 h-4 mr-2" />
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No machines in this section yet.</p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{rows.map(renderPrinterCard)}</div>
+            )}
+          </section>
+        )
+      })}
 
       <DialogCustom
         isOpen={deleteDialog.isOpen}

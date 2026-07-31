@@ -6,6 +6,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DecimalInput } from "@/components/ui/decimal-input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -17,6 +18,8 @@ import { itemRuns, type UvItem, type UvItemBreakdown, type UvInkUsage } from "@/
 import type { Printer, UvInk, UvMaterial } from "@/types/db"
 
 const NO_MATERIAL = "none"
+/** Select sentinel for "not a reverse side of anything". */
+const FRONT_SIDE = "front"
 
 /** Material entry adapts to how the material is priced, same as the laser calculator. */
 function UsageCell({
@@ -36,22 +39,16 @@ function UsageCell({
     const toUsage = (w: number, h: number) => (unit === "area" ? w * h : sheetArea > 0 ? (w * h) / sheetArea : 0)
     return (
       <div className="flex items-center gap-1">
-        <Input
-          type="number" min="0" step="0.1" placeholder="W" className="w-16 bg-card"
-          value={item.usage_width_cm || ""}
-          onChange={(e) => {
-            const w = Number.parseFloat(e.target.value) || 0
-            onPatch({ usage_width_cm: w, usage: toUsage(w, item.usage_height_cm || 0) })
-          }}
+        <DecimalInput
+          min="0" step="0.01" placeholder="W" className="w-16 bg-card"
+          value={item.usage_width_cm}
+          onValueChange={(w) => onPatch({ usage_width_cm: w, usage: toUsage(w, item.usage_height_cm || 0) })}
         />
         <span className="text-xs text-muted-foreground">×</span>
-        <Input
-          type="number" min="0" step="0.1" placeholder="H" className="w-16 bg-card"
-          value={item.usage_height_cm || ""}
-          onChange={(e) => {
-            const h = Number.parseFloat(e.target.value) || 0
-            onPatch({ usage_height_cm: h, usage: toUsage(item.usage_width_cm || 0, h) })
-          }}
+        <DecimalInput
+          min="0" step="0.01" placeholder="H" className="w-16 bg-card"
+          value={item.usage_height_cm}
+          onValueChange={(h) => onPatch({ usage_height_cm: h, usage: toUsage(item.usage_width_cm || 0, h) })}
         />
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {unit === "area" ? `= ${(item.usage || 0).toFixed(1)} cm²` : `= ${(item.usage || 0).toFixed(2)} sheets`}
@@ -62,10 +59,10 @@ function UsageCell({
 
   return (
     <div className="flex items-center gap-2">
-      <Input
-        type="number" min="0" step={unit === "sheet" ? "0.05" : "1"} className="w-24 bg-card"
-        value={item.usage || ""}
-        onChange={(e) => onPatch({ usage: Number.parseFloat(e.target.value) || 0, usage_width_cm: null, usage_height_cm: null })}
+      <DecimalInput
+        min="0" step={unit === "sheet" ? "0.01" : "1"} className="w-24 bg-card"
+        value={item.usage}
+        onValueChange={(usage) => onPatch({ usage, usage_width_cm: null, usage_height_cm: null })}
       />
       {/* "pieces / piece" reads like a typo, so per-piece stock says it once. */}
       <span className="text-xs text-muted-foreground">
@@ -84,6 +81,7 @@ export function UvItemCard({
   line,
   currency,
   onPatch,
+  frontSideOptions,
   onDuplicate,
   onRemove,
 }: {
@@ -92,6 +90,8 @@ export function UvItemCard({
   inks: UvInk[]
   materials: UvMaterial[]
   machines: Printer[]
+  /** Other items this one could be the reverse side of (front sides only). */
+  frontSideOptions: { id: string; name: string; quantity: number; pieces_per_run: number; rawName: string }[]
   line: UvItemBreakdown | undefined
   currency: string
   onPatch: (patch: Partial<UvItem>) => void
@@ -99,8 +99,17 @@ export function UvItemCard({
   onRemove: () => void
 }) {
   const money = (n: number) => formatMoney(n, currency)
-  const material = materials.find((m) => m.id === item.material_id)
-  const runs = itemRuns(item)
+  const frontSide = frontSideOptions.find((o) => o.id === item.back_of_item_id)
+  // A reverse-side pass reuses the front item's pieces and substrate, so it
+  // owns neither a quantity nor a material — only its own ink and minutes.
+  const isBack = Boolean(frontSide)
+  const material = isBack ? undefined : materials.find((m) => m.id === item.material_id)
+  // Quantity and nesting are inherited for a back side, so the run count has to
+  // be read off the same resolved values the pricing uses — not off this row's
+  // own stale fields.
+  const effectiveQty = (isBack ? frontSide?.quantity : item.quantity) || 0
+  const effectivePiecesPerRun = (isBack ? frontSide?.pieces_per_run : item.pieces_per_run) || 0
+  const runs = itemRuns({ ...item, quantity: effectiveQty, pieces_per_run: effectivePiecesPerRun })
 
   const patchInk = (colorKey: string, patch: Partial<UvInkUsage>) => {
     const existing = item.ink.find((u) => u.color_key === colorKey)
@@ -117,11 +126,15 @@ export function UvItemCard({
           <Label htmlFor={`uv-item-name-${index}`}>Item</Label>
           <Input
             id={`uv-item-name-${index}`}
-            value={item.name}
+            // A back side is the same product, so it carries the front item's
+            // name; every printed surface adds its own "(back side)" marker.
+            value={isBack ? frontSide?.rawName ?? "" : item.name}
             placeholder="Item name"
             className="bg-card"
+            disabled={isBack}
             onChange={(e) => onPatch({ name: e.target.value })}
           />
+          {isBack && <p className="mt-1 text-xs text-muted-foreground">Back side — named after the front item</p>}
         </div>
         <div className="flex gap-1 pt-6 shrink-0">
           <Button size="icon" variant="ghost" aria-label="Duplicate item" onClick={onDuplicate}>
@@ -133,20 +146,56 @@ export function UvItemCard({
         </div>
       </div>
 
+      {frontSideOptions.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label>This item is</Label>
+            <Select
+              value={item.back_of_item_id || FRONT_SIDE}
+              onValueChange={(v) =>
+                onPatch(
+                  v === FRONT_SIDE
+                    ? { back_of_item_id: null }
+                    : // Clear the substrate: the front item already pays for it.
+                      { back_of_item_id: v, material_id: "", usage: 0, usage_width_cm: null, usage_height_cm: null },
+                )
+              }
+            >
+              <SelectTrigger className="bg-card"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FRONT_SIDE}>Its own piece</SelectItem>
+                {frontSideOptions.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>Back side of {o.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Label htmlFor={`uv-qty-${index}`}>Quantity (pieces)</Label>
           <Input
             id={`uv-qty-${index}`} type="number" min="1" step="1" className="bg-card"
-            value={item.quantity || ""}
+            // A back side shows the inherited count, which is what it is
+            // actually priced on — its own stored quantity is ignored.
+            value={effectiveQty || ""}
+            disabled={isBack}
             onChange={(e) => onPatch({ quantity: Number.parseInt(e.target.value, 10) || 0 })}
           />
+          {isBack && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Same pieces as {frontSide?.name || "the front side"}
+            </p>
+          )}
         </div>
         <div>
           <Label htmlFor={`uv-ppr-${index}`}>Pieces per run</Label>
           <Input
             id={`uv-ppr-${index}`} type="number" min="1" step="1" className="bg-card"
-            value={item.pieces_per_run || ""}
+            value={effectivePiecesPerRun || ""}
+            disabled={isBack}
             onChange={(e) => onPatch({ pieces_per_run: Number.parseInt(e.target.value, 10) || 0 })}
           />
           <p className="mt-1 text-xs text-muted-foreground">
@@ -171,15 +220,21 @@ export function UvItemCard({
         </div>
         <div>
           <Label htmlFor={`uv-minutes-${index}`}>Minutes per run</Label>
-          <Input
-            id={`uv-minutes-${index}`} type="number" min="0" step="0.5" className="bg-card"
-            value={item.minutes_per_run || ""}
-            onChange={(e) => onPatch({ minutes_per_run: Number.parseFloat(e.target.value) || 0 })}
+          <DecimalInput
+            id={`uv-minutes-${index}`} min="0" step="0.1" className="bg-card"
+            value={item.minutes_per_run}
+            onValueChange={(minutes_per_run) => onPatch({ minutes_per_run })}
           />
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
+        {isBack ? (
+          <p className="text-sm text-muted-foreground sm:col-span-2">
+            Material comes from {frontSide?.name || "the front side"} — a second pass over the same pieces adds ink and
+            machine time, not another substrate.
+          </p>
+        ) : (
         <div>
           <Label>Material</Label>
           <Select
@@ -204,6 +259,7 @@ export function UvItemCard({
             </SelectContent>
           </Select>
         </div>
+        )}
         {material && (
           <div>
             <Label>Material per piece</Label>
@@ -233,11 +289,11 @@ export function UvItemCard({
                 <span className="text-sm text-muted-foreground w-20 shrink-0 truncate" title={ink.name}>
                   {ink.name}
                 </span>
-                <Input
-                  type="number" min="0" step="0.1" className="w-20 bg-card"
+                <DecimalInput
+                  min="0" step="0.01" className="w-20 bg-card"
                   aria-label={`${ink.name} ml per run`}
-                  value={usage?.ml_per_run || ""}
-                  onChange={(e) => patchInk(ink.color_key, { ml_per_run: Number.parseFloat(e.target.value) || 0 })}
+                  value={usage?.ml_per_run}
+                  onValueChange={(ml) => patchInk(ink.color_key, { ml_per_run: ml })}
                 />
                 <span className="text-xs text-muted-foreground">ml</span>
                 <div className="flex items-center gap-1 ml-auto">

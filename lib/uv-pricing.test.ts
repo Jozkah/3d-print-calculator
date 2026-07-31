@@ -10,6 +10,7 @@ import {
   operationOccurrences,
   operationUnitCost,
   computeUvQuote,
+  resolveBackSides,
   type UvInkLike,
   type UvItem,
   type UvOperation,
@@ -261,6 +262,49 @@ describe("computeUvQuote", () => {
     )
     expect(b.items[0].discountPct).toBe(0)
     expect(b.minPriceApplied).toBe(false)
+  })
+
+  it("prices a back side as a second pass over the same pieces, not new pieces", () => {
+    const front = item({ id: "front", quantity: 30, usage: 1, material_id: "mat1", minutes_per_run: 10 })
+    const back = item({
+      id: "back",
+      // Deliberately wrong on the row itself: quantity and material must come
+      // from the front item, not from whatever is stored here.
+      quantity: 1,
+      material_id: "mat1",
+      usage: 1,
+      back_of_item_id: "front",
+      minutes_per_run: 10,
+    })
+    const b = computeUvQuote(input({ items: [front, back] }))
+    // 30 blanks at EUR 2, charged once for both sides.
+    expect(b.materialCost).toBeCloseTo(60, 6)
+    // Both passes bill machine time: same minutes, same qty on each row.
+    const onlyFront = computeUvQuote(input({ items: [front] }))
+    expect(b.machineCost).toBeCloseTo(onlyFront.machineCost * 2, 6)
+  })
+
+  it("gives a back side the front item's name, quantity and nesting", () => {
+    const front = item({ id: "front", name: "Hangtags QR", quantity: 100, pieces_per_run: 20 })
+    const back = item({ id: "back", name: "whatever the operator typed", quantity: 1, pieces_per_run: 3, back_of_item_id: "front" })
+    const [, resolved] = resolveBackSides([front, back])
+    expect(resolved.name).toBe("Hangtags QR")
+    expect(resolved.quantity).toBe(100)
+    expect(resolved.pieces_per_run).toBe(20)
+    expect(resolved.material_id).toBe("")
+  })
+
+  it("drops a back-side link that points at nothing or at another back side", () => {
+    const front = item({ id: "front", quantity: 5 })
+    const orphan = item({ id: "orphan", quantity: 7, back_of_item_id: "gone" })
+    const chained = item({ id: "chained", quantity: 7, back_of_item_id: "orphan" })
+    const selfLink = item({ id: "self", quantity: 7, back_of_item_id: "self" })
+    const resolved = resolveBackSides([front, orphan, chained, selfLink])
+    expect(resolved[1].back_of_item_id).toBeNull()
+    expect(resolved[2].back_of_item_id).toBeNull()
+    expect(resolved[3].quantity).toBe(7)
+    // Quantities of dropped links stay as entered rather than collapsing to 0.
+    expect(resolved[1].quantity).toBe(7)
   })
 
   it("returns zeros, not NaN, for an empty or broken quote", () => {
