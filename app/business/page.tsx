@@ -73,6 +73,9 @@ function BusinessPageInner() {
     isEditing: Boolean(editingQuoteId) && editingQuote != null,
     editingQuoteMode: editingQuote?.quote_type_mode as string | undefined,
     typeParam,
+    // The template picker only puts ?template= in the URL, so the template's
+    // own mode is what tells us which calculator to open.
+    templateMode: templates.find((t) => t.id === templateId)?.payload?.quote_type_mode,
   })
 
   const printers3d = printers.filter((p) => !p.machine_type || p.machine_type === "3d-printer")

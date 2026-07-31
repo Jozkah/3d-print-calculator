@@ -15,11 +15,16 @@ export const isUvQuote = (quote: { quote_type_mode?: string }): boolean => quote
 /**
  * Editing an existing quote pins the calculator to that quote's mode; otherwise
  * the `?type=` search param picks it, defaulting to 3D print.
+ *
+ * `templateMode` covers the case where the only thing in the URL is
+ * `?template=<id>`: the template picker does not add a `type` param, so a UV
+ * template would otherwise open the 3D calculator and quietly load nothing.
  */
 export function resolveCalcType(args: {
   isEditing: boolean
   editingQuoteMode?: string
   typeParam?: string | null
+  templateMode?: string
 }): CalcType {
   if (args.isEditing) {
     if (args.editingQuoteMode === "laser") return "laser"
@@ -29,5 +34,6 @@ export function resolveCalcType(args: {
   }
   if (args.typeParam === "laser") return "laser"
   if (args.typeParam === "uv") return "uv"
+  if (args.templateMode === "uv") return "uv"
   return "3d-print"
 }

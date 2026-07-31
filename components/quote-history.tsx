@@ -851,7 +851,10 @@ function QuoteHistory({
             ? quote.laser_items?.length || quote.printed_parts?.length || 0
             : (quote.printed_parts || []).length
         const totalMaterials = (quote.materials || []).length || (quote.materials_cost > 0 ? 1 : 0)
-        const totalLabor = (quote.labor_items || []).length
+        // UV quotes keep their labour in uv_operations (work steps), not
+        // labor_items, so the generic count would always read zero for them.
+        const totalLabor = isUv ? (quote.uv_operations || []).length : (quote.labor_items || []).length
+        const laborNoun = isUv ? "work step" : "labor item"
         const totalPackaging = (quote.packaging_items || []).length
         const totalDriedBatches = (quote.dried_batches || []).length
 
@@ -963,7 +966,7 @@ function QuoteHistory({
                   <p className="text-sm text-muted-foreground break-words mt-1">
                     {isItemised ? (
                       <>
-                        {totalParts} item{totalParts !== 1 ? "s" : ""} | {totalLabor} labor item
+                        {totalParts} item{totalParts !== 1 ? "s" : ""} | {totalLabor} {laborNoun}
                         {totalLabor !== 1 ? "s" : ""} | {totalPackaging} packaging item
                         {totalPackaging !== 1 ? "s" : ""}
                       </>

@@ -67,7 +67,10 @@ function UsageCell({
         value={item.usage || ""}
         onChange={(e) => onPatch({ usage: Number.parseFloat(e.target.value) || 0, usage_width_cm: null, usage_height_cm: null })}
       />
-      <span className="text-xs text-muted-foreground">{usageUnitLabel(unit)} / piece</span>
+      {/* "pieces / piece" reads like a typo, so per-piece stock says it once. */}
+      <span className="text-xs text-muted-foreground">
+        {unit === "piece" ? "per piece" : `${usageUnitLabel(unit)} / piece`}
+      </span>
     </div>
   )
 }

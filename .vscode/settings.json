@@ -1,0 +1,25 @@
+{
+  // Turbopack rewrites hundreds of MB inside .next on every dev-server start
+  // (its persistent cache is an LSM tree that compacts on open). VS Code's
+  // default watcher excludes node_modules but NOT .next, so every one of those
+  // rewrites fanned out into a file-watch + reindex storm across all windows.
+  "files.watcherExclude": {
+    "**/.next/**": true,
+    "**/node_modules/**": true,
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true
+  },
+  "search.exclude": {
+    "**/.next": true,
+    "**/node_modules": true,
+    "**/pnpm-lock.yaml": true,
+    "**/package-lock.json": true
+  },
+  "files.exclude": {
+    "**/.next": true
+  },
+  // Keep the TS server off build output too.
+  "typescript.tsserver.watchOptions": {
+    "excludeDirectories": ["**/.next", "**/node_modules"]
+  }
+}

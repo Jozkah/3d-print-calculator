@@ -122,7 +122,9 @@ export function UvInksList({ inks, currency = "€" }: { inks: UvInk[]; currency
     setApplying(true)
     try {
       const supabase = createClient()
-      const perColour = price / colours
+      // Rounded because 174.99/6 is 29.165000000000003 in binary floating point,
+      // which would show up verbatim in the price input.
+      const perColour = Math.round((price / colours) * 10000) / 10000
       for (const ink of inks) {
         const { error } = await supabase
           .from("uv_inks")
@@ -173,7 +175,15 @@ export function UvInksList({ inks, currency = "€" }: { inks: UvInk[]; currency
       </Card>
 
       {inks.map((ink) => (
-        <InkRow key={ink.id} ink={ink} currency={currency} />
+        // The key carries the persisted prices so "Fill from kit" — which writes
+        // every row from outside this component — remounts the rows with their
+        // new values. Without it the inputs keep the state they were seeded
+        // with and the page looks like the write silently failed.
+        <InkRow
+          key={`${ink.id}:${ink.oem_price}:${ink.oem_volume_ml}:${ink.refill_price}:${ink.refill_volume_ml}`}
+          ink={ink}
+          currency={currency}
+        />
       ))}
     </div>
   )

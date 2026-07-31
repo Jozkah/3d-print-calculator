@@ -348,6 +348,10 @@ export default function DetailedQuotePage() {
 
   const isLaserMode = quote.quote_type_mode === "laser"
   const isUvMode = quote.quote_type_mode === "uv"
+  // Ink is a row in the operating-costs table for UV quotes, so it has to be in
+  // that table's subtotal too — otherwise the column visibly does not add up.
+  const operatingSubtotal =
+    (isUvMode ? quote.uv_ink_cost || 0 : 0) + (quote.machine_cost || 0) + (quote.electricity_cost || 0)
 
   const isBusinessQuote = quote.quote_type === "business"
   // Honor the saved VAT toggle — quotes saved with "Include VAT" unchecked
@@ -518,10 +522,10 @@ export default function DetailedQuotePage() {
                 <tr>
                   <td className="py-3 pr-4 text-right text-sm text-slate-500">Subtotal</td>
                   <td className="py-3 pl-4 text-right tabular-nums text-slate-500 whitespace-nowrap border-t border-slate-200">
-                    {money(((quote.machine_cost || 0) + (quote.electricity_cost || 0)))}
+                    {money(operatingSubtotal)}
                   </td>
                   <td className="py-3 pl-4 text-right tabular-nums font-medium text-slate-900 whitespace-nowrap border-t border-slate-200">
-                    {money((((quote.machine_cost || 0) + (quote.electricity_cost || 0)) * displayMultiplier))}
+                    {money(operatingSubtotal * displayMultiplier)}
                   </td>
                 </tr>
               </tbody>

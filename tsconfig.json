@@ -39,7 +39,17 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
+  // `include` above matches `**/*.ts`, which also reaches into .next. The
+  // generated route types under .next/types and .next/dev/types are wanted, so
+  // only the build/cache output is excluded — Turbopack's persistent cache
+  // alone reached 685 MB / 1536 files, which the TS program has no business
+  // crawling.
   "exclude": [
-    "node_modules"
+    "node_modules",
+    ".next/cache",
+    ".next/dev/cache",
+    ".next/dev/static",
+    ".next/server",
+    ".next/static"
   ]
 }
