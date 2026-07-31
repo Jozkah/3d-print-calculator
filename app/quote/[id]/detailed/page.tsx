@@ -9,6 +9,7 @@ import { formatMoney } from "@/lib/format"
 import { CompanyLetterhead, issuerContactLine } from "@/components/quotation-document"
 import { DEFAULT_DOCUMENT_TITLE, quotationDocumentTitle } from "@/lib/document-title"
 import type { GlobalSettings, Quote as QuoteRow } from "@/types/db"
+import { groupUvQuoteLines } from "@/lib/uv-quote-items"
 
 interface PrintedPart {
   id: string
@@ -72,7 +73,8 @@ const tdNum = "py-3 pl-4 text-right tabular-nums text-slate-500 whitespace-nowra
 const tdNumStrong = "py-3 pl-4 text-right tabular-nums text-slate-900 whitespace-nowrap"
 
 function UvItemsSection({ quote, money }: { quote: any; money: (n: number) => string }) {
-  const items: any[] = quote.uv_items || []
+  // Both sides of a double-sided item bill as one line.
+  const items = groupUvQuoteLines<any>(quote.uv_items || [])
   if (items.length === 0) return null
   return (
     <section className="mb-12">
@@ -93,7 +95,10 @@ function UvItemsSection({ quote, money }: { quote: any; money: (n: number) => st
         <tbody className="divide-y divide-slate-100">
           {items.map((it, i) => (
             <tr key={it.id || i}>
-              <td className={td}>{it.name || "Unnamed item"}</td>
+              <td className={td}>
+                {it.name || "Unnamed item"}
+                {it.sides > 1 ? <span className="ml-2 text-xs text-slate-400">double-sided</span> : null}
+              </td>
               <td className={tdMuted}>{it.material_name || "—"}</td>
               <td className={tdMuted}>
                 {it.machine_name || "—"}

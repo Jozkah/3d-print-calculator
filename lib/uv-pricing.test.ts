@@ -7,6 +7,9 @@ import {
   itemRuns,
   itemPiecesPerRun,
   itemInkCost,
+  itemMaterialCost,
+  itemMachineCost,
+  itemElectricityCost,
   operationOccurrences,
   operationUnitCost,
   computeUvQuote,
@@ -305,6 +308,56 @@ describe("computeUvQuote", () => {
     expect(resolved[3].quantity).toBe(7)
     // Quantities of dropped links stay as entered rather than collapsing to 0.
     expect(resolved[1].quantity).toBe(7)
+  })
+
+  it("reports a real electricity figure that does not double-count machine cost", () => {
+    const one = item({ quantity: 10, pieces_per_run: 2, minutes_per_run: 30, material_id: "" })
+    const m = machine()
+    const total = itemMachineCost(one, m, 0.2)
+    const power = itemElectricityCost(one, m, 0.2)
+
+    // 30 min over 2 pieces = 15 min/piece; 10 pieces = 150 min = 2.5 h.
+    // 300 W at EUR 0.20/kWh = EUR 0.06/h, buffered by 1.3.
+    expect(power).toBeCloseTo(2.5 * 0.06 * 1.3, 6)
+    expect(power).toBeGreaterThan(0)
+
+    const b = computeUvQuote(input({ items: [one] }))
+    // The split is presentational: the two lines still add up to the machine cost.
+    expect(b.machineCost + b.electricityCost).toBeCloseTo(total, 6)
+    expect(b.electricityCost).toBeCloseTo(power, 6)
+  })
+
+  it("charges no electricity when the item has no machine", () => {
+    const one = item({ quantity: 10, minutes_per_run: 30, machine_id: "missing", material_id: "" })
+    const b = computeUvQuote(input({ items: [one] }))
+    expect(b.electricityCost).toBe(0)
+  })
+
+  it("splits a sheet across the pieces nested on it", () => {
+    const sheet = { id: "sheet", name: "A3 sheet", pricing_unit: "sheet" as const, price: 1.5 }
+    // 100 pieces, 6 to a bed: 100/6 sheets, not 100.
+    const nested = item({ quantity: 100, pieces_per_run: 6, material_id: "sheet" })
+    expect(itemMaterialCost(nested, sheet, 1)).toBeCloseTo((100 / 6) * 1.5, 6)
+
+    // Piece-priced stock stays one unit per piece.
+    const blanks = item({ quantity: 100, pieces_per_run: 6, material_id: "mat1" })
+    expect(itemMaterialCost(blanks, blank, 1)).toBeCloseTo(100 * 2, 6)
+  })
+
+  it("charges a per-run step for both sides of a two-sided item", () => {
+    const front = item({ id: "front", quantity: 100, pieces_per_run: 20 })
+    const back = item({ id: "back", back_of_item_id: "front" })
+    const resolved = resolveBackSides([front, back])
+    const jig = { id: "op", name: "Jig load", kind: "labour" as const, minutes: 5, amount: 0, scope: "run" as const, item_id: "front" }
+
+    // 5 beds per side, loaded and flipped: 10 jig loads.
+    expect(operationOccurrences(jig, resolved)).toBe(10)
+
+    // A per-piece step is not doubled — 100 pieces stay 100 pieces.
+    expect(operationOccurrences({ ...jig, scope: "piece" }, resolved)).toBe(100)
+
+    // Attaching to the back row alone bills that side only.
+    expect(operationOccurrences({ ...jig, item_id: "back" }, resolved)).toBe(5)
   })
 
   it("returns zeros, not NaN, for an empty or broken quote", () => {

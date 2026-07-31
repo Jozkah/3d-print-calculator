@@ -11,66 +11,15 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Copy, AlertTriangle } from "lucide-react"
+import { Trash2, Copy, AlertTriangle, Layers } from "lucide-react"
 import { formatMoney } from "@/lib/format"
-import { pricingUnitLabel, usageUnitLabel } from "@/lib/laser-pricing"
+import { pricingUnitLabel } from "@/lib/laser-pricing"
 import { itemRuns, type UvItem, type UvItemBreakdown, type UvInkUsage } from "@/lib/uv-pricing"
 import type { Printer, UvInk, UvMaterial } from "@/types/db"
 
 const NO_MATERIAL = "none"
 /** Select sentinel for "not a reverse side of anything". */
 const FRONT_SIDE = "front"
-
-/** Material entry adapts to how the material is priced, same as the laser calculator. */
-function UsageCell({
-  item,
-  material,
-  onPatch,
-}: {
-  item: UvItem
-  material: UvMaterial | undefined
-  onPatch: (patch: Partial<UvItem>) => void
-}) {
-  if (!material) return null
-  const unit = material.pricing_unit
-
-  if (unit === "area" || (unit === "sheet" && material.sheet_width_cm && material.sheet_height_cm)) {
-    const sheetArea = unit === "sheet" ? (material.sheet_width_cm || 0) * (material.sheet_height_cm || 0) : 1
-    const toUsage = (w: number, h: number) => (unit === "area" ? w * h : sheetArea > 0 ? (w * h) / sheetArea : 0)
-    return (
-      <div className="flex items-center gap-1">
-        <DecimalInput
-          min="0" step="0.01" placeholder="W" className="w-16 bg-card"
-          value={item.usage_width_cm}
-          onValueChange={(w) => onPatch({ usage_width_cm: w, usage: toUsage(w, item.usage_height_cm || 0) })}
-        />
-        <span className="text-xs text-muted-foreground">×</span>
-        <DecimalInput
-          min="0" step="0.01" placeholder="H" className="w-16 bg-card"
-          value={item.usage_height_cm}
-          onValueChange={(h) => onPatch({ usage_height_cm: h, usage: toUsage(item.usage_width_cm || 0, h) })}
-        />
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {unit === "area" ? `= ${(item.usage || 0).toFixed(1)} cm²` : `= ${(item.usage || 0).toFixed(2)} sheets`}
-        </span>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <DecimalInput
-        min="0" step={unit === "sheet" ? "0.01" : "1"} className="w-24 bg-card"
-        value={item.usage}
-        onValueChange={(usage) => onPatch({ usage, usage_width_cm: null, usage_height_cm: null })}
-      />
-      {/* "pieces / piece" reads like a typo, so per-piece stock says it once. */}
-      <span className="text-xs text-muted-foreground">
-        {unit === "piece" ? "per piece" : `${usageUnitLabel(unit)} / piece`}
-      </span>
-    </div>
-  )
-}
 
 export function UvItemCard({
   item,
@@ -82,6 +31,9 @@ export function UvItemCard({
   currency,
   onPatch,
   frontSideOptions,
+  onAddRearSide,
+  hasRearSide,
+  sideSplit,
   onDuplicate,
   onRemove,
 }: {
@@ -97,13 +49,18 @@ export function UvItemCard({
   onPatch: (patch: Partial<UvItem>) => void
   onDuplicate: () => void
   onRemove: () => void
+  /** Present only when this item can still gain a reverse side. */
+  onAddRearSide?: () => void
+  /** A reverse-side row already points at this item. */
+  hasRearSide: boolean
+  /** Per-piece cost of each side, so a merged line can still be checked. */
+  sideSplit?: { front: number; rear: number }
 }) {
   const money = (n: number) => formatMoney(n, currency)
   const frontSide = frontSideOptions.find((o) => o.id === item.back_of_item_id)
   // A reverse-side pass reuses the front item's pieces and substrate, so it
   // owns neither a quantity nor a material — only its own ink and minutes.
   const isBack = Boolean(frontSide)
-  const material = isBack ? undefined : materials.find((m) => m.id === item.material_id)
   // Quantity and nesting are inherited for a back side, so the run count has to
   // be read off the same resolved values the pricing uses — not off this row's
   // own stale fields.
@@ -260,14 +217,6 @@ export function UvItemCard({
           </Select>
         </div>
         )}
-        {material && (
-          <div>
-            <Label>Material per piece</Label>
-            <div className="mt-2">
-              <UsageCell item={item} material={material} onPatch={onPatch} />
-            </div>
-          </div>
-        )}
       </div>
 
       <div>
@@ -312,12 +261,32 @@ export function UvItemCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap justify-between gap-2 border-t border-border pt-3 text-sm">
-        <span className="text-muted-foreground">
-          cost {money(line?.costPerPiece ?? 0)} / piece → sell {money(line?.sellPerPiece ?? 0)} / piece
-          {line && line.discountPct > 0 && <span className="ml-1 text-primary">−{line.discountPct}%</span>}
-        </span>
-        <span className="tabular-nums font-medium">{money(line?.lineSell ?? 0)}</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-sm">
+        {isBack ? (
+          // The price of both passes is shown once, on the front card.
+          <span className="text-muted-foreground">Priced together with the front side</span>
+        ) : (
+          <>
+            <span className="text-muted-foreground">
+              cost {money(line?.costPerPiece ?? 0)} / piece → sell {money(line?.sellPerPiece ?? 0)} / piece
+              {line && line.discountPct > 0 && <span className="ml-1 text-primary">−{line.discountPct}%</span>}
+              {hasRearSide && sideSplit && (
+                // Spell out where a merged figure comes from — the two sides
+                // rarely cost the same, and the sum is otherwise unverifiable.
+                <span className="ml-1">
+                  (front {money(sideSplit.front)} + rear {money(sideSplit.rear)})
+                </span>
+              )}
+            </span>
+            <span className="tabular-nums font-medium">{money(line?.lineSell ?? 0)}</span>
+          </>
+        )}
+        {!isBack && !hasRearSide && onAddRearSide && (
+          <Button size="sm" variant="outline" onClick={onAddRearSide}>
+            <Layers className="mr-2 h-4 w-4" />
+            Add rear side
+          </Button>
+        )}
       </div>
     </Card>
   )

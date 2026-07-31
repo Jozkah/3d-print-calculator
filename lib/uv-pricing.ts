@@ -7,6 +7,7 @@
 // each ink price, and the difference is the operator's margin.
 
 import {
+  COST_BUFFER_FACTOR,
   discountPctForQty,
   machineCostPerHour,
   type LaserMachineLike,
@@ -194,6 +195,39 @@ export function itemMachineCost(
   return (perPieceMinutes / 60) * machineCostPerHour(machine, electricityCostPerKwh) * itemQty(item)
 }
 
+/**
+ * The electricity slice of an item's machine cost — the part of
+ * itemMachineCost that comes from the printer's power draw rather than from
+ * depreciation. Reported separately so a quote can show a real kWh figure
+ * instead of a permanent zero; the two never double-count, because the machine
+ * line subtracts what this returns.
+ */
+export function itemElectricityCost(
+  item: UvItem,
+  machine: LaserMachineLike | undefined,
+  electricityCostPerKwh: number,
+): number {
+  if (!machine) return 0
+  const perPieceMinutes = pos(item.minutes_per_run) / itemPiecesPerRun(item)
+  const perHour = (pos(machine.average_power_consumption_watts) / 1000) * pos(electricityCostPerKwh)
+  // Same buffer the machine rate applies, so machine + electricity still add up
+  // to exactly itemMachineCost.
+  return (perPieceMinutes / 60) * perHour * COST_BUFFER_FACTOR * itemQty(item)
+}
+
+/**
+ * How many units of substrate ONE piece consumes.
+ *
+ * Derived rather than typed: a sheet feeds a whole bed, so each piece uses
+ * 1/pieces-per-run of it, while piece-priced stock (blanks, envelopes) is one
+ * unit per piece by definition. Area- and length-priced stock has no piece
+ * geometry to work from and is charged as a single unit per piece.
+ */
+export function itemMaterialUsage(item: UvItem, material: LaserMaterialLike | undefined): number {
+  if (!material) return 0
+  return material.pricing_unit === "sheet" ? 1 / itemPiecesPerRun(item) : 1
+}
+
 /** Material cost for all pieces of one item: usage × unit price × qty × waste factor. */
 export function itemMaterialCost(
   item: UvItem,
@@ -202,7 +236,7 @@ export function itemMaterialCost(
 ): number {
   if (!material) return 0
   const efficiency = pos(materialEfficiencyFactor) || 1
-  return pos(item.usage) * pos(material.price) * itemQty(item) * efficiency
+  return itemMaterialUsage(item, material) * pos(material.price) * itemQty(item) * efficiency
 }
 
 /** What one occurrence of an operation costs. */
@@ -214,10 +248,20 @@ export function operationUnitCost(op: UvOperation, laborHourlyRate: number): num
  * How many times an operation happens. Quote scope is once; run and piece scope
  * count over the attached item, or over every item when unattached. An operation
  * pointing at a deleted item happens zero times.
+ *
+ * A step attached to a two-sided item covers BOTH passes when it is per-run:
+ * the bed is loaded, printed, and loaded again with the pieces flipped, so a
+ * jig load really does happen twice. Per-piece steps are not doubled — a piece
+ * is still one piece however many sides it has. To bill a step against one side
+ * only, attach it to that row directly ("… (back side)" in the picker).
  */
 export function operationOccurrences(op: UvOperation, items: UvItem[]): number {
   if (op.scope === "quote") return 1
-  const targets = op.item_id ? items.filter((it) => it.id === op.item_id) : items
+  const targets = op.item_id
+    ? items.filter(
+        (it) => it.id === op.item_id || (op.scope === "run" && it.back_of_item_id === op.item_id),
+      )
+    : items
   return targets.reduce((sum, it) => sum + (op.scope === "run" ? itemRuns(it) : itemQty(it)), 0)
 }
 
@@ -249,7 +293,9 @@ export interface UvItemBreakdown {
   inkBilled: number
   inkActual: number
   materialCost: number
+  /** Depreciation share only — the power draw is reported as electricityCost. */
   machineCost: number
+  electricityCost: number
   operationsCost: number
   /** Billed direct cost — material + machine + OEM ink + attached operations. */
   directCost: number
@@ -268,7 +314,10 @@ export interface UvOperationBreakdown {
 
 export interface UvQuoteBreakdown {
   materialCost: number
+  /** Depreciation share only; add electricityCost for the full machine cost. */
   machineCost: number
+  /** What the printers actually draw from the wall, buffered like the rest. */
+  electricityCost: number
   inkCostBilled: number
   inkCostActual: number
   /** Billed − actual: the extra margin refill ink earns. Internal only. */
@@ -327,28 +376,33 @@ export function computeUvQuote(rawInput: UvQuoteInput): UvQuoteBreakdown {
 
   const directs = input.items.map((it) => {
     const material = itemMaterialCost(it, input.materialsById.get(it.material_id), input.materialEfficiencyFactor)
-    const machine = itemMachineCost(it, input.machinesById.get(it.machine_id), input.electricityCostPerKwh)
+    const machineTotal = itemMachineCost(it, input.machinesById.get(it.machine_id), input.electricityCostPerKwh)
+    const electricity = itemElectricityCost(it, input.machinesById.get(it.machine_id), input.electricityCostPerKwh)
+    // Split so the quote can show a real electricity figure; the pair still
+    // sums to the machine cost that drives the price.
+    const machine = machineTotal - electricity
     const inkBilled = itemInkCost(it, input.inksByKey, "billed")
     const inkActual = itemInkCost(it, input.inksByKey, "actual")
     const ops = opsByItem.get(it.id) ?? 0
-    return { it, material, machine, inkBilled, inkActual, ops }
+    return { it, material, machine, electricity, inkBilled, inkActual, ops }
   })
 
   const materialCost = directs.reduce((s, d) => s + d.material, 0)
   const machineCost = directs.reduce((s, d) => s + d.machine, 0)
+  const electricityCost = directs.reduce((s, d) => s + d.electricity, 0)
   const inkCostBilled = directs.reduce((s, d) => s + d.inkBilled, 0)
   const inkCostActual = directs.reduce((s, d) => s + d.inkActual, 0)
   const itemOpsCost = directs.reduce((s, d) => s + d.ops, 0)
 
-  const directTotal = materialCost + machineCost + inkCostBilled + itemOpsCost
+  const directTotal = materialCost + machineCost + electricityCost + inkCostBilled + itemOpsCost
   const overheadCost = quoteScopeOpsCost + pos(input.packagingCost) + pos(input.fuelCost)
   const setupFee = pos(input.setupFee)
   const baseCost = directTotal + overheadCost + setupFee
   const actualBaseCost = baseCost - inkCostBilled + inkCostActual
   const setupFeeSell = setupFee * multiplier
 
-  const items: UvItemBreakdown[] = directs.map(({ it, material, machine, inkBilled, inkActual, ops }) => {
-    const direct = material + machine + inkBilled + ops
+  const items: UvItemBreakdown[] = directs.map(({ it, material, machine, electricity, inkBilled, inkActual, ops }) => {
+    const direct = material + machine + electricity + inkBilled + ops
     // Shares come from BILLED cost so a refill checkbox never moves a line price.
     const share = directTotal > 0 ? direct / directTotal : input.items.length > 0 ? 1 / input.items.length : 0
     const allocated = direct + overheadCost * share
@@ -362,6 +416,7 @@ export function computeUvQuote(rawInput: UvQuoteInput): UvQuoteBreakdown {
       inkActual,
       materialCost: material,
       machineCost: machine,
+      electricityCost: electricity,
       operationsCost: ops,
       directCost: direct,
       costPerPiece: qty > 0 ? allocated / qty : 0,
@@ -391,6 +446,7 @@ export function computeUvQuote(rawInput: UvQuoteInput): UvQuoteBreakdown {
   return {
     materialCost,
     machineCost,
+    electricityCost,
     inkCostBilled,
     inkCostActual,
     inkSaving: inkCostBilled - inkCostActual,

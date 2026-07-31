@@ -49,6 +49,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { isLaserQuote, isUvQuote } from "@/lib/quote-modes"
 import { useRouter } from "next/navigation"
+import { groupUvQuoteLines, lineInkMl } from "@/lib/uv-quote-items"
 
 import type { Quote as QuoteRow } from "@/types/db"
 
@@ -846,7 +847,8 @@ function QuoteHistory({
         // before laser_items existed, so their line items still live in printed_parts —
         // fall back to that count instead of showing 0.
         const totalParts = isUv
-          ? quote.uv_items?.length || 0
+          ? // A front and its back side are one item to the client.
+            groupUvQuoteLines<any>(quote.uv_items || []).length
           : isLaser
             ? quote.laser_items?.length || quote.printed_parts?.length || 0
             : (quote.printed_parts || []).length
@@ -1309,22 +1311,18 @@ function QuoteHistory({
                             </tr>
                           </thead>
                           <tbody className="bg-card">
-                            {quote.uv_items.map((item: any, index: number) => {
+                            {groupUvQuoteLines<any>(quote.uv_items).map((item: any, index: number) => {
                               const qty = Number(item.quantity) || 0
-                              const perRun = Math.max(1, Number(item.pieces_per_run) || 1)
-                              // Ink is recorded per RUN; the pieces actually printed are
-                              // qty/pieces_per_run runs' worth, matching the pricing maths.
-                              const inkMl = (item.ink || []).reduce(
-                                (sum: number, u: any) => sum + (Number(u.ml_per_run) || 0) * (qty / perRun),
-                                0,
-                              )
-                              const isBack = Boolean(item.back_of_item_id)
+                              // Ink is recorded per RUN; lineInkMl scales it by the runs
+                              // actually printed, across both sides once merged.
+                              const inkMl = lineInkMl(item)
+                              const isBack = item.sides > 1
                               return (
                                 <tr key={item.id || index}>
                                   <td className="border border-border/50 px-3 py-2">
                                     {item.name || "Unnamed item"}
                                     {isBack && (
-                                      <span className="ml-2 text-xs text-muted-foreground">(back side)</span>
+                                      <span className="ml-2 text-xs text-muted-foreground">double-sided</span>
                                     )}
                                   </td>
                                   <td className="border border-border/50 px-3 py-2">{item.machine_name || "N/A"}</td>

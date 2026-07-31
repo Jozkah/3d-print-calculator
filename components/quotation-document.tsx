@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 import { formatMoney } from "@/lib/format"
 import type { GlobalSettings, Quote } from "@/types/db"
+import { groupUvQuoteLines } from "@/lib/uv-quote-items"
 
 // The standard quotation document, shared by the saved-quote page
 // (app/quote/[id]) and the self-contained share view (app/quote/view). Pure
@@ -150,7 +151,13 @@ export function QuotationDocument({
   // Laser and UV quotes both persist denormalized line items with the same
   // field names, so one branch renders either.
   const isItemisedQuote = isLaserQuote || isUvQuote
-  const laserItems: any[] = isUvQuote ? quote.uv_items || [] : isLaserQuote ? quote.laser_items || [] : []
+  // A UV back side is a second pass over the same pieces, never a separate
+  // product — the client sees one line carrying both sides' price.
+  const laserItems: any[] = isUvQuote
+    ? groupUvQuoteLines<any>(quote.uv_items || [])
+    : isLaserQuote
+      ? quote.laser_items || []
+      : []
 
   return (
     <div className="min-h-screen print:min-h-0 bg-white font-sans text-slate-900">
@@ -215,6 +222,7 @@ export function QuotationDocument({
                     </p>
                     <p className="text-sm text-slate-400 mt-0.5">
                       {it.material_name}
+                      {it.sides > 1 ? " · double-sided" : ""}
                       {it.machine_name ? ` · ${it.machine_name}` : ""}
                       {Number(it.discount_pct) > 0 ? ` · ${it.discount_pct}% quantity discount` : ""}
                       {` · ${money(Number(it.sell_per_piece) || 0)} each`}

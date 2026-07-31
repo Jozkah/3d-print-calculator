@@ -267,6 +267,25 @@ export function UvCalculator({
       return next
     })
 
+  /**
+   * Add the reverse side of an item: a linked row placed straight after it,
+   * sharing the machine but starting with its own (empty) ink and minutes,
+   * since the back artwork is rarely the same as the front.
+   */
+  const addRearSide = (index: number) =>
+    setItems((prev) => {
+      const front = prev[index]
+      if (!front) return prev
+      const rear: UvItem = {
+        ...newItem(),
+        machine_id: front.machine_id,
+        back_of_item_id: front.id,
+      }
+      const next = [...prev]
+      next.splice(index + 1, 0, rear)
+      return next
+    })
+
   // Work steps attached to a removed item would silently cost nothing, so they
   // fall back to "all items" instead of pointing at a ghost.
   const removeItem = (index: number) =>
@@ -277,6 +296,41 @@ export function UvCalculator({
       }
       return prev.filter((_, i) => i !== index)
     })
+
+  /**
+   * The priced line for a card: a front item absorbs its reverse side's costs,
+   * so a two-sided product quotes as one figure instead of two half-prices the
+   * operator has to add up mentally.
+   */
+  const combinedLine = (itemId: string) => {
+    const own = breakdown.items.find((b) => b.id === itemId)
+    if (!own) return own
+    const backIds = items.filter((it) => it.back_of_item_id === itemId).map((it) => it.id)
+    if (backIds.length === 0) return own
+    return breakdown.items
+      .filter((b) => backIds.includes(b.id))
+      .reduce(
+        (acc, b) => ({
+          ...acc,
+          costPerPiece: acc.costPerPiece + b.costPerPiece,
+          sellPerPiece: acc.sellPerPiece + b.sellPerPiece,
+          lineSell: acc.lineSell + b.lineSell,
+          runs: acc.runs + b.runs,
+        }),
+        own,
+      )
+  }
+
+  /** Per-piece cost of each side of a two-sided item, for the audit line. */
+  const sideSplit = (itemId: string) => {
+    const own = breakdown.items.find((b) => b.id === itemId)
+    const backs = items.filter((it) => it.back_of_item_id === itemId).map((it) => it.id)
+    if (!own || backs.length === 0) return undefined
+    const rear = breakdown.items
+      .filter((b) => backs.includes(b.id))
+      .reduce((sum, b) => sum + b.costPerPiece, 0)
+    return { front: own.costPerPiece, rear }
+  }
 
   // ---- Save ----------------------------------------------------------------
   const buildQuoteData = (isDraft: boolean) => {
@@ -326,8 +380,9 @@ export function UvCalculator({
       packaging_cost: packagingCost,
       fuel_cost: fuelCost,
       emergency_fee: emergencyFee,
-      // Machine electricity is inside machine_cost (buffered), not separate.
-      electricity_cost: 0,
+      // Machine cost is depreciation only; the power draw is its own line so the
+      // saved quote shows a real figure instead of a permanent zero.
+      electricity_cost: breakdown.electricityCost,
       landed_cost: breakdown.baseCost,
       setup_fee: breakdown.setupFee,
       setup_fee_sell: breakdown.setupFeeSell,
@@ -485,7 +540,12 @@ export function UvCalculator({
               }))
               .filter((o) => o.raw.id !== item.id && !o.raw.back_of_item_id)
               .map(({ raw, ...option }) => option)}
-            line={breakdown.items.find((b) => b.id === item.id)}
+            // A front card shows one price covering both sides; the rear card
+            // shows none, so the job's cost reads once instead of twice.
+            line={combinedLine(item.id)}
+            hasRearSide={items.some((other) => other.back_of_item_id === item.id)}
+            sideSplit={sideSplit(item.id)}
+            onAddRearSide={item.back_of_item_id ? undefined : () => addRearSide(index)}
             currency={currency}
             onPatch={(patch) => patchItem(index, patch)}
             onDuplicate={() => duplicateItem(index)}
@@ -568,6 +628,7 @@ export function UvCalculator({
             ["Materials", breakdown.materialCost],
             ["Ink (billed at OEM)", breakdown.inkCostBilled],
             ["Machine time", breakdown.machineCost],
+            ["Electricity", breakdown.electricityCost],
             ["Work steps", breakdown.operationsCost],
             ["Packaging", packagingCost],
             ["Fuel / delivery", fuelCost],
