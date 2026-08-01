@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
 import { Plus, AlertTriangle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { ClientSelector } from "@/components/client-selector"
@@ -104,6 +105,7 @@ export function UvCalculator({
   const [clientName, setClientName] = useState("")
   const [clientId, setClientId] = useState<string | null>(null)
   const [distanceTraveledKm, setDistanceTraveledKm] = useState(0)
+  const [internalNotes, setInternalNotes] = useState("")
   const [isEmergency, setIsEmergency] = useState(false)
   const [vatEnabled, setVatEnabled] = useState(true)
   const [setupFee, setSetupFee] = useState<number>(globalSettings?.default_setup_fee ?? LASER_DEFAULTS.default_setup_fee)
@@ -201,6 +203,7 @@ export function UvCalculator({
         })),
       )
       setDistanceTraveledKm(Number(data.distance_traveled_km) || 0)
+      setInternalNotes(data.internal_notes || "")
       setIsEmergency(Boolean(data.is_emergency))
       setVatEnabled(data.vat_enabled !== false)
       setSetupFee(Number(data.setup_fee) || 0)
@@ -371,6 +374,7 @@ export function UvCalculator({
       labor_items: [],
       packaging_items: packaging,
       distance_traveled_km: distanceTraveledKm,
+      internal_notes: internalNotes.trim(),
       is_emergency: isEmergency,
       total_printing_cost: breakdown.materialCost,
       machine_cost: breakdown.machineCost,
@@ -425,6 +429,7 @@ export function UvCalculator({
       toast({ title: "Success", description: `${isDraft ? "Draft" : "Quote"} "${clientName}" saved.` })
       if (!isDraft) {
         setClientName("")
+        setInternalNotes("")
         setIsEditingQuote(false)
         setCurrentQuoteId(null)
       }
@@ -490,6 +495,17 @@ export function UvCalculator({
               value={distanceTraveledKm || ""}
               onChange={(e) => setDistanceTraveledKm(Number.parseFloat(e.target.value) || 0)} />
           </div>
+        </div>
+        <div className="mt-4">
+          <Label htmlFor="uv-internal-notes">Internal Notes</Label>
+          <Textarea
+            id="uv-internal-notes"
+            value={internalNotes}
+            onChange={(e) => setInternalNotes(e.target.value)}
+            placeholder="Private notes for yourself — never shown to the client."
+            className="bg-card"
+            rows={2}
+          />
         </div>
         <div className="flex flex-col gap-4 mt-4">
           <div className="flex items-center space-x-2">

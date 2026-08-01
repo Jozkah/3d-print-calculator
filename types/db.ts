@@ -224,6 +224,10 @@ export type Quote = {
   // Set once the quote reached "finished" and filament stock was decremented,
   // so repeated status flips never double-deduct inventory.
   stock_deducted?: boolean
+  // Operator-only free-text note. Rendered exclusively in the calculators and
+  // quote history; every client-facing document and the share-link allowlist
+  // must keep ignoring it.
+  internal_notes?: string
   [key: string]: any
 }
 

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
 import { Plus, Trash2, ChevronsUpDown, Check, X, Copy, Upload, MapPin } from "lucide-react"
 import { parseGcode } from "@/lib/gcode"
 import type { GeoPoint } from "@/lib/geo"
@@ -134,6 +135,7 @@ export function ExcelCalculator({
   const [printers, setPrinters] = useState<Printer[]>(initialPrinters)
   const [filaments, setFilaments] = useState<Filament[]>(initialFilaments)
   const [distanceTraveledKm, setDistanceTraveledKm] = useState(0)
+  const [internalNotes, setInternalNotes] = useState("")
 
   // Route metadata backing the km field when it was filled via the route
   // dialog. Manual km entry leaves these untouched; they exist so a reopened
@@ -283,6 +285,7 @@ export function ExcelCalculator({
         setClientId(quote.client_id ?? null)
         setIsEmergency(quote.is_emergency || false)
         setDistanceTraveledKm(quote.distance_traveled_km || 0)
+        setInternalNotes(quote.internal_notes || "")
         setRouteOrigin(quote.route_origin ?? null)
         setRouteDestination(quote.route_destination ?? null)
         setRouteIsRoundTrip(quote.route_is_round_trip ?? true)
@@ -378,6 +381,8 @@ export function ExcelCalculator({
       setClientId(null)
       setIsEmergency(payload.is_emergency || false)
       setDistanceTraveledKm(payload.distance_traveled_km || 0)
+      // Templates never store internal_notes — notes are quote-specific.
+      setInternalNotes("")
       // Templates carry structure only — a route belongs to the original
       // quote's client, so a template-started quote begins with no route.
       setRouteOrigin(null)
@@ -868,6 +873,7 @@ export function ExcelCalculator({
         vat_enabled: vatEnabled, // Save VAT enabled state
         vat_rate: vatRate, // Persist the rate so old documents re-render as quoted
         valid_until: new Date(Date.now() + validityDays * 86400000).toISOString(),
+        internal_notes: internalNotes.trim(),
       }
 
       if (isEditingQuote && currentQuoteId) {
@@ -890,6 +896,7 @@ export function ExcelCalculator({
 
       setShowSaveDialog(true)
       setClientName("") // Changed from quoteName to clientName
+      setInternalNotes("")
 
       setIsEditingQuote(false)
       setCurrentQuoteId(null)
@@ -1002,6 +1009,7 @@ export function ExcelCalculator({
         vat_enabled: vatEnabled, // Save VAT enabled state
         vat_rate: vatRate, // Persist the rate so old documents re-render as quoted
         valid_until: new Date(Date.now() + validityDays * 86400000).toISOString(),
+        internal_notes: internalNotes.trim(),
       }
 
       if (isEditingQuote && currentQuoteId) {
@@ -1308,6 +1316,17 @@ export function ExcelCalculator({
                   }}
                 />
               </div>
+            </div>
+            <div className="mt-4">
+              <Label htmlFor="internalNotes">Internal Notes</Label>
+              <Textarea
+                id="internalNotes"
+                value={internalNotes}
+                onChange={(e) => setInternalNotes(e.target.value)}
+                placeholder="Private notes for yourself — never shown to the client."
+                className="bg-card"
+                rows={2}
+              />
             </div>
             <div className="flex flex-col gap-4 mt-4">
               <div className="flex items-center space-x-2">

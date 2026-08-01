@@ -245,6 +245,8 @@ CREATE TABLE IF NOT EXISTS quotes (
   -- Set once the quote reached "finished" and filament stock was decremented,
   -- so repeated status flips never double-deduct inventory.
   stock_deducted BOOLEAN DEFAULT FALSE,
+  -- Operator-only free-text note; never rendered in client-facing documents.
+  internal_notes TEXT,
   -- Route behind distance_traveled_km; the distance stays the single source of
   -- truth for the fuel-cost math either way.
   route_origin JSONB,

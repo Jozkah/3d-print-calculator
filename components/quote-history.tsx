@@ -194,6 +194,8 @@ function QuoteHistory({
       stock_deducted,
       created_at,
       is_draft,
+      // Notes are quote-specific clarifications, not reusable structure.
+      internal_notes,
       ...payload
     } = quote as any
 
@@ -522,7 +524,7 @@ function QuoteHistory({
       const uvNames = (quote.uv_items || [])
         .map((it: any) => it?.name || "")
         .join(" ")
-      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames} ${uvNames}`.toLowerCase()
+      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames} ${uvNames} ${quote.internal_notes || ""}`.toLowerCase()
       if (!haystack.includes(query)) return false
     }
 
@@ -963,6 +965,15 @@ function QuoteHistory({
                     <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
                       <ClientAvatar id={quote.client_id} name={clientName || "?"} size={24} className="mr-1.5" />
                       {clientName}
+                    </p>
+                  )}
+                  {/* Operator-only note; quote history never reaches clients. */}
+                  {quote.internal_notes && (
+                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap break-words">
+                      <span className="mr-1.5 inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider align-middle">
+                        Internal
+                      </span>
+                      {quote.internal_notes}
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground break-words mt-1">
