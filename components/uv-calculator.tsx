@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { mintQuoteNumber } from "@/lib/quote-number"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -36,6 +37,12 @@ interface UvCalculatorProps {
   editingQuoteId?: string
   /** Start a NEW quote pre-filled from a saved template (quote_templates row). */
   templateId?: string
+  // Embedded mode (Orders "Add task"): hand the computed quoteData to onComplete
+  // instead of saving a quotes row.
+  embedded?: boolean
+  onComplete?: (quoteData: Record<string, any>) => void | Promise<void>
+  initialPayload?: Record<string, any> | null
+  submitLabel?: string
 }
 
 const newItem = (): UvItem => ({
@@ -94,6 +101,10 @@ export function UvCalculator({
   clients: initialClients = [],
   editingQuoteId,
   templateId,
+  embedded = false,
+  onComplete,
+  initialPayload = null,
+  submitLabel,
 }: UvCalculatorProps) {
   const { toast } = useToast()
   const supabase = useMemo(() => createClient(), [])
@@ -217,6 +228,41 @@ export function UvCalculator({
     }
     loadQuote()
   }, [editingQuoteId, supabase, toast])
+
+  // ---- Embedded prefill (Orders "Add task" re-cost) ------------------------
+  const embeddedHydratedRef = useRef(false)
+  useEffect(() => {
+    if (!embedded || !initialPayload || embeddedHydratedRef.current) return
+    embeddedHydratedRef.current = true
+    const data: any = initialPayload
+    // Deferred so this reads as an async state sync, not a synchronous cascade.
+    void Promise.resolve().then(() => {
+      setClientName(data.quote_name && data.quote_name !== "Task" ? data.quote_name : "")
+      setClientId(data.client_id ?? null)
+      if (Array.isArray(data.uv_items) && data.uv_items.length > 0) setItems(data.uv_items.map(hydrateItem))
+      if (Array.isArray(data.uv_operations)) setOperations(data.uv_operations.map(hydrateOperation))
+      if (Array.isArray(data.packaging_items))
+        setPackaging(
+          data.packaging_items.map((p: any) => ({
+            id: p.id || crypto.randomUUID(),
+            name: p.name || "",
+            quantity: Number(p.quantity) || 0,
+            unit_cost: Number(p.unit_cost) || 0,
+          })),
+        )
+      setDistanceTraveledKm(Number(data.distance_traveled_km) || 0)
+      setInternalNotes(data.internal_notes || "")
+      setIsEmergency(Boolean(data.is_emergency))
+      setVatEnabled(data.vat_enabled !== false)
+      setSetupFee(Number(data.setup_fee) || 0)
+      if (data.final_price != null && data.selected_margin_percentage == null) {
+        setMarginInputMode("targetPrice")
+        setTargetPrice(Number(data.final_price) || 0)
+      } else if (data.selected_margin_percentage != null) {
+        setSelectedMargin(Number(data.selected_margin_percentage) || 50)
+      }
+    })
+  }, [embedded, initialPayload])
 
   // ---- Template hydration --------------------------------------------------
   // A template is a saved quote structure with no client or pricing identity —
@@ -413,7 +459,7 @@ export function UvCalculator({
   }
 
   const handleSave = async (isDraft: boolean) => {
-    if (!clientName.trim()) {
+    if (!embedded && !clientName.trim()) {
       toast({ title: "Client Name Required", description: "Please enter a client name before saving.", variant: "destructive" })
       return
     }
@@ -421,10 +467,16 @@ export function UvCalculator({
     setIsSaving(true)
     try {
       const quoteData = buildQuoteData(isDraft)
+      // Embedded (Orders "Add task"): hand the payload back instead of persisting.
+      if (embedded && onComplete) {
+        await onComplete({ ...quoteData, quote_name: quoteData.quote_name || "Task" })
+        return
+      }
+      // New quotes get the next sequential reference; edits keep the one minted at creation.
       const { error } =
         isEditingQuote && currentQuoteId
           ? await supabase.from("quotes").update(quoteData).eq("id", currentQuoteId)
-          : await supabase.from("quotes").insert([quoteData])
+          : await supabase.from("quotes").insert([{ ...quoteData, quote_number: await mintQuoteNumber() }])
       if (error) throw error
       toast({ title: "Success", description: `${isDraft ? "Draft" : "Quote"} "${clientName}" saved.` })
       if (!isDraft) {
@@ -453,7 +505,7 @@ export function UvCalculator({
   const noInkPrices = inks.length === 0 || inks.every((i) => !i.oem_volume_ml)
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+    <div className={embedded ? "w-full space-y-6" : "mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6"}>
       {(noMachines || noInkPrices) && (
         <Card className="p-4 border-amber-500/40 bg-amber-500/5 text-sm flex items-start gap-3">
           <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
@@ -742,11 +794,13 @@ export function UvCalculator({
 
         <div className="mt-6 flex flex-wrap gap-2">
           <Button onClick={() => handleSave(false)} disabled={isSaving} className="shadow-sm">
-            {isEditingQuote ? "Update Quote" : "Save Quote"}
+            {embedded ? submitLabel || "Add to task" : isEditingQuote ? "Update Quote" : "Save Quote"}
           </Button>
-          <Button variant="outline" onClick={() => handleSave(true)} disabled={isSaving}>
-            Save as Draft
-          </Button>
+          {!embedded && (
+            <Button variant="outline" onClick={() => handleSave(true)} disabled={isSaving}>
+              Save as Draft
+            </Button>
+          )}
         </div>
       </Card>
     </div>

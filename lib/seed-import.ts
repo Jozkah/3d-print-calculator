@@ -17,12 +17,26 @@ const KNOWN_TABLES = [
   "printers",
   "filaments",
   "laser_materials",
+  "uv_materials",
+  "uv_inks",
   "clients",
   "quotes",
+  "quote_templates",
   "global_settings",
+  "counters",
   "imported_csv_files",
   "quote_headers",
   "quote_parts",
+  // Order-management domain (binary attachment bytes live in IndexedDB and are
+  // handled separately by lib/orders/backup.ts — these are the metadata rows).
+  "orders",
+  "order_tasks",
+  "order_notes",
+  "order_attachments",
+  "order_activity",
+  "order_quote_links",
+  "invoices",
+  "payments",
 ] as const
 
 export type SeedImportSummary = {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { onLocalDbChange } from "@/lib/local-db"
+import { backfillQuoteNumbers } from "@/lib/quote-number"
 import { QuoteHistory } from "@/components/quote-history"
 import { SiteHeader, PageHeader } from "@/components/site-header"
 import { PageLoading, PageLoadError } from "@/components/page-loading"
@@ -18,6 +19,8 @@ export default function HistoryPage() {
   useEffect(() => {
     const loadData = async () => {
       const supabase = createClient()
+      // Give pre-reference quotes their Q-YYYY-NNN before rendering the list.
+      await backfillQuoteNumbers()
       const { data: quotesData, error: quotesError } = await supabase.from("quotes").select("*").order("created_at", { ascending: false })
       const { data: clientsData, error: clientsError } = await supabase.from("clients").select("*")
       const { data: printersData, error: printersError } = await supabase.from("printers").select("*")

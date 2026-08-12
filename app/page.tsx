@@ -11,6 +11,7 @@ import {
   FileText,
   Printer,
   Sparkles,
+  ClipboardList,
 } from "lucide-react"
 import { SiteHeader } from "@/components/site-header"
 import { HomeHeroPrinter } from "@/components/visual/home-hero-printer"
@@ -29,6 +30,13 @@ const TOOLS = [
     title: "Business Calculator",
     description: "Client-ready quotes with margins, VAT, emergency fees and an automatic profit split.",
     cta: "Build a quote",
+  },
+  {
+    href: "/orders",
+    icon: ClipboardList,
+    title: "Orders & Production",
+    description: "Your live production queue — track jobs, files, tasks, invoices and payments from quote to delivery.",
+    cta: "Open orders",
   },
   {
     href: "/history",

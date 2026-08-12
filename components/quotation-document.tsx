@@ -178,7 +178,9 @@ export function QuotationDocument({
         <header className="mb-14">
           <div className="flex items-baseline justify-between gap-6">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-3">Quotation</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-3">
+                Quotation{quote.quote_number ? ` ${quote.quote_number}` : ""}
+              </p>
               <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{quote.quote_name}</h1>
             </div>
             {quote.is_emergency && (
@@ -223,7 +225,6 @@ export function QuotationDocument({
                     <p className="text-sm text-slate-400 mt-0.5">
                       {it.material_name}
                       {it.sides > 1 ? " · double-sided" : ""}
-                      {it.machine_name ? ` · ${it.machine_name}` : ""}
                       {Number(it.discount_pct) > 0 ? ` · ${it.discount_pct}% quantity discount` : ""}
                       {` · ${money(Number(it.sell_per_piece) || 0)} each`}
                     </p>
@@ -343,9 +344,6 @@ export function QuotationDocument({
                   ? "This quotation includes all costs associated with the laser cutting, engraving and printing service, including materials, machine time, labor, packaging, and delivery."
                   : "This quotation includes all costs associated with the 3D printing service, including materials, machine time, labor, packaging, and delivery."}
             </li>
-            <li>
-              All costs include a {quote.selected_margin}% profit margin to cover business operations and overhead.
-            </li>
             {vatApplies && (
               <li>
                 VAT at {vatPercentLabel}% is included in the final price as per legal requirements for business
@@ -366,7 +364,7 @@ export function QuotationDocument({
           <p className="text-slate-500">Thank you for your business</p>
           <p className="mt-2">
             For questions about this quotation, please contact us
-            {contactLine ? ` at ${contactLine}` : ""} with reference: {quote.quote_name}
+            {contactLine ? ` at ${contactLine}` : ""} with reference: {quote.quote_number || quote.quote_name}
           </p>
         </footer>
       </div>

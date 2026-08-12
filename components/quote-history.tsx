@@ -21,6 +21,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ClientAvatar } from "@/components/visual/client-avatar"
 import { FilamentSpool } from "@/components/visual/filament-spool"
 import { resolveFilamentColor } from "@/lib/filament-color"
+import { mintQuoteNumber } from "@/lib/quote-number"
+import { createOrderFromQuote, ordersForQuote } from "@/lib/orders/data"
 import {
   Trash2,
   ChevronDown,
@@ -45,6 +47,7 @@ import {
   CalendarRange,
   MoreVertical,
   LayoutTemplate,
+  ClipboardList,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { isLaserQuote, isUvQuote } from "@/lib/quote-modes"
@@ -121,6 +124,20 @@ function QuoteHistory({
     router.push(`/quote/${id}?print=1`)
   }
 
+  const handleCreateOrder = async (quote: Quote) => {
+    // Warn (but don't block) if this quote was already turned into an order, so
+    // duplicates are intentional rather than accidental.
+    const existing = await ordersForQuote(quote.id)
+    if (
+      existing.length > 0 &&
+      !window.confirm("This quote is already linked to an order. Create another order from it?")
+    ) {
+      return
+    }
+    const order = await createOrderFromQuote(quote)
+    router.push(`/orders/${order.id}`)
+  }
+
   const handleDuplicate = async (quote: Quote) => {
     const supabase = createClient()
     
@@ -141,7 +158,7 @@ function QuoteHistory({
     // ("Could not find the 'clients' column of 'quotes'..."), so duplicate always failed.
     // Strip those join artifacts so the insert only contains real `quotes` columns.
     // Also drop per-quote lifecycle fields: a copy must mint its own invoice
-    // and hasn't consumed any filament stock yet.
+    // number and quote reference, and hasn't consumed any filament stock yet.
     const {
       id,
       clients,
@@ -151,10 +168,14 @@ function QuoteHistory({
       due_date,
       paid_at,
       stock_deducted,
+      quote_number,
       ...quoteData
     } = duplicatedQuote as any
-    
-    const { data, error } = await supabase.from("quotes").insert([quoteData]).select()
+
+    const { data, error } = await supabase
+      .from("quotes")
+      .insert([{ ...quoteData, quote_number: await mintQuoteNumber() }])
+      .select()
     
     if (error) {
       toast({
@@ -192,6 +213,7 @@ function QuoteHistory({
       due_date,
       paid_at,
       stock_deducted,
+      quote_number,
       created_at,
       is_draft,
       // Notes are quote-specific clarifications, not reusable structure.
@@ -254,6 +276,7 @@ function QuoteHistory({
     const payload = {
       quote: {
         quote_name: quote.quote_name,
+        quote_number: quote.quote_number,
         quote_type: quote.quote_type,
         created_at: quote.created_at,
         valid_until: quote.valid_until,
@@ -524,7 +547,7 @@ function QuoteHistory({
       const uvNames = (quote.uv_items || [])
         .map((it: any) => it?.name || "")
         .join(" ")
-      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames} ${uvNames} ${quote.internal_notes || ""}`.toLowerCase()
+      const haystack = `${quote.quote_number || ""} ${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames} ${uvNames} ${quote.internal_notes || ""}`.toLowerCase()
       if (!haystack.includes(query)) return false
     }
 
@@ -893,6 +916,11 @@ function QuoteHistory({
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <CardTitle className="text-lg sm:text-xl flex flex-wrap items-center gap-2">
+                    {quote.quote_number && (
+                      <span className="shrink-0 font-mono text-sm font-medium text-muted-foreground">
+                        {quote.quote_number}
+                      </span>
+                    )}
                     <span className="break-words">{quote.quote_name}</span>
                     {isLaserQuote(quote) && (
                       <span className="ml-2 inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -1020,6 +1048,9 @@ function QuoteHistory({
                         <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}/invoice`)}>
                           Invoice
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleCreateOrder(quote)}>
+                          Create order
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleCopyShareLink(quote)}>
                           Copy share link
                         </DropdownMenuItem>
@@ -1129,6 +1160,10 @@ function QuoteHistory({
                         <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}/invoice`)}>
                           <Share2 className="h-4 w-4 mr-2" />
                           Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleCreateOrder(quote)}>
+                          <ClipboardList className="h-4 w-4 mr-2" />
+                          Create order
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleCopyShareLink(quote)}>
                           <Share2 className="h-4 w-4 mr-2" />

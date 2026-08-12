@@ -4,6 +4,7 @@ import type React from "react"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import dynamic from "next/dynamic"
 import { createClient } from "@/lib/supabase/client"
+import { mintQuoteNumber } from "@/lib/quote-number"
 import { OWNER_A_KEY, OWNER_B_KEY, PROFIT_SPLIT_RATIO, EMERGENCY_SPLIT_RATIO } from "@/lib/business-config"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -91,6 +92,15 @@ type ExcelCalculatorProps = {
   // Unlike editingQuoteId, this never enters edit mode.
   templateId?: string
   clients?: Client[]
+  // Embedded mode (e.g. inside the Orders "Add task" popup): instead of saving a
+  // quotes row and navigating, the same computed quoteData is handed to
+  // onComplete() so the caller can attach it to a production task. In this mode
+  // the client name is optional, drafts/templates are hidden, and initialPayload
+  // pre-fills the calculator from a previously-saved task payload.
+  embedded?: boolean
+  onComplete?: (quoteData: Record<string, any>) => void | Promise<void>
+  initialPayload?: Record<string, any> | null
+  submitLabel?: string
 }
 
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList, CommandItem } from "@/components/ui/command"
@@ -106,6 +116,10 @@ export function ExcelCalculator({
   editingQuoteId, // New prop for loading existing quote
   templateId, // Start a new quote from a saved template
   clients: initialClients = [],
+  embedded = false,
+  onComplete,
+  initialPayload = null,
+  submitLabel,
 }: ExcelCalculatorProps) {
   const { toast } = useToast() // Initialize toast
   // Stable client identity so effects can list it as a dependency without
@@ -431,6 +445,54 @@ export function ExcelCalculator({
 
     loadTemplate()
   }, [templateId, editingQuoteId, supabase, toast])
+
+  // Embedded prefill: apply a previously-saved task calc payload once on mount.
+  // Uses the same hydration path as templates so drying/HEATING survive the
+  // first recompute. Runs only in embedded mode with a payload present.
+  const embeddedHydratedRef = useRef(false)
+  useEffect(() => {
+    if (!embedded || !initialPayload || embeddedHydratedRef.current) return
+    embeddedHydratedRef.current = true
+    const payload: any = initialPayload
+    // Deferred to a microtask so the prefill is an async state sync (like the
+    // template loader), not a synchronous cascade inside the effect body.
+    void Promise.resolve().then(() => {
+      setClientName(payload.quote_name && payload.quote_name !== "Task" ? payload.quote_name : "")
+      setClientId(payload.client_id ?? null)
+      setIsEmergency(payload.is_emergency || false)
+      setDistanceTraveledKm(payload.distance_traveled_km || 0)
+      setInternalNotes(payload.internal_notes || "")
+      setSelectedMargin(Math.min(99, Number(payload.selected_margin_percentage || payload.selected_margin || 50)))
+      if (payload.custom_margin_value !== undefined && payload.custom_margin_value !== null) {
+        setCustomMargin(Math.min(99, Number(payload.custom_margin_value)))
+      }
+      if (payload.final_price != null) {
+        setMarginInputMode("targetPrice")
+        setTargetPrice(Number(payload.final_price))
+      }
+      setVatEnabled(payload.vat_enabled !== undefined ? payload.vat_enabled : mode === "business")
+      const restored: PrintedPart[] = (Array.isArray(payload.printed_parts) ? payload.printed_parts : []).map(
+        (part: any) => {
+          if (part.filament_id && part.filament_grams !== undefined) {
+            return {
+              ...part,
+              filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
+              filament_id: undefined,
+              filament_grams: undefined,
+            }
+          }
+          return part as PrintedPart
+        },
+      )
+      isHydratingRef.current = true
+      if (restored.length > 0) setPrintedParts(restored)
+      if (Array.isArray(payload.dried_batches)) setDriedBatches(payload.dried_batches)
+      if (Array.isArray(payload.materials)) setMaterials(payload.materials)
+      if (Array.isArray(payload.labor_items)) setLabor(payload.labor_items)
+      if (Array.isArray(payload.packaging_items)) setPackaging(payload.packaging_items)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embedded, initialPayload])
 
   useEffect(() => {
     // Skip the single recompute triggered by loading a saved quote so the
@@ -771,7 +833,8 @@ export function ExcelCalculator({
 
   const handleSaveQuote = async () => {
 
-    if (!clientName.trim()) {
+    // Embedded (task) mode doesn't need a client — the task carries the name.
+    if (!embedded && !clientName.trim()) {
       setErrorDialogTitle("Client Name Required")
       setErrorDialogMessage("Please enter a client name before saving the quote.")
       setShowErrorDialog(true)
@@ -831,7 +894,7 @@ export function ExcelCalculator({
 
       const quoteData = {
         quote_type: mode, // Should be 'personal' or 'business'
-        quote_name: clientName,
+        quote_name: clientName || "Task",
         client_id: clientId,
         quote_type_mode: "3d-print",
         printed_parts: preparedPrintedParts,
@@ -876,6 +939,13 @@ export function ExcelCalculator({
         internal_notes: internalNotes.trim(),
       }
 
+      // Embedded (Orders "Add task") mode: hand the computed quoteData back to
+      // the caller instead of writing a quotes row / navigating.
+      if (embedded && onComplete) {
+        await onComplete(quoteData)
+        return
+      }
+
       if (isEditingQuote && currentQuoteId) {
         const { error } = await supabase.from("quotes").update(quoteData).eq("id", currentQuoteId)
 
@@ -885,7 +955,8 @@ export function ExcelCalculator({
 
         setSaveDialogMessage(`Quote "${clientName}" has been updated successfully!`)
       } else {
-        const { error } = await supabase.from("quotes").insert([quoteData])
+        // New quotes get the next sequential reference; edits keep the one minted at creation.
+        const { error } = await supabase.from("quotes").insert([{ ...quoteData, quote_number: await mintQuoteNumber() }])
 
         if (error) {
           throw error
@@ -1022,7 +1093,8 @@ export function ExcelCalculator({
           description: `Draft "${clientName}" has been updated!`,
         })
       } else {
-        const { error } = await supabase.from("quotes").insert([quoteData])
+        // Drafts are visible in history too, so they also carry a reference.
+        const { error } = await supabase.from("quotes").insert([{ ...quoteData, quote_number: await mintQuoteNumber() }])
 
         if (error) throw error
 
@@ -1211,7 +1283,7 @@ export function ExcelCalculator({
   return (
     // Wrap the entire component in TooltipProvider
     <TooltipProvider>
-      <div className="min-h-screen bg-background">
+      <div className={embedded ? "" : "min-h-screen bg-background"}>
         {/* ADDED: Error dialog for validation failures */}
         <DialogCustom
           isOpen={showErrorDialog}
@@ -1235,7 +1307,7 @@ export function ExcelCalculator({
           variant="success"
           showCancel={false}
         />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className={cn("space-y-6", embedded ? "w-full py-1" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8")}>
           {/* Quote Details */}
           <Card className="p-5 sm:p-6 shadow-sm">
             <h2 className="text-lg font-semibold tracking-tight text-foreground mb-2">Quote Details</h2>
@@ -2491,17 +2563,19 @@ export function ExcelCalculator({
 
             <div className="mt-8 flex justify-center gap-2 sm:gap-4">
               <Button onClick={handleSaveQuote} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" size="lg">
-                {isEditingQuote ? "Update Quote" : "Save Quote"}
+                {embedded ? submitLabel || "Add to task" : isEditingQuote ? "Update Quote" : "Save Quote"}
               </Button>
-              <Button
-                onClick={handleSaveAsDraft}
-                variant="outline"
-                className="flex-1 bg-card"
-                size="lg"
-                disabled={isSavingDraft}
-              >
-                {isSavingDraft ? "Saving..." : isEditingQuote ? "Update Draft" : "Save as Draft"}
-              </Button>
+              {!embedded && (
+                <Button
+                  onClick={handleSaveAsDraft}
+                  variant="outline"
+                  className="flex-1 bg-card"
+                  size="lg"
+                  disabled={isSavingDraft}
+                >
+                  {isSavingDraft ? "Saving..." : isEditingQuote ? "Update Draft" : "Save as Draft"}
+                </Button>
+              )}
             </div>
           </Card>
         </div>

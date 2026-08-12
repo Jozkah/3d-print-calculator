@@ -193,7 +193,10 @@ export default function InvoicePage() {
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-3">Invoice</p>
               <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{quote.invoice_number}</h1>
-              <p className="mt-2 text-sm text-slate-500">{quote.quote_name}</p>
+              <p className="mt-2 text-sm text-slate-500">
+                {quote.quote_name}
+                {quote.quote_number ? ` · Quote ${quote.quote_number}` : ""}
+              </p>
             </div>
             <div className="shrink-0 flex flex-col items-end gap-2">
               {isPaid ? (

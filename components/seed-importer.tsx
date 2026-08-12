@@ -1,10 +1,12 @@
 "use client"
 
-import { useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { Download, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
-import { exportAll, importSeedObject } from "@/lib/seed-import"
+import { exportAll } from "@/lib/seed-import"
+import { buildFullBackup, restoreFromPayload } from "@/lib/orders/backup"
+import { attachmentCount, attachmentStorageUsed } from "@/lib/attachment-store"
 
 // Manual data importer, rendered as a card in Settings.
 //
@@ -22,20 +24,30 @@ export function DataImportCard() {
     setBusy(true)
     try {
       const parsed = JSON.parse(await file.text())
-      const summary = importSeedObject(parsed)
+      // restoreFromPayload transparently handles both the plain `{table: rows}`
+      // file and the versioned full backup (which also carries attachment bytes).
+      const result = await restoreFromPayload(parsed)
+      const summary = result.tables
 
-      if (summary.errors.length > 0) {
+      const attachmentNote =
+        result.attachments.imported > 0 || result.attachments.failed.length > 0
+          ? ` ${result.attachments.imported} file(s) restored${
+              result.attachments.failed.length ? `, ${result.attachments.failed.length} failed` : ""
+            }.`
+          : ""
+
+      if (summary.errors.length > 0 || result.attachments.failed.length > 0) {
         toast({
           title: "Import finished with problems",
-          description: summary.errors.join(" "),
+          description: [...summary.errors, ...result.attachments.failed.map((f) => `attachment "${f}" failed`)].join(" "),
           variant: "destructive",
         })
       }
       if (summary.imported.length > 0) {
         const detail = summary.imported.map((t) => `${t.table} (${t.rows})`).join(", ")
-        toast({ title: "Data imported", description: `Loaded ${detail}. Reloading…` })
+        toast({ title: "Data imported", description: `Loaded ${detail}.${attachmentNote} Reloading…` })
         // Reload so every open view re-reads the freshly imported tables.
-        setTimeout(() => window.location.reload(), 800)
+        setTimeout(() => window.location.reload(), 900)
       } else if (summary.errors.length === 0) {
         toast({
           title: "Nothing imported",
@@ -67,8 +79,9 @@ export function DataImportCard() {
       </div>
       <h3 className="mt-4 text-lg font-semibold tracking-tight text-foreground">Import data</h3>
       <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-        Load a JSON backup (printers, filaments, clients, quotes…) into this browser. Replaces the
-        existing contents of each table found in the file.
+        Load a JSON backup (printers, filaments, clients, quotes, orders…) into this browser.
+        Replaces the existing contents of each table found in the file. Full backups also restore
+        order file attachments.
       </p>
       <input
         ref={fileRef}
@@ -119,10 +132,59 @@ function storageUsage(): { usedKb: number; percent: number } {
 const emptySubscribe = () => () => {}
 const useMounted = () => useSyncExternalStore(emptySubscribe, () => true, () => false)
 
+function triggerDownload(payload: unknown, filename: string) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.setAttribute("href", url)
+  link.setAttribute("download", filename)
+  link.style.visibility = "hidden"
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 export function DataExportCard() {
   const { toast } = useToast()
   const mounted = useMounted()
   const [usage] = useState(storageUsage)
+  const [attachInfo, setAttachInfo] = useState<{ count: number; bytes: number } | null>(null)
+  const [fullBusy, setFullBusy] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    Promise.all([attachmentCount(), attachmentStorageUsed()]).then(([count, bytes]) => {
+      if (active) setAttachInfo({ count, bytes })
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const handleFullBackup = async () => {
+    setFullBusy(true)
+    try {
+      const { backup, attachmentCount: n, failed } = await buildFullBackup(new Date().toISOString())
+      triggerDownload(backup, `3dpc-backup-${new Date().toISOString().split("T")[0]}.json`)
+      if (failed.length > 0) {
+        toast({
+          title: "Backup exported with warnings",
+          description: `${n} file(s) included; ${failed.length} could not be read: ${failed.join(", ")}.`,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Full backup exported",
+          description: `All tables + ${n} attachment${n !== 1 ? "s" : ""} included.`,
+        })
+      }
+    } catch (e: any) {
+      toast({ title: "Backup failed", description: e?.message ?? "Could not build the backup.", variant: "destructive" })
+    } finally {
+      setFullBusy(false)
+    }
+  }
 
   const handleExport = () => {
     try {
@@ -170,18 +232,37 @@ export function DataExportCard() {
       </div>
       <h3 className="mt-4 text-lg font-semibold tracking-tight text-foreground">Export backup</h3>
       <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-        Download everything stored in this browser (printers, filaments, clients, quotes, settings)
-        as a JSON file you can re-import later or on another machine.
+        Download everything in this browser (printers, filaments, clients, quotes, orders, settings)
+        as a JSON file. A <strong>full backup</strong> also embeds order file attachments so nothing is lost.
       </p>
-      <Button variant="outline" className="mt-4 w-fit" onClick={handleExport}>
-        Export backup
-      </Button>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button onClick={handleFullBackup} disabled={fullBusy} className="w-fit">
+          {fullBusy ? "Building…" : "Full backup (with files)"}
+        </Button>
+        <Button variant="outline" className="w-fit" onClick={handleExport}>
+          Data only
+        </Button>
+      </div>
       {mounted && (
-        <p className={`mt-3 text-xs ${usage.percent >= 80 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-          Browser storage used: ~{usage.usedKb} KB ({usage.percent}% of the typical 5 MB quota)
-          {usage.percent >= 80 ? " — export a backup and delete old quotes soon." : ""}
-        </p>
+        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+          <p className={usage.percent >= 80 ? "font-medium text-destructive" : ""}>
+            Browser storage used: ~{usage.usedKb} KB ({usage.percent}% of the typical 5 MB quota)
+            {usage.percent >= 80 ? " — export a backup and delete old quotes soon." : ""}
+          </p>
+          {attachInfo && attachInfo.count > 0 && (
+            <p>
+              Attachments: {formatBytes(attachInfo.bytes)} · {attachInfo.count} file
+              {attachInfo.count !== 1 ? "s" : ""} (stored in IndexedDB)
+            </p>
+          )}
+        </div>
       )}
     </div>
   )
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }

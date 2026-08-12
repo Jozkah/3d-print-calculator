@@ -163,6 +163,9 @@ export type Quote = {
   // or absent for 3D-print quotes. See lib/quote-modes.ts.
   quote_type_mode?: string
   quote_name: string
+  // Sequential per-year quote reference ("Q-2026-001"), minted at save time
+  // by lib/quote-number.ts and backfilled onto legacy rows.
+  quote_number?: string
   client_id?: string | null
   printer_id?: string
   // JSONB-style item arrays. Their element shapes vary between quote versions
@@ -251,6 +254,29 @@ export type QuoteTemplate = {
 /** Rows for tables the app touches without a concrete shared shape. */
 export type UnknownRow = Record<string, any>
 
+// Order-management domain rows live in types/orders.ts; re-exported into the
+// Tables map below so `createClient().from("orders")` is typed at call sites.
+import type {
+  Order,
+  OrderTask,
+  OrderNote,
+  OrderAttachment,
+  OrderActivity,
+  OrderQuoteLink,
+  Invoice,
+  Payment,
+} from "@/types/orders"
+export type {
+  Order,
+  OrderTask,
+  OrderNote,
+  OrderAttachment,
+  OrderActivity,
+  OrderQuoteLink,
+  Invoice,
+  Payment,
+} from "@/types/orders"
+
 /**
  * Table name -> row type. Used by lib/local-db.ts to type query results:
  * `createClient().from("printers").select()` resolves rows to `Printer`.
@@ -269,4 +295,13 @@ export interface Tables {
   quote_parts: UnknownRow
   counters: Counter
   quote_templates: QuoteTemplate
+  // Order-management domain.
+  orders: Order
+  order_tasks: OrderTask
+  order_notes: OrderNote
+  order_attachments: OrderAttachment
+  order_activity: OrderActivity
+  order_quote_links: OrderQuoteLink
+  invoices: Invoice
+  payments: Payment
 }
