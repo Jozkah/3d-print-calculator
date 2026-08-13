@@ -9,7 +9,7 @@
 // with thousands of historical orders.
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { loadTables } from "@/lib/db-batch"
 import { onDbChange } from "@/lib/db-realtime"
 import { backfillOrderNumbers } from "@/lib/orders/numbering"
 import type { Order, OrderTask, Payment, Invoice, GlobalSettings } from "@/types/db"
@@ -58,14 +58,14 @@ export function useOrdersData(): OrdersData {
     let cancelled = false
     const load = async () => {
       try {
-        const supabase = createClient()
         await backfillOrderNumbers()
-        const [ordersRes, tasksRes, paymentsRes, invoicesRes, settingsRes] = await Promise.all([
-          supabase.from("orders").select("*").order("created_at", { ascending: false }),
-          supabase.from("order_tasks").select("*"),
-          supabase.from("payments").select("*"),
-          supabase.from("invoices").select("*"),
-          supabase.from("global_settings").select("*").limit(1).maybeSingle(),
+        // One batched round-trip instead of five separate requests.
+        const [ordersRes, tasksRes, paymentsRes, invoicesRes, settingsRes] = await loadTables([
+          { table: "orders", orders: [{ col: "created_at", asc: false }] },
+          { table: "order_tasks" },
+          { table: "payments" },
+          { table: "invoices" },
+          { table: "global_settings", limit: 1, single: "maybe" },
         ])
         if (cancelled) return
         const firstError = ordersRes.error || tasksRes.error || paymentsRes.error || invoicesRes.error

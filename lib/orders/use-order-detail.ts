@@ -5,7 +5,7 @@
 // are fetched lazily by the file panel when a preview/download is requested.
 
 import { useCallback, useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { loadTables } from "@/lib/db-batch"
 import { onDbChange } from "@/lib/db-realtime"
 import type {
   Order,
@@ -53,23 +53,25 @@ export function useOrderDetail(orderId: string): OrderDetailData {
 
   const load = useCallback(async () => {
     try {
-      const supabase = createClient()
-      const orderRes = await supabase.from("orders").select("*").eq("id", orderId).maybeSingle()
+      // One batched round-trip for the order + all its related tables.
+      const eqOrder = [{ col: "order_id", op: "eq" as const, val: orderId }]
+      const [orderRes, tasks, notes, attachments, activity, quoteLinks, invoices, payments, settings] =
+        await loadTables([
+          { table: "orders", filters: [{ col: "id", op: "eq", val: orderId }], single: "maybe" },
+          { table: "order_tasks", filters: eqOrder, orders: [{ col: "sequence", asc: true }] },
+          { table: "order_notes", filters: eqOrder, orders: [{ col: "created_at", asc: false }] },
+          { table: "order_attachments", filters: eqOrder, orders: [{ col: "created_at", asc: false }] },
+          { table: "order_activity", filters: eqOrder, orders: [{ col: "created_at", asc: false }] },
+          { table: "order_quote_links", filters: eqOrder, orders: [{ col: "created_at", asc: true }] },
+          { table: "invoices", filters: eqOrder, orders: [{ col: "created_at", asc: false }] },
+          { table: "payments", filters: eqOrder, orders: [{ col: "paid_at", asc: false }] },
+          { table: "global_settings", limit: 1, single: "maybe" },
+        ])
       const order = (orderRes.data as Order) ?? null
       if (!order) {
         setData((d) => ({ ...d, order: null, loaded: true, notFound: true }))
         return
       }
-      const [tasks, notes, attachments, activity, quoteLinks, invoices, payments, settings] = await Promise.all([
-        supabase.from("order_tasks").select("*").eq("order_id", orderId).order("sequence", { ascending: true }),
-        supabase.from("order_notes").select("*").eq("order_id", orderId).order("created_at", { ascending: false }),
-        supabase.from("order_attachments").select("*").eq("order_id", orderId).order("created_at", { ascending: false }),
-        supabase.from("order_activity").select("*").eq("order_id", orderId).order("created_at", { ascending: false }),
-        supabase.from("order_quote_links").select("*").eq("order_id", orderId).order("created_at", { ascending: true }),
-        supabase.from("invoices").select("*").eq("order_id", orderId).order("created_at", { ascending: false }),
-        supabase.from("payments").select("*").eq("order_id", orderId).order("paid_at", { ascending: false }),
-        supabase.from("global_settings").select("*").limit(1).maybeSingle(),
-      ])
       setData({
         order,
         tasks: (tasks.data as OrderTask[]) ?? [],

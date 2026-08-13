@@ -189,6 +189,15 @@ export function runQuery(q: QueryOp): DbResult {
   }
 }
 
+/**
+ * Run several queries in one call. The DB connection is shared and in-process,
+ * so this is N cheap local queries behind a SINGLE HTTP round-trip — the fix for
+ * page loads that otherwise fire one request per table (slow over a network).
+ */
+export function runBatch(ops: QueryOp[]): DbResult[] {
+  return ops.map((op) => runQuery(op))
+}
+
 function transaction(d: DatabaseSync, fn: () => void): void {
   d.exec("BEGIN")
   try {

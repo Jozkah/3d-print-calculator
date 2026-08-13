@@ -73,7 +73,11 @@ export function OrdersBoard({ orders, derivedByOrder, onChanged }: Props) {
           <div
             key={col}
             className={cn(
+              // On wide screens (xl+) columns flex to share the row so all six
+              // fit with no horizontal scroll; below that they keep a fixed
+              // width and the container scrolls.
               "flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl border bg-muted/30 transition-all",
+              "xl:w-auto xl:min-w-0 xl:flex-1 xl:basis-0",
               overColumn === col
                 ? "border-primary/50 bg-primary/5 ring-2 ring-primary/20"
                 : "border-border/70",

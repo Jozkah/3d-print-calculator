@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { loadTables } from "@/lib/db-batch"
 import { onDbChange } from "@/lib/db-realtime"
 import { backfillQuoteNumbers } from "@/lib/quote-number"
 import { QuoteHistory } from "@/components/quote-history"
@@ -19,17 +19,24 @@ export default function HistoryPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      const supabase = createClient()
       // Give pre-reference quotes their Q-YYYY-NNN before rendering the list.
       await backfillQuoteNumbers()
-      const { data: quotesData, error: quotesError } = await supabase.from("quotes").select("*").order("created_at", { ascending: false })
-      const { data: clientsData, error: clientsError } = await supabase.from("clients").select("*")
-      const { data: printersData, error: printersError } = await supabase.from("printers").select("*")
-      const { data: filamentsData, error: filamentsError } = await supabase.from("filaments").select("*")
-      // Production tasks are shown interleaved with quotes in the combined feed.
-      const { data: ordersData } = await supabase.from("orders").select("*")
-      const { data: tasksData } = await supabase.from("order_tasks").select("*")
-      const firstError = quotesError || clientsError || printersError || filamentsError
+      // One batched round-trip for every table this page renders.
+      const [quotesRes, clientsRes, printersRes, filamentsRes, ordersRes, tasksRes] = await loadTables([
+        { table: "quotes", orders: [{ col: "created_at", asc: false }] },
+        { table: "clients" },
+        { table: "printers" },
+        { table: "filaments" },
+        { table: "orders" },
+        { table: "order_tasks" },
+      ])
+      const quotesData = quotesRes.data
+      const clientsData = clientsRes.data
+      const printersData = printersRes.data
+      const filamentsData = filamentsRes.data
+      const ordersData = ordersRes.data
+      const tasksData = tasksRes.data
+      const firstError = quotesRes.error || clientsRes.error || printersRes.error || filamentsRes.error
       setLoadError(firstError ? firstError.message || "Could not read saved data." : null)
       setQuotes(quotesData || [])
       setClients(clientsData || [])
