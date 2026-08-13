@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { onLocalDbChange } from "@/lib/local-db"
+import { onDbChange } from "@/lib/db-realtime"
 import { ExcelCalculator } from "@/components/excel-calculator"
 import { LaserCalculator } from "@/components/laser-calculator"
 import { UvCalculator } from "@/components/uv-calculator"
@@ -66,7 +66,7 @@ function PersonalPageInner() {
       setLoaded(true)
     }
     loadData()
-    return onLocalDbChange(loadData)
+    return onDbChange(loadData)
   }, [editingQuoteId])
 
   const calcType = resolveCalcType({

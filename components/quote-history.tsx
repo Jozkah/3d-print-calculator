@@ -1,5 +1,6 @@
 "use client"
 
+import { uuid } from "@/lib/uuid"
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -23,6 +24,7 @@ import { FilamentSpool } from "@/components/visual/filament-spool"
 import { resolveFilamentColor } from "@/lib/filament-color"
 import { mintQuoteNumber } from "@/lib/quote-number"
 import { createOrderFromQuote, ordersForQuote } from "@/lib/orders/data"
+import { taskTypeLabel, taskStatusLabel } from "@/lib/orders/status"
 import {
   Trash2,
   ChevronDown,
@@ -84,16 +86,68 @@ const withQuoteVat = (quote: Quote, value: any): number => {
   return (Number(value) || 0) * (vatApplies ? 1 + (quote.vat_rate ?? 0.23) : 1)
 }
 
+type TaskEntry = {
+  id: string
+  name: string
+  type: string
+  status: string
+  price: number | null
+  machine_name: string | null
+  material_name: string | null
+  created_at: string
+  order_id: string
+  order_number: string | null
+  client_id: string | null
+  client_name: string | null
+}
+
+/** Compact row for a production task in the combined history feed. */
+function TaskHistoryRow({ task, onOpen }: { task: TaskEntry; onOpen: () => void }) {
+  const meta = [taskTypeLabel(task.type), task.machine_name, taskStatusLabel(task.status)]
+    .filter(Boolean)
+    .join(" · ")
+  return (
+    <Card
+      onClick={onOpen}
+      className="cursor-pointer overflow-hidden border-l-2 border-l-primary/40 shadow-sm transition-shadow hover:shadow-md"
+    >
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="shrink-0">
+                Task
+              </Badge>
+              {task.order_number && (
+                <span className="shrink-0 font-mono text-xs font-medium text-muted-foreground">{task.order_number}</span>
+              )}
+              <span className="truncate font-semibold text-foreground">{task.name}</span>
+            </div>
+            <p className="mt-1 truncate text-sm text-muted-foreground">
+              {task.client_name || "No client"} · {meta}
+            </p>
+          </div>
+          {task.price != null && (
+            <div className="shrink-0 text-right font-semibold text-foreground">€{task.price.toFixed(2)}</div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function QuoteHistory({
   quotes,
   clients = [],
   printers = [],
-  filaments = []
+  filaments = [],
+  taskEntries = []
 }: {
   quotes: Quote[],
   clients?: any[],
   printers?: any[],
-  filaments?: any[]
+  filaments?: any[],
+  taskEntries?: TaskEntry[]
 }) {
   // Fully controlled: props are the source of truth. The parent page reloads
   // on every local-db change (including this component's own mutations), so
@@ -223,7 +277,7 @@ function QuoteHistory({
 
     const { error } = await supabase.from("quote_templates").insert([
       {
-        id: crypto.randomUUID(),
+        id: uuid(),
         name: quote.quote_name,
         payload,
       },
@@ -600,7 +654,47 @@ function QuoteHistory({
     return true
   })
 
-  if (quotes.length === 0) {
+  // Production tasks shown in the combined feed. Quote-only filters
+  // (status/printer/filament) hide tasks; search/date/client apply to both.
+  const quoteOnlyFilterActive =
+    statusFilters.length > 0 || printerFilters.length > 0 || filamentFilters.length > 0
+  const filteredTasks: TaskEntry[] = quoteOnlyFilterActive
+    ? []
+    : taskEntries.filter((task) => {
+        const query = searchQuery.trim().toLowerCase()
+        if (query) {
+          const haystack = `${task.order_number || ""} ${task.name} ${task.client_name || ""} ${task.machine_name || ""} ${task.material_name || ""}`.toLowerCase()
+          if (!haystack.includes(query)) return false
+        }
+        if (dateFrom || dateTo) {
+          const key = localDateKey(task.created_at)
+          if (dateFrom && key < dateFrom) return false
+          if (dateTo && key > dateTo) return false
+        }
+        if (clientFilters.length > 0) {
+          if (!task.client_id || !clientFilters.includes(task.client_id)) return false
+        }
+        return true
+      })
+
+  // Merge quotes + tasks into one chronological feed (newest first).
+  type FeedEntry =
+    | { kind: "quote"; date: number; quote: (typeof filteredQuotes)[number] }
+    | { kind: "task"; date: number; task: TaskEntry }
+  const feed: FeedEntry[] = [
+    ...filteredQuotes.map((quote) => ({
+      kind: "quote" as const,
+      date: new Date(quote.created_at || 0).getTime(),
+      quote,
+    })),
+    ...filteredTasks.map((task) => ({
+      kind: "task" as const,
+      date: new Date(task.created_at || 0).getTime(),
+      task,
+    })),
+  ].sort((a, b) => b.date - a.date)
+
+  if (quotes.length === 0 && taskEntries.length === 0) {
     return (
       <div className="max-w-4xl mx-auto">
         <Card className="border-dashed shadow-none bg-card/50">
@@ -855,11 +949,22 @@ function QuoteHistory({
 
           <p className="text-sm text-muted-foreground" aria-live="polite">
             Showing {filteredQuotes.length} of {quotes.length} quote{quotes.length !== 1 ? "s" : ""}
+            {filteredTasks.length > 0 && ` · ${filteredTasks.length} production task${filteredTasks.length !== 1 ? "s" : ""}`}
           </p>
         </div>
       </div>
 
-      {filteredQuotes.map((quote) => {
+      {feed.map((entry) => {
+        if (entry.kind === "task") {
+          return (
+            <TaskHistoryRow
+              key={`task-${entry.task.id}`}
+              task={entry.task}
+              onOpen={() => router.push(`/orders/${entry.task.order_id}`)}
+            />
+          )
+        }
+        const quote = entry.quote
         // Laser/sticker quotes keep their line items in laser_items, not
         // printed_parts/materials, so the generic 3D-print counts below would
         // always read zero for them — count laser_items as "items" instead.

@@ -160,7 +160,11 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
 // ---------------------------------------------------------------------------
 
 /** Build production tasks from a quote's line items (best-effort, per calculator). */
-function tasksFromQuote(quote: Record<string, any>, orderId: string): OrderTask[] {
+function tasksFromQuote(
+  quote: Record<string, any>,
+  orderId: string,
+  clientFields: { client_id: string | null; client_name: string | null },
+): OrderTask[] {
   const tasks: OrderTask[] = []
   const base = (partial: Partial<OrderTask>, seq: number): OrderTask => ({
     id: uid(),
@@ -170,6 +174,8 @@ function tasksFromQuote(quote: Record<string, any>, orderId: string): OrderTask[
     status: "pending",
     quantity: 1,
     sequence: seq,
+    client_id: clientFields.client_id,
+    client_name: clientFields.client_name,
     created_at: now(),
     attempt: 1,
     ...partial,
@@ -268,7 +274,10 @@ export async function createOrderFromQuote(
   const seed = options.seedTasks !== false
   let estimated_minutes: number | null = null
   if (seed) {
-    const tasks = tasksFromQuote(quote, order.id)
+    const tasks = tasksFromQuote(quote, order.id, {
+      client_id: order.client_id ?? null,
+      client_name: order.client_snapshot?.name ?? clientRow?.name ?? null,
+    })
     if (tasks.length > 0) {
       await supabase.from("order_tasks").insert(tasks)
       estimated_minutes = aggregateEstimatedMinutes(tasks) || null
@@ -299,6 +308,37 @@ export async function ordersForQuote(quoteId: string): Promise<OrderQuoteLink[]>
 
 export async function updateOrder(id: string, patch: Partial<Order>): Promise<void> {
   await client().from("orders").update({ ...patch, updated_at: now() }).eq("id", id)
+}
+
+/**
+ * Change the order's client and cascade it to every task of that order. This is
+ * the ONLY way a task's client changes — tasks always mirror their order's
+ * client, so the two never diverge.
+ */
+export async function changeOrderClient(order: Order, clientId: string | null): Promise<void> {
+  if ((order.client_id ?? null) === (clientId ?? null)) return
+  const supabase = client()
+  const clientRow = await findClient(clientId)
+  const snapshot = snapshotClient(clientRow)
+  const name = snapshot?.name ?? null
+
+  await supabase
+    .from("orders")
+    .update({ client_id: clientId ?? null, client_snapshot: snapshot, updated_at: now() })
+    .eq("id", order.id)
+
+  // Cascade to all this order's tasks.
+  const tasks = await listTasks(order.id)
+  await Promise.all(
+    tasks.map((t) =>
+      supabase
+        .from("order_tasks")
+        .update({ client_id: clientId ?? null, client_name: name, updated_at: now() })
+        .eq("id", t.id),
+    ),
+  )
+
+  await logActivity(order.id, "order_updated", name ? `Client changed to ${name}` : "Client cleared")
 }
 
 export async function setOrderStatus(order: Order, status: OrderStatus): Promise<void> {
@@ -414,6 +454,9 @@ export async function duplicateOrder(sourceId: string): Promise<Order | null> {
         status: "pending" as const,
         quantity: t.quantity,
         sequence: t.sequence,
+        // Inherit the NEW order's client, not the source's.
+        client_id: copy.client_id ?? null,
+        client_name: copy.client_snapshot?.name ?? null,
         printer_id: t.printer_id ?? null,
         machine_name: t.machine_name ?? null,
         material_id: t.material_id ?? null,
@@ -471,7 +514,9 @@ export type CreateTaskInput = Partial<OrderTask> & { order_id: string; name: str
 
 export async function createTask(input: CreateTaskInput): Promise<OrderTask> {
   const supabase = client()
-  const existing = await listTasks(input.order_id)
+  // A task always belongs to its order's client — inherited here, never set by
+  // the caller. Changing the order's client cascades via changeOrderClient().
+  const [existing, order] = await Promise.all([listTasks(input.order_id), getOrder(input.order_id)])
   const row: OrderTask = {
     id: uid(),
     order_id: input.order_id,
@@ -480,6 +525,8 @@ export async function createTask(input: CreateTaskInput): Promise<OrderTask> {
     status: input.status ?? "pending",
     quantity: input.quantity ?? 1,
     sequence: input.sequence ?? existing.length,
+    client_id: order?.client_id ?? null,
+    client_name: order?.client_snapshot?.name ?? null,
     printer_id: input.printer_id ?? null,
     machine_name: input.machine_name ?? null,
     material_id: input.material_id ?? null,
@@ -607,6 +654,8 @@ async function createTaskRetry(task: OrderTask): Promise<OrderTask> {
     status: "pending",
     quantity: task.quantity,
     sequence: task.sequence,
+    client_id: task.client_id ?? null,
+    client_name: task.client_name ?? null,
     printer_id: task.printer_id ?? null,
     machine_name: task.machine_name ?? null,
     material_id: task.material_id ?? null,
@@ -720,11 +769,13 @@ export async function listAttachments(orderId: string): Promise<OrderAttachment[
 
 /** Strip path separators and control chars from an untrusted filename. */
 export function sanitizeFileName(name: string): string {
-  return (name || "file")
-    .replace(/[\\/]/g, "_")
-    .replace(/[ -<>:"|?*]/g, "")
-    .slice(0, 200)
-    .trim() || "file"
+  return (
+    (name || "file")
+      .replace(/[\\/]/g, "_")
+      .replace(/[<>:"|?*]/g, "")
+      .slice(0, 200)
+      .trim() || "file"
+  )
 }
 
 export async function addAttachment(

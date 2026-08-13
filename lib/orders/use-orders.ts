@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { onLocalDbChange } from "@/lib/local-db"
+import { onDbChange } from "@/lib/db-realtime"
 import { backfillOrderNumbers } from "@/lib/orders/numbering"
 import type { Order, OrderTask, Payment, Invoice, GlobalSettings } from "@/types/db"
 import { computeProgress, computeFinancials, aggregateEstimatedMinutes } from "@/lib/orders/compute"
@@ -83,7 +83,7 @@ export function useOrdersData(): OrdersData {
       }
     }
     load()
-    const unsub = onLocalDbChange((table) => {
+    const unsub = onDbChange((table) => {
       // Refetch on any change to a table we render.
       if (
         !table ||

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
@@ -47,6 +47,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { DialogCustom } from "@/components/ui/dialog-custom"
+import { ClientSelector } from "@/components/client-selector"
+import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { SiteHeader } from "@/components/site-header"
 import { formatMoney } from "@/lib/format"
@@ -80,6 +82,7 @@ import {
   completeOrder,
   duplicateOrder,
   deleteOrderDeep,
+  changeOrderClient,
 } from "@/lib/orders/data"
 
 export function OrderDetail({ orderId }: { orderId: string }) {
@@ -429,6 +432,33 @@ function EditOrderDialog({
   const [due, setDue] = useState(o.due_date ? o.due_date.slice(0, 10) : "")
   const [priority, setPriority] = useState<OrderPriority>(o.priority)
   const [tags, setTags] = useState((o.tags ?? []).join(", "))
+  const [clients, setClients] = useState<any[]>([])
+  const [clientName, setClientName] = useState(o.client_snapshot?.name ?? "")
+  const [clientId, setClientId] = useState<string | null>(o.client_id ?? null)
+
+  const loadClients = () => {
+    createClient()
+      .from("clients")
+      .select("*")
+      .order("name")
+      .then(({ data }) => {
+        if (data) setClients(data)
+      })
+  }
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    createClient()
+      .from("clients")
+      .select("*")
+      .order("name")
+      .then(({ data }) => {
+        if (active && data) setClients(data)
+      })
+    return () => {
+      active = false
+    }
+  }, [open])
 
   async function save() {
     await updateOrder(o.id, {
@@ -436,6 +466,10 @@ function EditOrderDialog({
       description: description.trim() || null,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
     })
+    // Changing the order's client cascades to every task of the order.
+    if ((o.client_id ?? null) !== (clientId ?? null)) {
+      await changeOrderClient(o, clientId)
+    }
     if ((o.due_date ? o.due_date.slice(0, 10) : "") !== due) {
       await setOrderDueDate(o, due ? new Date(due).toISOString() : null)
     }
@@ -455,6 +489,23 @@ function EditOrderDialog({
           <div className="space-y-1.5">
             <Label>Order name</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} className="bg-card" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Customer</Label>
+            <ClientSelector
+              value={clientName}
+              onChange={(name, id) => {
+                setClientName(name)
+                setClientId(id || null)
+              }}
+              clients={clients}
+              onClientsUpdate={loadClients}
+              placeholder="Select or add client..."
+              className="bg-card"
+            />
+            <p className="text-xs text-muted-foreground">
+              Changing the customer updates every task on this order too.
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

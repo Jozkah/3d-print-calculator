@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { onLocalDbChange } from "@/lib/local-db"
+import { onDbChange } from "@/lib/db-realtime"
 import { UvMaterialsList } from "@/components/uv-materials-list"
 import { SiteHeader, PageHeader } from "@/components/site-header"
 import type { UvMaterial } from "@/types/db"
@@ -19,7 +19,7 @@ export default function UvMaterialsPage() {
       setLoaded(true)
     }
     loadData()
-    return onLocalDbChange(loadData)
+    return onDbChange(loadData)
   }, [])
 
   return (

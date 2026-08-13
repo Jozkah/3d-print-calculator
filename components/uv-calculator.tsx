@@ -1,5 +1,6 @@
 "use client"
 
+import { uuid } from "@/lib/uuid"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { mintQuoteNumber } from "@/lib/quote-number"
@@ -46,7 +47,7 @@ interface UvCalculatorProps {
 }
 
 const newItem = (): UvItem => ({
-  id: crypto.randomUUID(),
+  id: uuid(),
   name: "",
   quantity: 1,
   pieces_per_run: 1,
@@ -62,7 +63,7 @@ const newItem = (): UvItem => ({
 
 /** Rehydrate a persisted item, coercing every number so a hand-edited backup can't produce NaN. */
 const hydrateItem = (it: any): UvItem => ({
-  id: it.id || crypto.randomUUID(),
+  id: it.id || uuid(),
   name: it.name || "",
   quantity: Number(it.quantity) || 0,
   pieces_per_run: Number(it.pieces_per_run) || 1,
@@ -83,7 +84,7 @@ const hydrateItem = (it: any): UvItem => ({
 })
 
 const hydrateOperation = (op: any): UvOperation => ({
-  id: op.id || crypto.randomUUID(),
+  id: op.id || uuid(),
   name: op.name || "",
   kind: op.kind === "cost" ? "cost" : "labour",
   minutes: Number(op.minutes) || 0,
@@ -207,7 +208,7 @@ export function UvCalculator({
       setOperations((data.uv_operations || []).map(hydrateOperation))
       setPackaging(
         (data.packaging_items || []).map((p: any) => ({
-          id: p.id || crypto.randomUUID(),
+          id: p.id || uuid(),
           name: p.name || "",
           quantity: Number(p.quantity) || 0,
           unit_cost: Number(p.unit_cost) || 0,
@@ -244,7 +245,7 @@ export function UvCalculator({
       if (Array.isArray(data.packaging_items))
         setPackaging(
           data.packaging_items.map((p: any) => ({
-            id: p.id || crypto.randomUUID(),
+            id: p.id || uuid(),
             name: p.name || "",
             quantity: Number(p.quantity) || 0,
             unit_cost: Number(p.unit_cost) || 0,
@@ -280,17 +281,17 @@ export function UvCalculator({
       // Template rows get fresh ids; remap back-side links through the same
       // table so a two-sided item survives the copy.
       const hydrated = (payload.uv_items || []).map((it: any) => hydrateItem(it))
-      const idMap = new Map(hydrated.map((it: UvItem) => [it.id, crypto.randomUUID()]))
+      const idMap = new Map(hydrated.map((it: UvItem) => [it.id, uuid()]))
       const templateItems: UvItem[] = hydrated.map((it: UvItem) => ({
         ...it,
         id: idMap.get(it.id)!,
         back_of_item_id: it.back_of_item_id ? idMap.get(it.back_of_item_id) ?? null : null,
       }))
       setItems(templateItems.length > 0 ? templateItems : [newItem()])
-      setOperations((payload.uv_operations || []).map((op: any) => ({ ...hydrateOperation(op), id: crypto.randomUUID() })))
+      setOperations((payload.uv_operations || []).map((op: any) => ({ ...hydrateOperation(op), id: uuid() })))
       setPackaging(
         (payload.packaging_items || []).map((p: any) => ({
-          id: crypto.randomUUID(),
+          id: uuid(),
           name: p.name || "",
           quantity: Number(p.quantity) || 0,
           unit_cost: Number(p.unit_cost) || 0,
@@ -310,7 +311,7 @@ export function UvCalculator({
 
   const duplicateItem = (index: number) =>
     setItems((prev) => {
-      const copy = { ...prev[index], id: crypto.randomUUID(), name: prev[index].name ? `${prev[index].name} (copy)` : "" }
+      const copy = { ...prev[index], id: uuid(), name: prev[index].name ? `${prev[index].name} (copy)` : "" }
       const next = [...prev]
       next.splice(index + 1, 0, copy)
       return next

@@ -192,6 +192,14 @@ export type OrderTask = {
   /** Ordering of tasks within an order. Lower = earlier. */
   sequence: number
 
+  /**
+   * Client the task belongs to — always mirrors the parent order's client and
+   * is never edited directly. Changing the order's client cascades here
+   * (lib/orders/data.ts changeOrderClient).
+   */
+  client_id?: string | null
+  client_name?: string | null
+
   printer_id?: string | null
   machine_name?: string | null
   material_id?: string | null

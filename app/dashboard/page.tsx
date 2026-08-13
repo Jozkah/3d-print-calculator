@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { onLocalDbChange } from "@/lib/local-db"
+import { onDbChange } from "@/lib/db-realtime"
 import { backfillQuoteNumbers } from "@/lib/quote-number"
 import { SiteHeader, PageHeader } from "@/components/site-header"
 import { PageLoading, PageLoadError } from "@/components/page-loading"
@@ -88,7 +88,7 @@ export default function DashboardPage() {
       setLoaded(true)
     }
     loadData()
-    return onLocalDbChange(loadData)
+    return onDbChange(loadData)
   }, [])
 
   const currencySymbol = settings?.currency_symbol || "€"

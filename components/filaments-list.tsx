@@ -456,11 +456,27 @@ export function FilamentsList({ filaments: initialFilaments }: FilamentsListProp
   }
 
   const hashString = async (str: string): Promise<string> => {
-    const encoder = new TextEncoder()
-    const data = encoder.encode(str)
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
+    // crypto.subtle only exists in a secure context (https / localhost). Over
+    // plain http:// to a LAN IP it's undefined, so fall back to a fast
+    // non-cryptographic hash — this value is only a dedup key for imported CSV
+    // files, not a security hash, so SHA-256's collision resistance isn't needed.
+    const subtle = typeof crypto !== "undefined" ? crypto.subtle : undefined
+    if (subtle) {
+      const data = new TextEncoder().encode(str)
+      const hashBuffer = await subtle.digest("SHA-256", data)
+      return Array.from(new Uint8Array(hashBuffer))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")
+    }
+    let h1 = 0x811c9dc5
+    let h2 = 0x1b873593
+    for (let i = 0; i < str.length; i++) {
+      const c = str.charCodeAt(i)
+      h1 = Math.imul(h1 ^ c, 0x01000193)
+      h2 = Math.imul(h2 ^ c, 0x85ebca6b)
+    }
+    const hex = (n: number) => (n >>> 0).toString(16).padStart(8, "0")
+    return hex(h1) + hex(h2)
   }
 
   const toggleFilamentSelection = (filamentId: string) => {

@@ -1,5 +1,6 @@
 "use client"
 
+import { uuid } from "@/lib/uuid"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { mintQuoteNumber } from "@/lib/quote-number"
@@ -41,7 +42,7 @@ interface LaserCalculatorProps {
 }
 
 const newItem = (): LaserItem => ({
-  id: crypto.randomUUID(),
+  id: uuid(),
   name: "",
   quantity: 1,
   material_id: "",
@@ -221,7 +222,7 @@ export function LaserCalculator({
       setClientId(data.client_id ?? null)
       setItems(
         (data.laser_items || []).map((it: any) => ({
-          id: it.id || crypto.randomUUID(),
+          id: it.id || uuid(),
           name: it.name || "",
           quantity: Number(it.quantity) || 1,
           material_id: it.material_id || "",
@@ -232,8 +233,8 @@ export function LaserCalculator({
           machine_minutes: Number(it.machine_minutes) || 0,
         })),
       )
-      setLabor((data.labor_items || []).map((l: any) => ({ id: l.id || crypto.randomUUID(), action: l.action || "", hours: Number(l.hours) || 0, hourly_cost: Number(l.hourly_cost) || 0 })))
-      setPackaging((data.packaging_items || []).map((p: any) => ({ id: p.id || crypto.randomUUID(), name: p.name || "", quantity: Number(p.quantity) || 0, unit_cost: Number(p.unit_cost) || 0 })))
+      setLabor((data.labor_items || []).map((l: any) => ({ id: l.id || uuid(), action: l.action || "", hours: Number(l.hours) || 0, hourly_cost: Number(l.hourly_cost) || 0 })))
+      setPackaging((data.packaging_items || []).map((p: any) => ({ id: p.id || uuid(), name: p.name || "", quantity: Number(p.quantity) || 0, unit_cost: Number(p.unit_cost) || 0 })))
       setDistanceTraveledKm(Number(data.distance_traveled_km) || 0)
       setInternalNotes(data.internal_notes || "")
       setIsEmergency(Boolean(data.is_emergency))
@@ -263,7 +264,7 @@ export function LaserCalculator({
       if (Array.isArray(data.laser_items) && data.laser_items.length > 0) {
         setItems(
           data.laser_items.map((it: any) => ({
-            id: it.id || crypto.randomUUID(),
+            id: it.id || uuid(),
             name: it.name || "",
             quantity: Number(it.quantity) || 1,
             material_id: it.material_id || "",
@@ -276,9 +277,9 @@ export function LaserCalculator({
         )
       }
       if (Array.isArray(data.labor_items))
-        setLabor(data.labor_items.map((l: any) => ({ id: l.id || crypto.randomUUID(), action: l.action || "", hours: Number(l.hours) || 0, hourly_cost: Number(l.hourly_cost) || 0 })))
+        setLabor(data.labor_items.map((l: any) => ({ id: l.id || uuid(), action: l.action || "", hours: Number(l.hours) || 0, hourly_cost: Number(l.hourly_cost) || 0 })))
       if (Array.isArray(data.packaging_items))
-        setPackaging(data.packaging_items.map((p: any) => ({ id: p.id || crypto.randomUUID(), name: p.name || "", quantity: Number(p.quantity) || 0, unit_cost: Number(p.unit_cost) || 0 })))
+        setPackaging(data.packaging_items.map((p: any) => ({ id: p.id || uuid(), name: p.name || "", quantity: Number(p.quantity) || 0, unit_cost: Number(p.unit_cost) || 0 })))
       setDistanceTraveledKm(Number(data.distance_traveled_km) || 0)
       setInternalNotes(data.internal_notes || "")
       setIsEmergency(Boolean(data.is_emergency))
@@ -299,7 +300,7 @@ export function LaserCalculator({
 
   const duplicateItem = (index: number) =>
     setItems((prev) => {
-      const copy = { ...prev[index], id: crypto.randomUUID(), name: prev[index].name ? `${prev[index].name} (copy)` : "" }
+      const copy = { ...prev[index], id: uuid(), name: prev[index].name ? `${prev[index].name} (copy)` : "" }
       const next = [...prev]
       next.splice(index + 1, 0, copy)
       return next

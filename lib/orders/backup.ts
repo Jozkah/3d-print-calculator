@@ -9,7 +9,7 @@
 // a full backup is genuinely complete. Attachment read/write failures are
 // reported per-file rather than silently dropped (spec 39).
 
-import { exportAll, importSeedObject, type SeedImportSummary } from "@/lib/seed-import"
+import { exportAll, importSeedObjectAsync, type SeedImportSummary } from "@/lib/seed-import"
 import {
   exportAllAttachments,
   importAttachmentRecords,
@@ -73,13 +73,13 @@ function isFullBackup(payload: unknown): payload is FullBackup {
  */
 export async function restoreFromPayload(payload: unknown): Promise<RestoreResult> {
   if (isFullBackup(payload)) {
-    const tables = importSeedObject(payload.tables)
+    const tables = await importSeedObjectAsync(payload.tables)
     const attachments = Array.isArray(payload.attachments)
       ? await importAttachmentRecords(payload.attachments)
       : { imported: 0, failed: [] }
     return { tables, attachments }
   }
   // Legacy plain `{ table: rows }` file — no attachments in it.
-  const tables = importSeedObject(payload)
+  const tables = await importSeedObjectAsync(payload)
   return { tables, attachments: { imported: 0, failed: [] } }
 }

@@ -16,21 +16,22 @@
 
 import { createBrowserClient } from "@supabase/ssr"
 import { createClient as createLocalClient, type LocalDbClient } from "@/lib/local-db"
+import { createRemoteClient } from "@/lib/remote-db"
+import { isServerBackend, isSupabaseBackend } from "@/lib/data-backend"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-/**
- * True when this build talks to Supabase. Credentials alone flip it;
- * NEXT_PUBLIC_DATA_BACKEND=local overrides them, so a Supabase-configured
- * deployment can still run a purely local preview.
- */
-export const isSupabaseBackend =
-  process.env.NEXT_PUBLIC_DATA_BACKEND !== "local" && Boolean(SUPABASE_URL && SUPABASE_ANON_KEY)
+// Re-exported for existing importers; the flags themselves now live in
+// lib/data-backend.ts so the remote client and realtime poller can read them
+// without importing this module (which pulls in @supabase/ssr).
+export { isSupabaseBackend }
 
 export function createClient(): LocalDbClient {
+  // Shared server-side SQLite, reached over /api/db. Multiple people, one DB.
+  if (isServerBackend) return createRemoteClient()
   if (!isSupabaseBackend) return createLocalClient()
-  // The seam between the two backends. The real client implements a superset of
+  // The seam between the backends. The real client implements a superset of
   // LocalDbClient but with its own generics, so the shared shape is asserted
   // here once rather than at all ~27 call sites.
   return createBrowserClient(SUPABASE_URL!, SUPABASE_ANON_KEY!) as unknown as LocalDbClient

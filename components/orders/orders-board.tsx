@@ -73,8 +73,10 @@ export function OrdersBoard({ orders, derivedByOrder, onChanged }: Props) {
           <div
             key={col}
             className={cn(
-              "flex w-72 shrink-0 flex-col rounded-2xl border bg-muted/30 transition-colors",
-              overColumn === col ? "border-primary/50 bg-primary/5" : "border-border/70",
+              "flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl border bg-muted/30 transition-all",
+              overColumn === col
+                ? "border-primary/50 bg-primary/5 ring-2 ring-primary/20"
+                : "border-border/70",
             )}
             onDragOver={(e) => {
               if (dragging) {
@@ -90,17 +92,24 @@ export function OrdersBoard({ orders, derivedByOrder, onChanged }: Props) {
               handleDropOnColumn(col)
             }}
           >
-            <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+            {/* Coloured hairline ties the whole column to its status colour. */}
+            <span className={cn("h-1 w-full", meta.dot)} aria-hidden />
+            <div className="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-2.5">
               <div className="flex items-center gap-1.5">
                 <span className={cn("size-2 rounded-full", meta.dot)} />
                 <span className="text-sm font-semibold text-foreground">{meta.label}</span>
               </div>
-              <span className="rounded-full bg-background px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+              <span
+                className={cn(
+                  "min-w-6 rounded-full px-2 py-0.5 text-center text-xs font-semibold tabular-nums",
+                  columnOrders.length > 0 ? meta.badge : "bg-background text-muted-foreground",
+                )}
+              >
                 {columnOrders.length}
               </span>
             </div>
 
-            <div className="flex flex-1 flex-col gap-2 px-2 pb-2">
+            <div className="flex flex-1 flex-col gap-2 px-2 pb-2 pt-2">
               {columnOrders.map((order) => (
                 <div
                   key={order.id}
@@ -132,8 +141,15 @@ export function OrdersBoard({ orders, derivedByOrder, onChanged }: Props) {
                 </div>
               ))}
               {columnOrders.length === 0 && (
-                <div className="rounded-xl border border-dashed border-border/60 px-3 py-6 text-center text-xs text-muted-foreground/70">
-                  No orders
+                <div
+                  className={cn(
+                    "rounded-xl border border-dashed px-3 py-8 text-center text-xs transition-colors",
+                    overColumn === col
+                      ? "border-primary/40 text-primary"
+                      : "border-border/60 text-muted-foreground/60",
+                  )}
+                >
+                  {overColumn === col ? "Drop here" : "No orders"}
                 </div>
               )}
             </div>

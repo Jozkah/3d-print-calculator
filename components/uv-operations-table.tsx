@@ -4,6 +4,7 @@
 // makes "file prep once, jig load per run, wipe per piece" expressible in one
 // list instead of three hardcoded fields.
 
+import { uuid } from "@/lib/uuid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -43,7 +44,7 @@ export function UvOperationsTable({
   const money = (n: number) => formatMoney(n, currency)
   const patch = (i: number, p: Partial<UvOperation>) =>
     onChange(operations.map((row, j) => (j === i ? { ...row, ...p } : row)))
-  const append = (op: Omit<UvOperation, "id">) => onChange([...operations, { id: crypto.randomUUID(), ...op }])
+  const append = (op: Omit<UvOperation, "id">) => onChange([...operations, { id: uuid(), ...op }])
 
   return (
     <Card className="p-5 sm:p-6 shadow-sm">

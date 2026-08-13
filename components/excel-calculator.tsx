@@ -1,5 +1,6 @@
 "use client"
 
+import { uuid } from "@/lib/uuid"
 import type React from "react"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import dynamic from "next/dynamic"
@@ -330,7 +331,7 @@ export function ExcelCalculator({
             if (part.filament_id && part.filament_grams !== undefined) {
               return {
                 ...part,
-                filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
+                filaments: [{ id: uuid(), filament_id: part.filament_id, grams: part.filament_grams }],
                 filament_id: undefined, // Remove legacy fields
                 filament_grams: undefined,
               }
@@ -417,7 +418,7 @@ export function ExcelCalculator({
           if (part.filament_id && part.filament_grams !== undefined) {
             return {
               ...part,
-              filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
+              filaments: [{ id: uuid(), filament_id: part.filament_id, grams: part.filament_grams }],
               filament_id: undefined,
               filament_grams: undefined,
             }
@@ -476,7 +477,7 @@ export function ExcelCalculator({
           if (part.filament_id && part.filament_grams !== undefined) {
             return {
               ...part,
-              filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
+              filaments: [{ id: uuid(), filament_id: part.filament_id, grams: part.filament_grams }],
               filament_id: undefined,
               filament_grams: undefined,
             }
@@ -875,7 +876,7 @@ export function ExcelCalculator({
         if ((!part.filaments || part.filaments.length === 0) && part.filament_id && part.filament_grams !== undefined) {
           const normalized = {
             ...part,
-            filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
+            filaments: [{ id: uuid(), filament_id: part.filament_id, grams: part.filament_grams }],
           }
           // Persist the computed per-part cost so the detailed view can show it
           // directly instead of recomputing it.
@@ -1023,7 +1024,7 @@ export function ExcelCalculator({
         if ((!part.filaments || part.filaments.length === 0) && part.filament_id && part.filament_grams !== undefined) {
           const normalized = {
             ...part,
-            filaments: [{ id: crypto.randomUUID(), filament_id: part.filament_id, grams: part.filament_grams }],
+            filaments: [{ id: uuid(), filament_id: part.filament_id, grams: part.filament_grams }],
           }
           // Persist part_cost like handleSaveQuote does so the detailed view
           // reads an authoritative value instead of recomputing it for drafts.
@@ -1134,7 +1135,7 @@ export function ExcelCalculator({
     setPrintedParts((prev) =>
       prev.map((p, i) =>
         i === partIndex
-          ? { ...p, filaments: [...p.filaments, { id: crypto.randomUUID(), filament_id: "", grams: 0 }] }
+          ? { ...p, filaments: [...p.filaments, { id: uuid(), filament_id: "", grams: 0 }] }
           : p,
       ),
     )
@@ -1152,9 +1153,9 @@ export function ExcelCalculator({
     const partToDuplicate = printedParts[index]
     const duplicatedPart: PrintedPart = {
       ...partToDuplicate,
-      id: crypto.randomUUID(),
+      id: uuid(),
       name: partToDuplicate.name ? `${partToDuplicate.name} (copy)` : "",
-      filaments: partToDuplicate.filaments.map((f) => ({ ...f, id: crypto.randomUUID() })),
+      filaments: partToDuplicate.filaments.map((f) => ({ ...f, id: uuid() })),
     }
     const updated = [...printedParts]
     updated.splice(index + 1, 0, duplicatedPart)
@@ -1197,7 +1198,7 @@ export function ExcelCalculator({
     setPrintedParts([
       ...printedParts,
       {
-        id: crypto.randomUUID(),
+        id: uuid(),
         name: "",
         printer_id: "",
         filaments: [],
@@ -1255,7 +1256,7 @@ export function ExcelCalculator({
             next.filaments =
               next.filaments && next.filaments.length > 0
                 ? next.filaments.map((f, fi) => (fi === 0 ? { ...f, grams: roundedGrams } : f))
-                : [{ id: crypto.randomUUID(), filament_id: "", grams: roundedGrams }]
+                : [{ id: uuid(), filament_id: "", grams: roundedGrams }]
           }
           return next
         }),
@@ -1669,7 +1670,7 @@ export function ExcelCalculator({
                                                         ...p,
                                                         filaments: [
                                                           ...p.filaments,
-                                                          { id: crypto.randomUUID(), filament_id: filament.id, grams: 0 },
+                                                          { id: uuid(), filament_id: filament.id, grams: 0 },
                                                         ],
                                                       }
                                                     : p,
@@ -1791,7 +1792,7 @@ export function ExcelCalculator({
                 onClick={() =>
                   setDriedBatches([
                     ...driedBatches,
-                    { id: crypto.randomUUID(), material: "", drying_time_hr: 0, cost: 0 },
+                    { id: uuid(), material: "", drying_time_hr: 0, cost: 0 },
                   ])
                 }
                 size="sm"
@@ -1942,7 +1943,7 @@ export function ExcelCalculator({
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Materials (Hardware, etc.)</h2>
               <Button
                 onClick={() =>
-                  setMaterials([...materials, { id: crypto.randomUUID(), name: "", quantity: 0, unit_cost: 0 }])
+                  setMaterials([...materials, { id: uuid(), name: "", quantity: 0, unit_cost: 0 }])
                 }
                 size="sm"
                 className="shadow-sm"
@@ -2036,7 +2037,7 @@ export function ExcelCalculator({
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Labor</h2>
               <Button
                 onClick={() =>
-                  setLabor([...labor, { id: crypto.randomUUID(), action: "", hours: 0, hourly_cost: 0 }])
+                  setLabor([...labor, { id: uuid(), action: "", hours: 0, hourly_cost: 0 }])
                 }
                 size="sm"
                 className="shadow-sm"
@@ -2130,7 +2131,7 @@ export function ExcelCalculator({
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Packaging & Shipping</h2>
               <Button
                 onClick={() =>
-                  setPackaging([...packaging, { id: crypto.randomUUID(), name: "", quantity: 0, unit_cost: 0 }])
+                  setPackaging([...packaging, { id: uuid(), name: "", quantity: 0, unit_cost: 0 }])
                 }
                 size="sm"
                 className="shadow-sm"

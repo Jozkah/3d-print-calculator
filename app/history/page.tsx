@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { onLocalDbChange } from "@/lib/local-db"
+import { onDbChange } from "@/lib/db-realtime"
 import { backfillQuoteNumbers } from "@/lib/quote-number"
 import { QuoteHistory } from "@/components/quote-history"
 import { SiteHeader, PageHeader } from "@/components/site-header"
@@ -13,6 +13,7 @@ export default function HistoryPage() {
   const [clients, setClients] = useState<any[]>([])
   const [printers, setPrinters] = useState<any[]>([])
   const [filaments, setFilaments] = useState<any[]>([])
+  const [taskEntries, setTaskEntries] = useState<any[]>([])
   const [loaded, setLoaded] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -25,16 +26,40 @@ export default function HistoryPage() {
       const { data: clientsData, error: clientsError } = await supabase.from("clients").select("*")
       const { data: printersData, error: printersError } = await supabase.from("printers").select("*")
       const { data: filamentsData, error: filamentsError } = await supabase.from("filaments").select("*")
+      // Production tasks are shown interleaved with quotes in the combined feed.
+      const { data: ordersData } = await supabase.from("orders").select("*")
+      const { data: tasksData } = await supabase.from("order_tasks").select("*")
       const firstError = quotesError || clientsError || printersError || filamentsError
       setLoadError(firstError ? firstError.message || "Could not read saved data." : null)
       setQuotes(quotesData || [])
       setClients(clientsData || [])
       setPrinters(printersData || [])
       setFilaments(filamentsData || [])
+
+      // Enrich each task with its order's number/client for display + filtering.
+      const orderById = new Map<string, any>((ordersData || []).map((o: any) => [o.id, o]))
+      const entries = (tasksData || []).map((t: any) => {
+        const ord = orderById.get(t.order_id)
+        return {
+          id: t.id,
+          name: t.name,
+          type: t.type,
+          status: t.status,
+          price: t.price ?? null,
+          machine_name: t.machine_name ?? null,
+          material_name: t.material_name ?? null,
+          created_at: t.created_at,
+          order_id: t.order_id,
+          order_number: ord?.order_number ?? null,
+          client_id: t.client_id ?? ord?.client_id ?? null,
+          client_name: t.client_name ?? ord?.client_snapshot?.name ?? null,
+        }
+      })
+      setTaskEntries(entries)
       setLoaded(true)
     }
     loadData()
-    return onLocalDbChange(loadData)
+    return onDbChange(loadData)
   }, [])
 
   return (
@@ -50,7 +75,7 @@ export default function HistoryPage() {
         {!loaded && <PageLoading />}
         {loaded && loadError && <PageLoadError message={loadError} />}
         {loaded && !loadError && (
-          <QuoteHistory quotes={quotes} clients={clients} printers={printers} filaments={filaments} />
+          <QuoteHistory quotes={quotes} clients={clients} printers={printers} filaments={filaments} taskEntries={taskEntries} />
         )}
       </main>
     </div>

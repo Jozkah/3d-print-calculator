@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { onLocalDbChange } from "@/lib/local-db"
+import { onDbChange } from "@/lib/db-realtime"
 import type {
   Order,
   OrderTask,
@@ -91,7 +91,7 @@ export function useOrderDetail(orderId: string): OrderDetailData {
 
   useEffect(() => {
     load()
-    const unsub = onLocalDbChange((table) => {
+    const unsub = onDbChange((table) => {
       if (
         !table ||
         [
