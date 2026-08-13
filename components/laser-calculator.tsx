@@ -1,12 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { uuid } from "@/lib/uuid"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { mintQuoteNumber } from "@/lib/quote-number"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, Copy, AlertTriangle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -30,10 +33,16 @@ interface LaserCalculatorProps {
   mode?: "business" | "personal"
   clients?: Client[]
   editingQuoteId?: string
+  // Embedded mode (Orders "Add task"): hand the computed quoteData to onComplete
+  // instead of saving a quotes row. See excel-calculator.tsx for the pattern.
+  embedded?: boolean
+  onComplete?: (quoteData: Record<string, any>) => void | Promise<void>
+  initialPayload?: Record<string, any> | null
+  submitLabel?: string
 }
 
 const newItem = (): LaserItem => ({
-  id: crypto.randomUUID(),
+  id: uuid(),
   name: "",
   quantity: 1,
   material_id: "",
@@ -106,6 +115,10 @@ export function LaserCalculator({
   mode = "business",
   clients: initialClients = [],
   editingQuoteId,
+  embedded = false,
+  onComplete,
+  initialPayload = null,
+  submitLabel,
 }: LaserCalculatorProps) {
   const { toast } = useToast()
   const supabase = useMemo(() => createClient(), [])
@@ -117,6 +130,7 @@ export function LaserCalculator({
   const [clientName, setClientName] = useState("")
   const [clientId, setClientId] = useState<string | null>(null)
   const [distanceTraveledKm, setDistanceTraveledKm] = useState(0)
+  const [internalNotes, setInternalNotes] = useState("")
   const [isEmergency, setIsEmergency] = useState(false)
   const [vatEnabled, setVatEnabled] = useState(true)
   const [setupFee, setSetupFee] = useState<number>(globalSettings?.default_setup_fee ?? LASER_DEFAULTS.default_setup_fee)
@@ -208,7 +222,7 @@ export function LaserCalculator({
       setClientId(data.client_id ?? null)
       setItems(
         (data.laser_items || []).map((it: any) => ({
-          id: it.id || crypto.randomUUID(),
+          id: it.id || uuid(),
           name: it.name || "",
           quantity: Number(it.quantity) || 1,
           material_id: it.material_id || "",
@@ -219,9 +233,10 @@ export function LaserCalculator({
           machine_minutes: Number(it.machine_minutes) || 0,
         })),
       )
-      setLabor((data.labor_items || []).map((l: any) => ({ id: l.id || crypto.randomUUID(), action: l.action || "", hours: Number(l.hours) || 0, hourly_cost: Number(l.hourly_cost) || 0 })))
-      setPackaging((data.packaging_items || []).map((p: any) => ({ id: p.id || crypto.randomUUID(), name: p.name || "", quantity: Number(p.quantity) || 0, unit_cost: Number(p.unit_cost) || 0 })))
+      setLabor((data.labor_items || []).map((l: any) => ({ id: l.id || uuid(), action: l.action || "", hours: Number(l.hours) || 0, hourly_cost: Number(l.hourly_cost) || 0 })))
+      setPackaging((data.packaging_items || []).map((p: any) => ({ id: p.id || uuid(), name: p.name || "", quantity: Number(p.quantity) || 0, unit_cost: Number(p.unit_cost) || 0 })))
       setDistanceTraveledKm(Number(data.distance_traveled_km) || 0)
+      setInternalNotes(data.internal_notes || "")
       setIsEmergency(Boolean(data.is_emergency))
       setVatEnabled(data.vat_enabled !== false)
       setSetupFee(Number(data.setup_fee) || 0)
@@ -236,13 +251,56 @@ export function LaserCalculator({
     loadQuote()
   }, [editingQuoteId, supabase, toast])
 
+  // ---- Embedded prefill (Orders "Add task" re-cost) ------------------------
+  const embeddedHydratedRef = useRef(false)
+  useEffect(() => {
+    if (!embedded || !initialPayload || embeddedHydratedRef.current) return
+    embeddedHydratedRef.current = true
+    const data: any = initialPayload
+    // Deferred so this reads as an async state sync, not a synchronous cascade.
+    void Promise.resolve().then(() => {
+      setClientName(data.quote_name && data.quote_name !== "Task" ? data.quote_name : "")
+      setClientId(data.client_id ?? null)
+      if (Array.isArray(data.laser_items) && data.laser_items.length > 0) {
+        setItems(
+          data.laser_items.map((it: any) => ({
+            id: it.id || uuid(),
+            name: it.name || "",
+            quantity: Number(it.quantity) || 1,
+            material_id: it.material_id || "",
+            usage: Number(it.usage) || 0,
+            usage_width_cm: it.usage_width_cm ?? null,
+            usage_height_cm: it.usage_height_cm ?? null,
+            machine_id: it.machine_id || "",
+            machine_minutes: Number(it.machine_minutes) || 0,
+          })),
+        )
+      }
+      if (Array.isArray(data.labor_items))
+        setLabor(data.labor_items.map((l: any) => ({ id: l.id || uuid(), action: l.action || "", hours: Number(l.hours) || 0, hourly_cost: Number(l.hourly_cost) || 0 })))
+      if (Array.isArray(data.packaging_items))
+        setPackaging(data.packaging_items.map((p: any) => ({ id: p.id || uuid(), name: p.name || "", quantity: Number(p.quantity) || 0, unit_cost: Number(p.unit_cost) || 0 })))
+      setDistanceTraveledKm(Number(data.distance_traveled_km) || 0)
+      setInternalNotes(data.internal_notes || "")
+      setIsEmergency(Boolean(data.is_emergency))
+      setVatEnabled(data.vat_enabled !== false)
+      setSetupFee(Number(data.setup_fee) || 0)
+      if (data.final_price != null && data.selected_margin_percentage == null) {
+        setMarginInputMode("targetPrice")
+        setTargetPrice(Number(data.final_price) || 0)
+      } else if (data.selected_margin_percentage != null) {
+        setSelectedMargin(Number(data.selected_margin_percentage) || 50)
+      }
+    })
+  }, [embedded, initialPayload])
+
   // ---- Item helpers --------------------------------------------------------
   const patchItem = (index: number, patch: Partial<LaserItem>) =>
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)))
 
   const duplicateItem = (index: number) =>
     setItems((prev) => {
-      const copy = { ...prev[index], id: crypto.randomUUID(), name: prev[index].name ? `${prev[index].name} (copy)` : "" }
+      const copy = { ...prev[index], id: uuid(), name: prev[index].name ? `${prev[index].name} (copy)` : "" }
       const next = [...prev]
       next.splice(index + 1, 0, copy)
       return next
@@ -274,6 +332,7 @@ export function LaserCalculator({
       labor_items: labor,
       packaging_items: packaging,
       distance_traveled_km: distanceTraveledKm,
+      internal_notes: internalNotes.trim(),
       is_emergency: isEmergency,
       total_printing_cost: breakdown.materialCost,
       machine_cost: breakdown.machineCost,
@@ -311,7 +370,7 @@ export function LaserCalculator({
   }
 
   const handleSave = async (isDraft: boolean) => {
-    if (!clientName.trim()) {
+    if (!embedded && !clientName.trim()) {
       toast({ title: "Client Name Required", description: "Please enter a client name before saving.", variant: "destructive" })
       return
     }
@@ -319,14 +378,21 @@ export function LaserCalculator({
     setIsSaving(true)
     try {
       const quoteData = buildQuoteData(isDraft)
+      // Embedded (Orders "Add task"): hand the payload back instead of persisting.
+      if (embedded && onComplete) {
+        await onComplete({ ...quoteData, quote_name: quoteData.quote_name || "Task" })
+        return
+      }
+      // New quotes get the next sequential reference; edits keep the one minted at creation.
       const { error } =
         isEditingQuote && currentQuoteId
           ? await supabase.from("quotes").update(quoteData).eq("id", currentQuoteId)
-          : await supabase.from("quotes").insert([quoteData])
+          : await supabase.from("quotes").insert([{ ...quoteData, quote_number: await mintQuoteNumber() }])
       if (error) throw error
       toast({ title: "Success", description: `${isDraft ? "Draft" : "Quote"} "${clientName}" saved.` })
       if (!isDraft) {
         setClientName("")
+        setInternalNotes("")
         setIsEditingQuote(false)
         setCurrentQuoteId(null)
       }
@@ -350,7 +416,7 @@ export function LaserCalculator({
   const noMaterials = materials.length === 0
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+    <div className={embedded ? "w-full space-y-6" : "mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6"}>
       {(noMachines || noMaterials) && (
         <Card className="p-4 border-amber-500/40 bg-amber-500/5 text-sm flex items-start gap-3">
           <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
@@ -392,6 +458,17 @@ export function LaserCalculator({
               value={distanceTraveledKm || ""}
               onChange={(e) => setDistanceTraveledKm(Number.parseFloat(e.target.value) || 0)} />
           </div>
+        </div>
+        <div className="mt-4">
+          <Label htmlFor="laser-internal-notes">Internal Notes</Label>
+          <Textarea
+            id="laser-internal-notes"
+            value={internalNotes}
+            onChange={(e) => setInternalNotes(e.target.value)}
+            placeholder="Private notes for yourself — never shown to the client."
+            className="bg-card"
+            rows={2}
+          />
         </div>
         <div className="flex flex-col gap-4 mt-4">
           <div className="flex items-center space-x-2">
@@ -636,11 +713,13 @@ export function LaserCalculator({
 
         <div className="mt-6 flex flex-wrap gap-2">
           <Button onClick={() => handleSave(false)} disabled={isSaving} className="shadow-sm">
-            {isEditingQuote ? "Update Quote" : "Save Quote"}
+            {embedded ? submitLabel || "Add to task" : isEditingQuote ? "Update Quote" : "Save Quote"}
           </Button>
-          <Button variant="outline" onClick={() => handleSave(true)} disabled={isSaving}>
-            Save as Draft
-          </Button>
+          {!embedded && (
+            <Button variant="outline" onClick={() => handleSave(true)} disabled={isSaving}>
+              Save as Draft
+            </Button>
+          )}
         </div>
       </Card>
     </div>

@@ -1,5 +1,6 @@
 "use client"
 
+import { uuid } from "@/lib/uuid"
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -21,6 +22,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ClientAvatar } from "@/components/visual/client-avatar"
 import { FilamentSpool } from "@/components/visual/filament-spool"
 import { resolveFilamentColor } from "@/lib/filament-color"
+import { mintQuoteNumber } from "@/lib/quote-number"
+import { createOrderFromQuote, ordersForQuote } from "@/lib/orders/data"
+import { taskTypeLabel, taskStatusLabel } from "@/lib/orders/status"
 import {
   Trash2,
   ChevronDown,
@@ -45,6 +49,7 @@ import {
   CalendarRange,
   MoreVertical,
   LayoutTemplate,
+  ClipboardList,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { isLaserQuote, isUvQuote } from "@/lib/quote-modes"
@@ -81,16 +86,68 @@ const withQuoteVat = (quote: Quote, value: any): number => {
   return (Number(value) || 0) * (vatApplies ? 1 + (quote.vat_rate ?? 0.23) : 1)
 }
 
+type TaskEntry = {
+  id: string
+  name: string
+  type: string
+  status: string
+  price: number | null
+  machine_name: string | null
+  material_name: string | null
+  created_at: string
+  order_id: string
+  order_number: string | null
+  client_id: string | null
+  client_name: string | null
+}
+
+/** Compact row for a production task in the combined history feed. */
+function TaskHistoryRow({ task, onOpen }: { task: TaskEntry; onOpen: () => void }) {
+  const meta = [taskTypeLabel(task.type), task.machine_name, taskStatusLabel(task.status)]
+    .filter(Boolean)
+    .join(" · ")
+  return (
+    <Card
+      onClick={onOpen}
+      className="cursor-pointer overflow-hidden border-l-2 border-l-primary/40 shadow-sm transition-shadow hover:shadow-md"
+    >
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="shrink-0">
+                Task
+              </Badge>
+              {task.order_number && (
+                <span className="shrink-0 font-mono text-xs font-medium text-muted-foreground">{task.order_number}</span>
+              )}
+              <span className="truncate font-semibold text-foreground">{task.name}</span>
+            </div>
+            <p className="mt-1 truncate text-sm text-muted-foreground">
+              {task.client_name || "No client"} · {meta}
+            </p>
+          </div>
+          {task.price != null && (
+            <div className="shrink-0 text-right font-semibold text-foreground">€{task.price.toFixed(2)}</div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function QuoteHistory({
   quotes,
   clients = [],
   printers = [],
-  filaments = []
+  filaments = [],
+  taskEntries = []
 }: {
   quotes: Quote[],
   clients?: any[],
   printers?: any[],
-  filaments?: any[]
+  filaments?: any[],
+  taskEntries?: TaskEntry[]
 }) {
   // Fully controlled: props are the source of truth. The parent page reloads
   // on every local-db change (including this component's own mutations), so
@@ -121,6 +178,20 @@ function QuoteHistory({
     router.push(`/quote/${id}?print=1`)
   }
 
+  const handleCreateOrder = async (quote: Quote) => {
+    // Warn (but don't block) if this quote was already turned into an order, so
+    // duplicates are intentional rather than accidental.
+    const existing = await ordersForQuote(quote.id)
+    if (
+      existing.length > 0 &&
+      !window.confirm("This quote is already linked to an order. Create another order from it?")
+    ) {
+      return
+    }
+    const order = await createOrderFromQuote(quote)
+    router.push(`/orders/${order.id}`)
+  }
+
   const handleDuplicate = async (quote: Quote) => {
     const supabase = createClient()
     
@@ -141,7 +212,7 @@ function QuoteHistory({
     // ("Could not find the 'clients' column of 'quotes'..."), so duplicate always failed.
     // Strip those join artifacts so the insert only contains real `quotes` columns.
     // Also drop per-quote lifecycle fields: a copy must mint its own invoice
-    // and hasn't consumed any filament stock yet.
+    // number and quote reference, and hasn't consumed any filament stock yet.
     const {
       id,
       clients,
@@ -151,10 +222,14 @@ function QuoteHistory({
       due_date,
       paid_at,
       stock_deducted,
+      quote_number,
       ...quoteData
     } = duplicatedQuote as any
-    
-    const { data, error } = await supabase.from("quotes").insert([quoteData]).select()
+
+    const { data, error } = await supabase
+      .from("quotes")
+      .insert([{ ...quoteData, quote_number: await mintQuoteNumber() }])
+      .select()
     
     if (error) {
       toast({
@@ -192,14 +267,17 @@ function QuoteHistory({
       due_date,
       paid_at,
       stock_deducted,
+      quote_number,
       created_at,
       is_draft,
+      // Notes are quote-specific clarifications, not reusable structure.
+      internal_notes,
       ...payload
     } = quote as any
 
     const { error } = await supabase.from("quote_templates").insert([
       {
-        id: crypto.randomUUID(),
+        id: uuid(),
         name: quote.quote_name,
         payload,
       },
@@ -252,6 +330,7 @@ function QuoteHistory({
     const payload = {
       quote: {
         quote_name: quote.quote_name,
+        quote_number: quote.quote_number,
         quote_type: quote.quote_type,
         created_at: quote.created_at,
         valid_until: quote.valid_until,
@@ -522,7 +601,7 @@ function QuoteHistory({
       const uvNames = (quote.uv_items || [])
         .map((it: any) => it?.name || "")
         .join(" ")
-      const haystack = `${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames} ${uvNames}`.toLowerCase()
+      const haystack = `${quote.quote_number || ""} ${quote.quote_name || ""} ${clientName} ${partNames} ${laserNames} ${uvNames} ${quote.internal_notes || ""}`.toLowerCase()
       if (!haystack.includes(query)) return false
     }
 
@@ -575,7 +654,47 @@ function QuoteHistory({
     return true
   })
 
-  if (quotes.length === 0) {
+  // Production tasks shown in the combined feed. Quote-only filters
+  // (status/printer/filament) hide tasks; search/date/client apply to both.
+  const quoteOnlyFilterActive =
+    statusFilters.length > 0 || printerFilters.length > 0 || filamentFilters.length > 0
+  const filteredTasks: TaskEntry[] = quoteOnlyFilterActive
+    ? []
+    : taskEntries.filter((task) => {
+        const query = searchQuery.trim().toLowerCase()
+        if (query) {
+          const haystack = `${task.order_number || ""} ${task.name} ${task.client_name || ""} ${task.machine_name || ""} ${task.material_name || ""}`.toLowerCase()
+          if (!haystack.includes(query)) return false
+        }
+        if (dateFrom || dateTo) {
+          const key = localDateKey(task.created_at)
+          if (dateFrom && key < dateFrom) return false
+          if (dateTo && key > dateTo) return false
+        }
+        if (clientFilters.length > 0) {
+          if (!task.client_id || !clientFilters.includes(task.client_id)) return false
+        }
+        return true
+      })
+
+  // Merge quotes + tasks into one chronological feed (newest first).
+  type FeedEntry =
+    | { kind: "quote"; date: number; quote: (typeof filteredQuotes)[number] }
+    | { kind: "task"; date: number; task: TaskEntry }
+  const feed: FeedEntry[] = [
+    ...filteredQuotes.map((quote) => ({
+      kind: "quote" as const,
+      date: new Date(quote.created_at || 0).getTime(),
+      quote,
+    })),
+    ...filteredTasks.map((task) => ({
+      kind: "task" as const,
+      date: new Date(task.created_at || 0).getTime(),
+      task,
+    })),
+  ].sort((a, b) => b.date - a.date)
+
+  if (quotes.length === 0 && taskEntries.length === 0) {
     return (
       <div className="max-w-4xl mx-auto">
         <Card className="border-dashed shadow-none bg-card/50">
@@ -830,11 +949,22 @@ function QuoteHistory({
 
           <p className="text-sm text-muted-foreground" aria-live="polite">
             Showing {filteredQuotes.length} of {quotes.length} quote{quotes.length !== 1 ? "s" : ""}
+            {filteredTasks.length > 0 && ` · ${filteredTasks.length} production task${filteredTasks.length !== 1 ? "s" : ""}`}
           </p>
         </div>
       </div>
 
-      {filteredQuotes.map((quote) => {
+      {feed.map((entry) => {
+        if (entry.kind === "task") {
+          return (
+            <TaskHistoryRow
+              key={`task-${entry.task.id}`}
+              task={entry.task}
+              onOpen={() => router.push(`/orders/${entry.task.order_id}`)}
+            />
+          )
+        }
+        const quote = entry.quote
         // Laser/sticker quotes keep their line items in laser_items, not
         // printed_parts/materials, so the generic 3D-print counts below would
         // always read zero for them — count laser_items as "items" instead.
@@ -891,6 +1021,11 @@ function QuoteHistory({
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <CardTitle className="text-lg sm:text-xl flex flex-wrap items-center gap-2">
+                    {quote.quote_number && (
+                      <span className="shrink-0 font-mono text-sm font-medium text-muted-foreground">
+                        {quote.quote_number}
+                      </span>
+                    )}
                     <span className="break-words">{quote.quote_name}</span>
                     {isLaserQuote(quote) && (
                       <span className="ml-2 inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -965,6 +1100,15 @@ function QuoteHistory({
                       {clientName}
                     </p>
                   )}
+                  {/* Operator-only note; quote history never reaches clients. */}
+                  {quote.internal_notes && (
+                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap break-words">
+                      <span className="mr-1.5 inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider align-middle">
+                        Internal
+                      </span>
+                      {quote.internal_notes}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground break-words mt-1">
                     {isItemised ? (
                       <>
@@ -1008,6 +1152,9 @@ function QuoteHistory({
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}/invoice`)}>
                           Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleCreateOrder(quote)}>
+                          Create order
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleCopyShareLink(quote)}>
                           Copy share link
@@ -1118,6 +1265,10 @@ function QuoteHistory({
                         <DropdownMenuItem onClick={() => router.push(`/quote/${quote.id}/invoice`)}>
                           <Share2 className="h-4 w-4 mr-2" />
                           Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleCreateOrder(quote)}>
+                          <ClipboardList className="h-4 w-4 mr-2" />
+                          Create order
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleCopyShareLink(quote)}>
                           <Share2 className="h-4 w-4 mr-2" />

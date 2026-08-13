@@ -237,6 +237,9 @@ CREATE TABLE IF NOT EXISTS quotes (
   -- The VAT fraction the quote was priced at, so documents re-render historically.
   vat_rate NUMERIC,
   valid_until TIMESTAMPTZ,
+  -- Sequential per-year quote reference ("Q-2026-001"), minted at save time
+  -- by lib/quote-number.ts from the counters table (key "quote-YYYY").
+  quote_number TEXT,
   -- Invoice fields, minted the first time the invoice document is opened.
   invoice_number TEXT,
   invoice_date TIMESTAMPTZ,
@@ -245,6 +248,8 @@ CREATE TABLE IF NOT EXISTS quotes (
   -- Set once the quote reached "finished" and filament stock was decremented,
   -- so repeated status flips never double-deduct inventory.
   stock_deducted BOOLEAN DEFAULT FALSE,
+  -- Operator-only free-text note; never rendered in client-facing documents.
+  internal_notes TEXT,
   -- Route behind distance_traveled_km; the distance stays the single source of
   -- truth for the fuel-cost math either way.
   route_origin JSONB,
@@ -340,6 +345,7 @@ CREATE INDEX IF NOT EXISTS idx_filaments_material_type ON filaments(material_typ
 CREATE INDEX IF NOT EXISTS idx_laser_materials_type ON laser_materials(material_type);
 CREATE INDEX IF NOT EXISTS idx_quotes_type_mode ON quotes(quote_type_mode);
 CREATE INDEX IF NOT EXISTS idx_quotes_invoice_number ON quotes(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_quotes_quote_number ON quotes(quote_number);
 CREATE INDEX IF NOT EXISTS idx_printers_machine_type ON printers(machine_type);
 CREATE INDEX IF NOT EXISTS idx_quote_templates_name ON quote_templates(name);
 CREATE INDEX IF NOT EXISTS idx_uv_inks_sort_order ON uv_inks(sort_order);

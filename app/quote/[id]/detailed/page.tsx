@@ -84,7 +84,7 @@ function UvItemsSection({ quote, money }: { quote: any; money: (n: number) => st
           <tr>
             <th className={th}>Item</th>
             <th className={th}>Material</th>
-            <th className={th}>Machine</th>
+            <th className={th}>Time</th>
             <th className={thRight}>Qty</th>
             <th className={thRight}>Runs</th>
             <th className={thRight}>Cost / pc</th>
@@ -100,10 +100,9 @@ function UvItemsSection({ quote, money }: { quote: any; money: (n: number) => st
                 {it.sides > 1 ? <span className="ml-2 text-xs text-slate-400">double-sided</span> : null}
               </td>
               <td className={tdMuted}>{it.material_name || "—"}</td>
-              <td className={tdMuted}>
-                {it.machine_name || "—"}
-                {it.minutes_per_run ? ` · ${it.minutes_per_run} min/run` : ""}
-              </td>
+              {/* Production time only — machine names are internal and must not
+                  appear on client-facing documents. */}
+              <td className={tdMuted}>{it.minutes_per_run ? `${it.minutes_per_run} min/run` : "—"}</td>
               <td className={tdNum}>{Number(it.quantity) || 0}</td>
               <td className={tdNum}>{Number(it.runs) || 0}</td>
               <td className={tdNum}>{money(Number(it.cost_per_piece) || 0)}</td>
@@ -130,7 +129,7 @@ function LaserItemsSection({ quote, money }: { quote: any; money: (n: number) =>
           <tr>
             <th className={th}>Item</th>
             <th className={th}>Material</th>
-            <th className={th}>Machine</th>
+            <th className={th}>Time</th>
             <th className={thRight}>Qty</th>
             <th className={thRight}>Cost / pc</th>
             <th className={thRight}>Sell / pc</th>
@@ -142,7 +141,9 @@ function LaserItemsSection({ quote, money }: { quote: any; money: (n: number) =>
             <tr key={it.id || i}>
               <td className={td}>{it.name || "Unnamed item"}</td>
               <td className={tdMuted}>{it.material_name || "—"}</td>
-              <td className={tdMuted}>{it.machine_name || "—"}{it.machine_minutes ? ` · ${it.machine_minutes} min/pc` : ""}</td>
+              {/* Production time only — machine names are internal and must not
+                  appear on client-facing documents. */}
+              <td className={tdMuted}>{it.machine_minutes ? `${it.machine_minutes} min/pc` : "—"}</td>
               <td className={tdNum}>{Number(it.quantity) || 0}</td>
               <td className={tdNum}>{money(Number(it.cost_per_piece) || 0)}</td>
               <td className={tdNum}>
@@ -424,7 +425,9 @@ export default function DetailedQuotePage() {
         <header className="mb-14">
           <div className="flex items-baseline justify-between gap-6">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-3">Detailed Quotation</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-3">
+                Detailed Quotation{quote.quote_number ? ` ${quote.quote_number}` : ""}
+              </p>
               <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{quote.quote_name}</h1>
             </div>
             {quote.is_emergency && (

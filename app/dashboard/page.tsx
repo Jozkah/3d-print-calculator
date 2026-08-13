@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { onLocalDbChange } from "@/lib/local-db"
+import { onDbChange } from "@/lib/db-realtime"
+import { backfillQuoteNumbers } from "@/lib/quote-number"
 import { SiteHeader, PageHeader } from "@/components/site-header"
 import { PageLoading, PageLoadError } from "@/components/page-loading"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -66,6 +67,8 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadData = async () => {
       const supabase = createClient()
+      // Give pre-reference quotes their Q-YYYY-NNN before rendering.
+      await backfillQuoteNumbers()
       const { data: quotesData, error: quotesError } = await supabase.from("quotes").select("*")
       const { data: clientsData, error: clientsError } = await supabase.from("clients").select("*")
       const { data: printersData, error: printersError } = await supabase.from("printers").select("*")
@@ -85,7 +88,7 @@ export default function DashboardPage() {
       setLoaded(true)
     }
     loadData()
-    return onLocalDbChange(loadData)
+    return onDbChange(loadData)
   }, [])
 
   const currencySymbol = settings?.currency_symbol || "€"

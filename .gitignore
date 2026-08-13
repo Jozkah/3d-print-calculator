@@ -34,3 +34,6 @@ seed-data.json
 next-env.d.ts
 .superpowers/
 .playwright-mcp/
+
+# Local SQLite database (server backend)
+/data/

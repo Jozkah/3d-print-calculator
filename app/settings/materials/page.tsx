@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { onLocalDbChange } from "@/lib/local-db"
+import { onDbChange } from "@/lib/db-realtime"
 import { LaserMaterialsList } from "@/components/laser-materials-list"
 import { SiteHeader, PageHeader } from "@/components/site-header"
 import type { LaserMaterial } from "@/types/db"
@@ -19,7 +19,7 @@ export default function MaterialsPage() {
       setLoaded(true)
     }
     loadData()
-    return onLocalDbChange(loadData)
+    return onDbChange(loadData)
   }, [])
 
   return (

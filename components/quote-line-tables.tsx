@@ -3,6 +3,7 @@
 // Controlled labor/packaging line tables shared by calculators. The row field
 // names match what saved quotes already store in labor_items/packaging_items.
 
+import { uuid } from "@/lib/uuid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -29,7 +30,7 @@ export function LaborTable({
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold tracking-tight text-foreground">Labor</h2>
         <Button size="sm" className="shadow-sm"
-          onClick={() => onChange([...items, { id: crypto.randomUUID(), action: "", hours: 0, hourly_cost: defaultHourlyRate }])}>
+          onClick={() => onChange([...items, { id: uuid(), action: "", hours: 0, hourly_cost: defaultHourlyRate }])}>
           <Plus className="w-4 h-4 mr-2" />Add Labor
         </Button>
       </div>
@@ -80,7 +81,7 @@ export function PackagingTable({
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold tracking-tight text-foreground">Packaging</h2>
         <Button size="sm" className="shadow-sm"
-          onClick={() => onChange([...items, { id: crypto.randomUUID(), name: "", quantity: 1, unit_cost: 0 }])}>
+          onClick={() => onChange([...items, { id: uuid(), name: "", quantity: 1, unit_cost: 0 }])}>
           <Plus className="w-4 h-4 mr-2" />Add Packaging
         </Button>
       </div>

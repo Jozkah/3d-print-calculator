@@ -1,12 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { uuid } from "@/lib/uuid"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { mintQuoteNumber } from "@/lib/quote-number"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
 import { Plus, AlertTriangle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { ClientSelector } from "@/components/client-selector"
@@ -35,10 +38,16 @@ interface UvCalculatorProps {
   editingQuoteId?: string
   /** Start a NEW quote pre-filled from a saved template (quote_templates row). */
   templateId?: string
+  // Embedded mode (Orders "Add task"): hand the computed quoteData to onComplete
+  // instead of saving a quotes row.
+  embedded?: boolean
+  onComplete?: (quoteData: Record<string, any>) => void | Promise<void>
+  initialPayload?: Record<string, any> | null
+  submitLabel?: string
 }
 
 const newItem = (): UvItem => ({
-  id: crypto.randomUUID(),
+  id: uuid(),
   name: "",
   quantity: 1,
   pieces_per_run: 1,
@@ -54,7 +63,7 @@ const newItem = (): UvItem => ({
 
 /** Rehydrate a persisted item, coercing every number so a hand-edited backup can't produce NaN. */
 const hydrateItem = (it: any): UvItem => ({
-  id: it.id || crypto.randomUUID(),
+  id: it.id || uuid(),
   name: it.name || "",
   quantity: Number(it.quantity) || 0,
   pieces_per_run: Number(it.pieces_per_run) || 1,
@@ -75,7 +84,7 @@ const hydrateItem = (it: any): UvItem => ({
 })
 
 const hydrateOperation = (op: any): UvOperation => ({
-  id: op.id || crypto.randomUUID(),
+  id: op.id || uuid(),
   name: op.name || "",
   kind: op.kind === "cost" ? "cost" : "labour",
   minutes: Number(op.minutes) || 0,
@@ -93,6 +102,10 @@ export function UvCalculator({
   clients: initialClients = [],
   editingQuoteId,
   templateId,
+  embedded = false,
+  onComplete,
+  initialPayload = null,
+  submitLabel,
 }: UvCalculatorProps) {
   const { toast } = useToast()
   const supabase = useMemo(() => createClient(), [])
@@ -104,6 +117,7 @@ export function UvCalculator({
   const [clientName, setClientName] = useState("")
   const [clientId, setClientId] = useState<string | null>(null)
   const [distanceTraveledKm, setDistanceTraveledKm] = useState(0)
+  const [internalNotes, setInternalNotes] = useState("")
   const [isEmergency, setIsEmergency] = useState(false)
   const [vatEnabled, setVatEnabled] = useState(true)
   const [setupFee, setSetupFee] = useState<number>(globalSettings?.default_setup_fee ?? LASER_DEFAULTS.default_setup_fee)
@@ -194,13 +208,14 @@ export function UvCalculator({
       setOperations((data.uv_operations || []).map(hydrateOperation))
       setPackaging(
         (data.packaging_items || []).map((p: any) => ({
-          id: p.id || crypto.randomUUID(),
+          id: p.id || uuid(),
           name: p.name || "",
           quantity: Number(p.quantity) || 0,
           unit_cost: Number(p.unit_cost) || 0,
         })),
       )
       setDistanceTraveledKm(Number(data.distance_traveled_km) || 0)
+      setInternalNotes(data.internal_notes || "")
       setIsEmergency(Boolean(data.is_emergency))
       setVatEnabled(data.vat_enabled !== false)
       setSetupFee(Number(data.setup_fee) || 0)
@@ -214,6 +229,41 @@ export function UvCalculator({
     }
     loadQuote()
   }, [editingQuoteId, supabase, toast])
+
+  // ---- Embedded prefill (Orders "Add task" re-cost) ------------------------
+  const embeddedHydratedRef = useRef(false)
+  useEffect(() => {
+    if (!embedded || !initialPayload || embeddedHydratedRef.current) return
+    embeddedHydratedRef.current = true
+    const data: any = initialPayload
+    // Deferred so this reads as an async state sync, not a synchronous cascade.
+    void Promise.resolve().then(() => {
+      setClientName(data.quote_name && data.quote_name !== "Task" ? data.quote_name : "")
+      setClientId(data.client_id ?? null)
+      if (Array.isArray(data.uv_items) && data.uv_items.length > 0) setItems(data.uv_items.map(hydrateItem))
+      if (Array.isArray(data.uv_operations)) setOperations(data.uv_operations.map(hydrateOperation))
+      if (Array.isArray(data.packaging_items))
+        setPackaging(
+          data.packaging_items.map((p: any) => ({
+            id: p.id || uuid(),
+            name: p.name || "",
+            quantity: Number(p.quantity) || 0,
+            unit_cost: Number(p.unit_cost) || 0,
+          })),
+        )
+      setDistanceTraveledKm(Number(data.distance_traveled_km) || 0)
+      setInternalNotes(data.internal_notes || "")
+      setIsEmergency(Boolean(data.is_emergency))
+      setVatEnabled(data.vat_enabled !== false)
+      setSetupFee(Number(data.setup_fee) || 0)
+      if (data.final_price != null && data.selected_margin_percentage == null) {
+        setMarginInputMode("targetPrice")
+        setTargetPrice(Number(data.final_price) || 0)
+      } else if (data.selected_margin_percentage != null) {
+        setSelectedMargin(Number(data.selected_margin_percentage) || 50)
+      }
+    })
+  }, [embedded, initialPayload])
 
   // ---- Template hydration --------------------------------------------------
   // A template is a saved quote structure with no client or pricing identity —
@@ -231,17 +281,17 @@ export function UvCalculator({
       // Template rows get fresh ids; remap back-side links through the same
       // table so a two-sided item survives the copy.
       const hydrated = (payload.uv_items || []).map((it: any) => hydrateItem(it))
-      const idMap = new Map(hydrated.map((it: UvItem) => [it.id, crypto.randomUUID()]))
+      const idMap = new Map(hydrated.map((it: UvItem) => [it.id, uuid()]))
       const templateItems: UvItem[] = hydrated.map((it: UvItem) => ({
         ...it,
         id: idMap.get(it.id)!,
         back_of_item_id: it.back_of_item_id ? idMap.get(it.back_of_item_id) ?? null : null,
       }))
       setItems(templateItems.length > 0 ? templateItems : [newItem()])
-      setOperations((payload.uv_operations || []).map((op: any) => ({ ...hydrateOperation(op), id: crypto.randomUUID() })))
+      setOperations((payload.uv_operations || []).map((op: any) => ({ ...hydrateOperation(op), id: uuid() })))
       setPackaging(
         (payload.packaging_items || []).map((p: any) => ({
-          id: crypto.randomUUID(),
+          id: uuid(),
           name: p.name || "",
           quantity: Number(p.quantity) || 0,
           unit_cost: Number(p.unit_cost) || 0,
@@ -261,7 +311,7 @@ export function UvCalculator({
 
   const duplicateItem = (index: number) =>
     setItems((prev) => {
-      const copy = { ...prev[index], id: crypto.randomUUID(), name: prev[index].name ? `${prev[index].name} (copy)` : "" }
+      const copy = { ...prev[index], id: uuid(), name: prev[index].name ? `${prev[index].name} (copy)` : "" }
       const next = [...prev]
       next.splice(index + 1, 0, copy)
       return next
@@ -371,6 +421,7 @@ export function UvCalculator({
       labor_items: [],
       packaging_items: packaging,
       distance_traveled_km: distanceTraveledKm,
+      internal_notes: internalNotes.trim(),
       is_emergency: isEmergency,
       total_printing_cost: breakdown.materialCost,
       machine_cost: breakdown.machineCost,
@@ -409,7 +460,7 @@ export function UvCalculator({
   }
 
   const handleSave = async (isDraft: boolean) => {
-    if (!clientName.trim()) {
+    if (!embedded && !clientName.trim()) {
       toast({ title: "Client Name Required", description: "Please enter a client name before saving.", variant: "destructive" })
       return
     }
@@ -417,14 +468,21 @@ export function UvCalculator({
     setIsSaving(true)
     try {
       const quoteData = buildQuoteData(isDraft)
+      // Embedded (Orders "Add task"): hand the payload back instead of persisting.
+      if (embedded && onComplete) {
+        await onComplete({ ...quoteData, quote_name: quoteData.quote_name || "Task" })
+        return
+      }
+      // New quotes get the next sequential reference; edits keep the one minted at creation.
       const { error } =
         isEditingQuote && currentQuoteId
           ? await supabase.from("quotes").update(quoteData).eq("id", currentQuoteId)
-          : await supabase.from("quotes").insert([quoteData])
+          : await supabase.from("quotes").insert([{ ...quoteData, quote_number: await mintQuoteNumber() }])
       if (error) throw error
       toast({ title: "Success", description: `${isDraft ? "Draft" : "Quote"} "${clientName}" saved.` })
       if (!isDraft) {
         setClientName("")
+        setInternalNotes("")
         setIsEditingQuote(false)
         setCurrentQuoteId(null)
       }
@@ -448,7 +506,7 @@ export function UvCalculator({
   const noInkPrices = inks.length === 0 || inks.every((i) => !i.oem_volume_ml)
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+    <div className={embedded ? "w-full space-y-6" : "mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6"}>
       {(noMachines || noInkPrices) && (
         <Card className="p-4 border-amber-500/40 bg-amber-500/5 text-sm flex items-start gap-3">
           <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
@@ -490,6 +548,17 @@ export function UvCalculator({
               value={distanceTraveledKm || ""}
               onChange={(e) => setDistanceTraveledKm(Number.parseFloat(e.target.value) || 0)} />
           </div>
+        </div>
+        <div className="mt-4">
+          <Label htmlFor="uv-internal-notes">Internal Notes</Label>
+          <Textarea
+            id="uv-internal-notes"
+            value={internalNotes}
+            onChange={(e) => setInternalNotes(e.target.value)}
+            placeholder="Private notes for yourself — never shown to the client."
+            className="bg-card"
+            rows={2}
+          />
         </div>
         <div className="flex flex-col gap-4 mt-4">
           <div className="flex items-center space-x-2">
@@ -726,11 +795,13 @@ export function UvCalculator({
 
         <div className="mt-6 flex flex-wrap gap-2">
           <Button onClick={() => handleSave(false)} disabled={isSaving} className="shadow-sm">
-            {isEditingQuote ? "Update Quote" : "Save Quote"}
+            {embedded ? submitLabel || "Add to task" : isEditingQuote ? "Update Quote" : "Save Quote"}
           </Button>
-          <Button variant="outline" onClick={() => handleSave(true)} disabled={isSaving}>
-            Save as Draft
-          </Button>
+          {!embedded && (
+            <Button variant="outline" onClick={() => handleSave(true)} disabled={isSaving}>
+              Save as Draft
+            </Button>
+          )}
         </div>
       </Card>
     </div>

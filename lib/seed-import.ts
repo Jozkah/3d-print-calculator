@@ -9,6 +9,8 @@
 // imported automatically.
 
 import { OWNER_A_KEY, OWNER_B_KEY } from "@/lib/business-config"
+import { isServerBackend } from "@/lib/data-backend"
+import { serverReplaceAll } from "@/lib/remote-db"
 
 const PREFIX = "3dpc:"
 
@@ -17,12 +19,26 @@ const KNOWN_TABLES = [
   "printers",
   "filaments",
   "laser_materials",
+  "uv_materials",
+  "uv_inks",
   "clients",
   "quotes",
+  "quote_templates",
   "global_settings",
+  "counters",
   "imported_csv_files",
   "quote_headers",
   "quote_parts",
+  // Order-management domain (binary attachment bytes live in IndexedDB and are
+  // handled separately by lib/orders/backup.ts — these are the metadata rows).
+  "orders",
+  "order_tasks",
+  "order_notes",
+  "order_attachments",
+  "order_activity",
+  "order_quote_links",
+  "invoices",
+  "payments",
 ] as const
 
 export type SeedImportSummary = {
@@ -127,12 +143,15 @@ export function exportAll(): Record<string, unknown> {
   return out
 }
 
+type PreparedTable = { table: string; rows: Record<string, any>[] }
+
 /**
- * Validate and import a parsed seed object into localStorage, replacing the
- * existing contents of each table present in the file. Returns a summary;
- * throws only if the input is not an object at all.
+ * Validate, migrate, and normalize a parsed seed object into a list of writable
+ * tables — WITHOUT writing anything. Shared by the localStorage importer and the
+ * server importer so both apply identical validation. Throws only if the input
+ * is not an object at all.
  */
-export function importSeedObject(seed: unknown): SeedImportSummary {
+function prepareSeed(seed: unknown): { prepared: PreparedTable[]; summary: SeedImportSummary } {
   const summary: SeedImportSummary = { imported: [], skipped: [], errors: [] }
 
   if (!isPlainObject(seed)) {
@@ -143,6 +162,7 @@ export function importSeedObject(seed: unknown): SeedImportSummary {
   const data: Record<string, any> = JSON.parse(JSON.stringify(seed))
   migrateOwners(data)
 
+  const prepared: PreparedTable[] = []
   for (const [table, rows] of Object.entries(data)) {
     if (!(KNOWN_TABLES as readonly string[]).includes(table)) {
       summary.skipped.push(table)
@@ -157,14 +177,45 @@ export function importSeedObject(seed: unknown): SeedImportSummary {
       summary.errors.push(`"${table}" row ${invalid} is not an object — table skipped.`)
       continue
     }
-    const normalized = rows.map(normalizeRow)
+    prepared.push({ table, rows: rows.map(normalizeRow) })
+  }
+
+  return { prepared, summary }
+}
+
+/**
+ * Import into localStorage, replacing the existing contents of each table
+ * present in the file. Returns a summary; throws only if the input is not an
+ * object at all. (Local backend only.)
+ */
+export function importSeedObject(seed: unknown): SeedImportSummary {
+  const { prepared, summary } = prepareSeed(seed)
+  for (const { table, rows } of prepared) {
     try {
-      window.localStorage.setItem(PREFIX + table, JSON.stringify(normalized))
-      summary.imported.push({ table, rows: normalized.length })
+      window.localStorage.setItem(PREFIX + table, JSON.stringify(rows))
+      summary.imported.push({ table, rows: rows.length })
     } catch (e: any) {
       summary.errors.push(`"${table}" failed to write: ${e?.message ?? String(e)}`)
     }
   }
+  return summary
+}
 
+/**
+ * Backend-aware import. In server mode each table is replaced on the shared
+ * SQLite database via /api/db; otherwise it falls back to the synchronous
+ * localStorage importer. This is what the Settings "Import data" card calls so
+ * a backup exported from a localStorage browser can be migrated into the shared
+ * database.
+ */
+export async function importSeedObjectAsync(seed: unknown): Promise<SeedImportSummary> {
+  if (!isServerBackend) return importSeedObject(seed)
+
+  const { prepared, summary } = prepareSeed(seed)
+  for (const { table, rows } of prepared) {
+    const { error } = await serverReplaceAll(table, rows)
+    if (error) summary.errors.push(`"${table}" failed to write: ${error.message}`)
+    else summary.imported.push({ table, rows: rows.length })
+  }
   return summary
 }

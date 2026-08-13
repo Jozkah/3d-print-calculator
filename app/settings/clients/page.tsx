@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { onLocalDbChange } from "@/lib/local-db"
+import { onDbChange } from "@/lib/db-realtime"
 import { ClientsList } from "@/components/clients-list"
 import { SiteHeader, PageHeader } from "@/components/site-header"
 
@@ -18,7 +18,7 @@ export default function ClientsPage() {
       setLoaded(true)
     }
     loadData()
-    return onLocalDbChange(loadData)
+    return onDbChange(loadData)
   }, [])
 
   return (
