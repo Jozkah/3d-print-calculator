@@ -382,6 +382,14 @@ export function UvCalculator({
     return { front: own.costPerPiece, rear }
   }
 
+  /**
+   * The rows the per-piece summary lists. A back side is already folded into its
+   * front item by `combinedLine`, so listing it again would add a second,
+   * nameless row at half the price. Resolved first, so a back side whose front
+   * item was deleted still gets a line of its own instead of vanishing.
+   */
+  const perPieceRows = resolveBackSides(items).filter((it) => !it.back_of_item_id && itemQty(it) > 0)
+
   // ---- Save ----------------------------------------------------------------
   const buildQuoteData = (isDraft: boolean) => {
     // Save what was priced, not what was typed: a back side's stored name,
@@ -768,20 +776,19 @@ export function UvCalculator({
           </div>
         </div>
 
-        {breakdown.items.some((b) => {
-          const match = items.find((i) => i.id === b.id)
-          return match ? itemQty(match) > 0 : false
-        }) && (
+        {perPieceRows.length > 0 && (
           <div className="mt-4 border-t border-border pt-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Per piece</p>
             <div className="space-y-1 text-sm">
-              {items.map((it) => {
-                const b = breakdown.items.find((x) => x.id === it.id)
-                if (!b || itemQty(it) === 0) return null
+              {perPieceRows.map((it) => {
+                const b = combinedLine(it.id)
+                if (!b) return null
+                const sides = items.filter((other) => other.back_of_item_id === it.id).length + 1
                 return (
                   <div key={it.id} className="flex justify-between">
                     <span className="text-muted-foreground truncate mr-4">
-                      {it.name || "Unnamed item"} × {itemQty(it)} ({b.runs} run{b.runs === 1 ? "" : "s"})
+                      {it.name || "Unnamed item"} × {itemQty(it)} ({b.runs} run{b.runs === 1 ? "" : "s"}
+                      {sides > 1 ? `, ${sides} sides` : ""})
                     </span>
                     <span className="tabular-nums whitespace-nowrap">
                       cost {money(b.costPerPiece)} → sell {money(b.sellPerPiece)}
