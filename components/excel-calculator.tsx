@@ -21,6 +21,25 @@ import type { RouteSelection } from "@/components/route-distance-dialog"
 // Leaflet touches `window` at import time — load the dialog only in the
 // browser, and only when a quote actually needs a route.
 const RouteDistanceDialog = dynamic(() => import("@/components/route-distance-dialog"), { ssr: false })
+
+// Quick-add presets — one click appends a pre-filled row the user can still edit.
+// Mirrors the UV calculator's work-step presets so 3D quotes are faster to build.
+const LABOR_PRESETS: { label: string; action: string; hours: number }[] = [
+  { label: "Slicing / prep", action: "Slicing / prep", hours: 0.25 },
+  { label: "Support removal", action: "Support removal", hours: 0.15 },
+  { label: "Cleanup / sanding", action: "Cleanup / sanding", hours: 0.3 },
+  { label: "QC + packing", action: "QC + packing", hours: 0.1 },
+]
+const MATERIAL_PRESETS: { label: string; name: string; quantity: number; unit_cost: number }[] = [
+  { label: "Inserts / hardware", name: "Threaded inserts / hardware", quantity: 1, unit_cost: 0 },
+  { label: "Magnets", name: "Magnets", quantity: 1, unit_cost: 0 },
+  { label: "Adhesive", name: "Adhesive / glue", quantity: 1, unit_cost: 0 },
+]
+const PACKAGING_PRESETS: { label: string; name: string; quantity: number; unit_cost: number }[] = [
+  { label: "Box", name: "Shipping box", quantity: 1, unit_cost: 0 },
+  { label: "Bubble wrap", name: "Bubble wrap / padding", quantity: 1, unit_cost: 0 },
+  { label: "Shipping label", name: "Shipping label", quantity: 1, unit_cost: 0 },
+]
 import { useToast } from "@/hooks/use-toast" // Must match the copy <Toaster /> subscribes to
 import { DialogCustom } from "@/components/ui/dialog-custom" // Import DialogCustom
 import { cn } from "@/lib/utils" // Assuming cn utility is available
@@ -1939,18 +1958,35 @@ export function ExcelCalculator({
 
           {/* Materials Table */}
           <Card className="p-5 sm:p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Materials (Hardware, etc.)</h2>
-              <Button
-                onClick={() =>
-                  setMaterials([...materials, { id: uuid(), name: "", quantity: 0, unit_cost: 0 }])
-                }
-                size="sm"
-                className="shadow-sm"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Material
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {MATERIAL_PRESETS.map((p) => (
+                  <Button
+                    key={p.label}
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setMaterials((prev) => [
+                        ...prev,
+                        { id: uuid(), name: p.name, quantity: p.quantity, unit_cost: p.unit_cost },
+                      ])
+                    }
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+                <Button
+                  onClick={() =>
+                    setMaterials([...materials, { id: uuid(), name: "", quantity: 0, unit_cost: 0 }])
+                  }
+                  size="sm"
+                  className="shadow-sm"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Material
+                </Button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
@@ -2033,18 +2069,35 @@ export function ExcelCalculator({
 
           {/* Labor Table */}
           <Card className="p-5 sm:p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Labor</h2>
-              <Button
-                onClick={() =>
-                  setLabor([...labor, { id: uuid(), action: "", hours: 0, hourly_cost: 0 }])
-                }
-                size="sm"
-                className="shadow-sm"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Labor
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {LABOR_PRESETS.map((p) => (
+                  <Button
+                    key={p.label}
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setLabor((prev) => [
+                        ...prev,
+                        { id: uuid(), action: p.action, hours: p.hours, hourly_cost: prev[prev.length - 1]?.hourly_cost ?? 0 },
+                      ])
+                    }
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+                <Button
+                  onClick={() =>
+                    setLabor([...labor, { id: uuid(), action: "", hours: 0, hourly_cost: 0 }])
+                  }
+                  size="sm"
+                  className="shadow-sm"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Labor
+                </Button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
@@ -2127,18 +2180,35 @@ export function ExcelCalculator({
 
           {/* Packaging & Shipping Table */}
           <Card className="p-5 sm:p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Packaging & Shipping</h2>
-              <Button
-                onClick={() =>
-                  setPackaging([...packaging, { id: uuid(), name: "", quantity: 0, unit_cost: 0 }])
-                }
-                size="sm"
-                className="shadow-sm"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Item
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {PACKAGING_PRESETS.map((p) => (
+                  <Button
+                    key={p.label}
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setPackaging((prev) => [
+                        ...prev,
+                        { id: uuid(), name: p.name, quantity: p.quantity, unit_cost: p.unit_cost },
+                      ])
+                    }
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+                <Button
+                  onClick={() =>
+                    setPackaging([...packaging, { id: uuid(), name: "", quantity: 0, unit_cost: 0 }])
+                  }
+                  size="sm"
+                  className="shadow-sm"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Item
+                </Button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">

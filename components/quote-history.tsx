@@ -24,6 +24,7 @@ import { FilamentSpool } from "@/components/visual/filament-spool"
 import { resolveFilamentColor } from "@/lib/filament-color"
 import { mintQuoteNumber } from "@/lib/quote-number"
 import { createOrderFromQuote, ordersForQuote } from "@/lib/orders/data"
+import { AssignQuoteToOrderDialog } from "@/components/orders/assign-quote-dialogs"
 import { taskTypeLabel, taskStatusLabel } from "@/lib/orders/status"
 import {
   Trash2,
@@ -165,6 +166,7 @@ function QuoteHistory({
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [quoteToDelete, setQuoteToDelete] = useState<string | null>(null)
+  const [assignQuote, setAssignQuote] = useState<QuoteRow | null>(null)
 
   // Captured once per mount so render stays pure (the react-hooks/purity rule
   // forbids Date.now() in render). Fresh enough: the parent remounts/reloads
@@ -1156,6 +1158,9 @@ function QuoteHistory({
                         <DropdownMenuItem onClick={() => handleCreateOrder(quote)}>
                           Create order
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setAssignQuote(quote)}>
+                          Assign to existing order…
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleCopyShareLink(quote)}>
                           Copy share link
                         </DropdownMenuItem>
@@ -1269,6 +1274,10 @@ function QuoteHistory({
                         <DropdownMenuItem onClick={() => handleCreateOrder(quote)}>
                           <ClipboardList className="h-4 w-4 mr-2" />
                           Create order
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setAssignQuote(quote)}>
+                          <ClipboardList className="h-4 w-4 mr-2" />
+                          Assign to existing order…
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleCopyShareLink(quote)}>
                           <Share2 className="h-4 w-4 mr-2" />
@@ -1813,6 +1822,12 @@ function QuoteHistory({
           </Card>
         )
       })}
+
+      <AssignQuoteToOrderDialog
+        open={assignQuote !== null}
+        onOpenChange={(o) => !o && setAssignQuote(null)}
+        quote={assignQuote}
+      />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

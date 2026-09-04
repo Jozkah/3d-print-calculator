@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Plus, Trash2, FileText, Ban, ExternalLink, Pencil } from "lucide-react"
+import { Plus, Trash2, FileText, Ban, ExternalLink, Pencil, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,7 +31,10 @@ import {
   voidInvoice,
   deleteInvoice,
   updateOrder,
+  setPrimaryQuote,
+  unlinkQuote,
 } from "@/lib/orders/data"
+import { AddQuoteToOrderDialog } from "@/components/orders/assign-quote-dialogs"
 
 export function OrderFinancialsPanel({
   order,
@@ -60,6 +63,7 @@ export function OrderFinancialsPanel({
   const [payOpen, setPayOpen] = useState(false)
   const [invOpen, setInvOpen] = useState(false)
   const [priceOpen, setPriceOpen] = useState(false)
+  const [addQuoteOpen, setAddQuoteOpen] = useState(false)
 
   return (
     <section className="rounded-2xl border border-border bg-card">
@@ -183,25 +187,65 @@ export function OrderFinancialsPanel({
       </div>
 
       {/* Linked quotes */}
-      {quoteLinks.length > 0 && (
-        <div className="border-t border-border/60 px-4 py-3">
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quotes</h4>
+      <div className="border-t border-border/60 px-4 py-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quotes</h4>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setAddQuoteOpen(true)}>
+            <Plus className="mr-1 size-3.5" />
+            Add quote
+          </Button>
+        </div>
+        {quoteLinks.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No quotes linked yet.</p>
+        ) : (
           <ul className="space-y-1">
             {quoteLinks.map((l) => (
               <li key={l.id} className="flex items-center justify-between gap-2 text-sm">
-                <Link href={`/quote/${l.quote_id}`} className="flex items-center gap-1.5 hover:text-primary">
+                <Link href={`/quote/${l.quote_id}`} className="flex min-w-0 items-center gap-1.5 hover:text-primary">
                   <span className="font-mono text-xs">{l.quote_number || "Quote"}</span>
                   <span className="truncate text-foreground">{l.quote_name}</span>
                   {l.is_primary && (
                     <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">primary</span>
                   )}
                 </Link>
-                <span className="text-xs text-muted-foreground">{l.quoted_total != null ? money(l.quoted_total) : ""}</span>
+                <div className="flex shrink-0 items-center gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {l.quoted_total != null ? money(l.quoted_total) : ""}
+                  </span>
+                  {!l.is_primary && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7"
+                      title="Make primary"
+                      onClick={() => setPrimaryQuote(order.id, l).then(onChanged)}
+                    >
+                      <Star className="size-3.5" />
+                    </Button>
+                  )}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-red-600 hover:text-red-700"
+                    title="Remove quote"
+                    onClick={() => unlinkQuote(order.id, l).then(onChanged)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        )}
+      </div>
+
+      <AddQuoteToOrderDialog
+        open={addQuoteOpen}
+        onOpenChange={setAddQuoteOpen}
+        orderId={order.id}
+        linkedQuoteIds={quoteLinks.map((l) => l.quote_id)}
+        onDone={onChanged}
+      />
 
       <RecordPaymentDialog
         open={payOpen}
