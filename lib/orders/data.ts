@@ -30,6 +30,8 @@ import {
   aggregateEstimatedMinutes,
   computeInvoiceTotals,
   round2,
+  activeTasks,
+  invoiceLinesFromTasks,
 } from "@/lib/orders/compute"
 import {
   saveAttachmentBlob,
@@ -909,8 +911,17 @@ export type CreateInvoiceInput = {
 export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice> {
   const supabase = client()
   const order = await getOrder(input.orderId)
+  const tasks = await listTasks(input.orderId)
+  const active = activeTasks(tasks)
+  const derivedLines = active.length > 0 ? invoiceLinesFromTasks(tasks) : null
+  const sourceItems = input.items.length > 0 ? input.items : derivedLines ?? [
+    { description: order?.title ?? "Order", quantity: 1, unit_price: 0 },
+  ]
+  const productionMinutes = input.productionMinutes ?? aggregateEstimatedMinutes(active)
+  const laborCost =
+    input.laborCost ?? round2(active.reduce((s, t) => s + (Number(t.calc_payload?.labor_cost) || 0), 0))
   const invoice_number = await mintInvoiceNumber()
-  const items: InvoiceItem[] = input.items.map((it) => ({
+  const items: InvoiceItem[] = sourceItems.map((it) => ({
     id: uid(),
     description: it.description,
     quantity: Number(it.quantity) || 0,
@@ -931,8 +942,8 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
     vat_rate: input.vatRate,
     vat_amount: totals.vatAmount,
     total: totals.total,
-    production_minutes: input.productionMinutes ?? null,
-    labor_cost: input.laborCost ?? null,
+    production_minutes: productionMinutes,
+    labor_cost: laborCost,
     currency_symbol: input.currencySymbol ?? order?.currency_symbol ?? "€",
     external_reference: input.externalReference ?? null,
     notes: input.notes ?? null,
