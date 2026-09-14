@@ -267,6 +267,7 @@ export function OrderFinancialsPanel({
         onDone={onChanged}
       />
       <CreateInvoiceDialog
+        key={invOpen ? "inv-open" : "inv-closed"}
         open={invOpen}
         onOpenChange={setInvOpen}
         order={order}
@@ -474,8 +475,10 @@ function CreateInvoiceDialog({
         laborCost,
       })
       // If the task base carried no VAT and the operator added VAT, the order total
-      // must reflect the VAT-inclusive invoice figure (spec rule).
-      if ((vatState === "none" || vatState === "mixed") && vatPct > 0) {
+      // must reflect the VAT-inclusive invoice figure (spec rule) — but only when this
+      // invoice bills the ENTIRE order; a partial invoice must never shrink the order total.
+      const billsEntireOrder = active.every((t) => selectedIds.has(t.id)) && (!hasShipping || includeShipping)
+      if (billsEntireOrder && (vatState === "none" || vatState === "mixed") && vatPct > 0) {
         await updateOrder(order.id, {
           total: totals.total,
           subtotal: totals.subtotal,

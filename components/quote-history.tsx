@@ -518,11 +518,17 @@ function QuoteHistory({
     }
   }
 
-  const convertQuoteType = async (quoteId: string, currentType: string) => {
-    const current = normalizeOwnerMode(currentType)
+  const convertQuoteType = async (quote: { id: string; quote_type: string; vat_enabled?: boolean }) => {
+    const current = normalizeOwnerMode(quote.quote_type)
     const newType = current === "single" ? "dual" : "single"
     const supabase = createClient()
-    const { error } = await supabase.from("quotes").update({ quote_type: newType }).eq("id", quoteId)
+    // Preserve VAT: a legacy quote (quote_type "business", no vat_enabled) relies on
+    // quoteVatApplies's fallback, which keys off quote_type — overwriting quote_type here
+    // would silently flip that fallback. Materialize the resolved flag before converting.
+    const { error } = await supabase
+      .from("quotes")
+      .update({ quote_type: newType, vat_enabled: quoteVatApplies(quote) })
+      .eq("id", quote.id)
 
     if (!error) {
       toast({
@@ -1209,7 +1215,7 @@ function QuoteHistory({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => convertQuoteType(quote.id, quote.quote_type)}
+                      onClick={() => convertQuoteType(quote)}
                       className="h-9 w-9 p-0"
                       title={`Convert to ${normalizeOwnerMode(quote.quote_type) === "single" ? "Dual" : "Single"}`}
                       aria-label={`Convert to ${normalizeOwnerMode(quote.quote_type) === "single" ? "dual" : "single"} quote`}
@@ -1298,7 +1304,7 @@ function QuoteHistory({
                             Save as template
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem onClick={() => convertQuoteType(quote.id, quote.quote_type)}>
+                        <DropdownMenuItem onClick={() => convertQuoteType(quote)}>
                           <RefreshCw className="h-4 w-4 mr-2" />
                           Convert to {normalizeOwnerMode(quote.quote_type) === "single" ? "Dual" : "Single"}
                         </DropdownMenuItem>
