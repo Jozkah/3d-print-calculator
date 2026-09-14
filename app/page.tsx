@@ -1,7 +1,6 @@
 import Link from "next/link"
 import {
   Calculator,
-  Briefcase,
   History,
   Settings,
   ArrowRight,
@@ -18,18 +17,12 @@ import { HomeHeroPrinter } from "@/components/visual/home-hero-printer"
 
 const TOOLS = [
   {
-    href: "/personal",
+    href: "/calculator",
     icon: Calculator,
-    title: "Personal Calculator",
-    description: "Quick at-cost estimates for your own prints — filament, power, wear and drying included.",
-    cta: "Start estimating",
-  },
-  {
-    href: "/business",
-    icon: Briefcase,
-    title: "Business Calculator",
-    description: "Client-ready quotes with margins, VAT, emergency fees and an automatic profit split.",
-    cta: "Build a quote",
+    title: "Calculator",
+    description:
+      "Quick at-cost estimates for yourself, or client-ready quotes with margins, VAT and an automatic profit split — single and dual modes in one place.",
+    cta: "Open calculator",
   },
   {
     href: "/orders",
@@ -104,18 +97,11 @@ export default function HomePage() {
                   </p>
                   <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
                     <Link
-                      href="/business"
+                      href="/calculator"
                       className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/25 transition-all hover:bg-primary/90 sm:w-auto"
                     >
-                      Create a business quote
+                      Start a quote
                       <ArrowRight className="size-4" />
-                    </Link>
-                    <Link
-                      href="/personal"
-                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-panel-foreground/25 bg-transparent px-6 text-sm font-semibold text-panel-foreground transition-colors hover:bg-panel-foreground/10 sm:w-auto"
-                    >
-                      <Calculator className="size-4 text-primary" />
-                      Personal estimate
                     </Link>
                   </div>
                 </div>
@@ -212,8 +198,7 @@ export default function HomePage() {
             — self-hosted cost &amp; quote calculator
           </p>
           <nav className="flex items-center gap-4">
-            <Link href="/personal" className="transition-colors hover:text-foreground">Personal</Link>
-            <Link href="/business" className="transition-colors hover:text-foreground">Business</Link>
+            <Link href="/calculator" className="transition-colors hover:text-foreground">Calculator</Link>
             <Link href="/history" className="transition-colors hover:text-foreground">History</Link>
             <Link href="/settings" className="transition-colors hover:text-foreground">Settings</Link>
           </nav>

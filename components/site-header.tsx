@@ -1,11 +1,10 @@
 import type React from "react"
 import Link from "next/link"
-import { ArrowLeft, BarChart3, Box, Calculator, Briefcase, History, Settings, ClipboardList } from "lucide-react"
+import { ArrowLeft, BarChart3, Box, Calculator, History, Settings, ClipboardList } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const NAV_LINKS = [
-  { href: "/personal", label: "Personal", icon: Calculator },
-  { href: "/business", label: "Business", icon: Briefcase },
+  { href: "/calculator", label: "Calculator", icon: Calculator },
   { href: "/orders", label: "Orders", icon: ClipboardList },
   { href: "/history", label: "History", icon: History },
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },

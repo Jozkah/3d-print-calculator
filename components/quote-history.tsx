@@ -378,9 +378,8 @@ function QuoteHistory({
   }
 
   const handleEdit = (quote: Quote) => {
-    // Navigate to the appropriate calculator page with the quote ID
-    const route = quote.quote_type === "business" ? "/business" : "/personal"
-    router.push(`${route}?edit=${quote.id}`)
+    // Navigate to the calculator page with the quote ID
+    router.push(`/calculator?edit=${quote.id}&owner=${normalizeOwnerMode(quote.quote_type)}`)
   }
 
   const handleDelete = async (id: string) => {
@@ -520,7 +519,8 @@ function QuoteHistory({
   }
 
   const convertQuoteType = async (quoteId: string, currentType: string) => {
-    const newType = currentType === "personal" ? "business" : "personal"
+    const current = normalizeOwnerMode(currentType)
+    const newType = current === "single" ? "dual" : "single"
     const supabase = createClient()
     const { error } = await supabase.from("quotes").update({ quote_type: newType }).eq("id", quoteId)
 
@@ -707,13 +707,10 @@ function QuoteHistory({
               </span>
               <p className="mt-4 text-lg font-semibold text-foreground">No quotes saved yet</p>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                Build your first quote with the Personal or Business calculator and it will show up here.
+                Build your first quote with the calculator and it will show up here.
               </p>
               <div className="mt-6 flex gap-3">
-                <Button onClick={() => router.push("/personal")} variant="outline" className="bg-card">
-                  Personal calculator
-                </Button>
-                <Button onClick={() => router.push("/business")}>Business calculator</Button>
+                <Button onClick={() => router.push("/calculator")}>Open calculator</Button>
               </div>
             </div>
           </CardContent>
@@ -1040,8 +1037,8 @@ function QuoteHistory({
                       </span>
                     )}
                     {quote.is_draft && <Badge variant="secondary">Draft</Badge>}
-                    <Badge variant={quote.quote_type === "business" ? "default" : "secondary"}>
-                      {quote.quote_type}
+                    <Badge variant={normalizeOwnerMode(quote.quote_type) === "dual" ? "default" : "secondary"}>
+                      {normalizeOwnerMode(quote.quote_type) === "dual" ? "Dual" : "Single"}
                     </Badge>
                     {quote.is_emergency && (
                       <Badge className="bg-red-500 hover:bg-red-600 text-white border-0">
@@ -1214,8 +1211,8 @@ function QuoteHistory({
                       size="sm"
                       onClick={() => convertQuoteType(quote.id, quote.quote_type)}
                       className="h-9 w-9 p-0"
-                      title={`Convert to ${quote.quote_type === "personal" ? "Business" : "Personal"}`}
-                      aria-label={`Convert to ${quote.quote_type === "personal" ? "business" : "personal"} quote`}
+                      title={`Convert to ${normalizeOwnerMode(quote.quote_type) === "single" ? "Dual" : "Single"}`}
+                      aria-label={`Convert to ${normalizeOwnerMode(quote.quote_type) === "single" ? "dual" : "single"} quote`}
                     >
                       <RefreshCw className="h-4 w-4" />
                     </Button>
@@ -1303,7 +1300,7 @@ function QuoteHistory({
                         )}
                         <DropdownMenuItem onClick={() => convertQuoteType(quote.id, quote.quote_type)}>
                           <RefreshCw className="h-4 w-4 mr-2" />
-                          Convert to {quote.quote_type === "personal" ? "business" : "personal"}
+                          Convert to {normalizeOwnerMode(quote.quote_type) === "single" ? "Dual" : "Single"}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => handleDelete(quote.id)}
