@@ -149,7 +149,7 @@ function BusinessPageInner() {
           )}
           {calcType === "laser" && (
             <LaserCalculator
-              mode="business"
+              mode="dual"
               machines={laserMachines}
               materials={laserMaterials}
               globalSettings={globalSettings}

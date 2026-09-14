@@ -273,7 +273,7 @@ export function TaskCalculatorDialog({
               {kind === "laser" ? (
                 <LaserCalculator
                   key={calcKey}
-                  mode={calcMode}
+                  mode={calcMode === "business" ? "dual" : "single"}
                   embedded
                   submitLabel={submitLabel}
                   machines={laserMachines}

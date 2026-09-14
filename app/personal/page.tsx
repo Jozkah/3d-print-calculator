@@ -149,7 +149,7 @@ function PersonalPageInner() {
           )}
           {calcType === "laser" && (
             <LaserCalculator
-              mode="personal"
+              mode="single"
               machines={laserMachines}
               materials={laserMaterials}
               globalSettings={globalSettings}
