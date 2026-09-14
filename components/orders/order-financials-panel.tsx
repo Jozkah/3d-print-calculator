@@ -417,6 +417,8 @@ function CreateInvoiceDialog({
   const [format, setFormat] = useState<InvoiceFormat>("simple")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(active.map((t) => t.id)))
   const [includeShipping, setIncludeShipping] = useState<boolean>(hasShipping)
+  const orderTotalAmount = order.subtotal ?? order.total ?? 0
+  const [includeOrderTotal, setIncludeOrderTotal] = useState<boolean>(true)
 
   const selectedTasks = active.filter((t) => selectedIds.has(t.id))
   const lines = buildInvoiceLines({
@@ -424,9 +426,13 @@ function CreateInvoiceDialog({
     format,
     orderTitle: order.title,
     shipping: { include: includeShipping, cost: shippingCost },
+    orderFallback: { include: includeOrderTotal, amount: orderTotalAmount },
   })
   const nothingSelected = lines.length === 0
-  const allSelected = active.every((t) => selectedIds.has(t.id)) && (includeShipping || !hasShipping)
+  const allSelected =
+    active.length > 0
+      ? active.every((t) => selectedIds.has(t.id)) && (includeShipping || !hasShipping)
+      : includeOrderTotal && (includeShipping || !hasShipping)
   const [vatPct, setVatPct] = useState<number>(
     vatState === "all" ? Math.round((detectedRate ?? defaultVatRate) * 100) : 0,
   )
@@ -448,9 +454,11 @@ function CreateInvoiceDialog({
     if (allSelected) {
       setSelectedIds(new Set())
       setIncludeShipping(false)
+      setIncludeOrderTotal(false)
     } else {
       setSelectedIds(new Set(active.map((t) => t.id)))
       setIncludeShipping(hasShipping)
+      setIncludeOrderTotal(true)
     }
   }
 
@@ -520,6 +528,15 @@ function CreateInvoiceDialog({
                   <span className="shrink-0 text-muted-foreground">{formatMoney(t.price ?? 0, currency)}</span>
                 </label>
               ))}
+              {active.length === 0 && (
+                <label className="flex items-center justify-between gap-2 text-foreground">
+                  <span className="flex items-center gap-2">
+                    <input type="checkbox" checked={includeOrderTotal} onChange={(e) => setIncludeOrderTotal(e.target.checked)} />
+                    Order total
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">{formatMoney(orderTotalAmount, currency)}</span>
+                </label>
+              )}
               {hasShipping && (
                 <label className="flex items-center justify-between gap-2 text-foreground">
                   <span className="flex items-center gap-2">

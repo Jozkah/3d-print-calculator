@@ -197,6 +197,7 @@ export function buildInvoiceLines(opts: {
   format: InvoiceFormat
   orderTitle: string
   shipping?: { include: boolean; cost: number; label?: string }
+  orderFallback?: { include: boolean; amount: number; label?: string }
 }): InvoiceLineInput[] {
   const active = activeTasks(opts.tasks)
   const lines: InvoiceLineInput[] = []
@@ -206,6 +207,16 @@ export function buildInvoiceLines(opts: {
     } else {
       const amount = round2(active.reduce((s, t) => s + taskExVatAmount(t), 0))
       lines.push({ description: opts.orderTitle || "Production", quantity: 1, unit_price: amount, amount })
+    }
+  } else if (opts.orderFallback?.include) {
+    const cost = round2(Number(opts.orderFallback.amount) || 0)
+    if (cost > 0) {
+      lines.push({
+        description: opts.orderFallback.label || opts.orderTitle || "Order",
+        quantity: 1,
+        unit_price: cost,
+        amount: cost,
+      })
     }
   }
   if (opts.shipping?.include) {

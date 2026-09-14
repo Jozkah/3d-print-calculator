@@ -345,7 +345,7 @@ describe("taskVatRate", () => {
 import { buildInvoiceLines } from "./compute"
 
 const t = (over: any) => ({
-  id: over.id ?? "t", order_id: "o", name: over.name ?? "Task", type: "3d_print",
+  id: over.id ?? "t", order_id: "o", name: over.name ?? "Task", type: "3d_print" as const,
   status: over.status ?? "queued", quantity: over.quantity ?? 1, sequence: 0,
   price: over.price ?? null, calc_payload: over.calc_payload ?? null, created_at: "",
   material_name: over.material_name ?? null,
@@ -393,5 +393,27 @@ describe("buildInvoiceLines", () => {
   it("no tasks + shipping only = shipping line only", () => {
     expect(buildInvoiceLines({ tasks: [], format: "simple", orderTitle: "X", shipping: { include: true, cost: 5 } }))
       .toEqual([{ description: "Shipping", quantity: 1, unit_price: 5, amount: 5 }])
+  })
+
+  it("no active tasks + orderFallback = a single order-total line", () => {
+    const lines = buildInvoiceLines({
+      tasks: [],
+      format: "simple",
+      orderTitle: "Order X",
+      orderFallback: { include: true, amount: 80 },
+    })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatchObject({ description: "Order X", quantity: 1, amount: 80 })
+  })
+
+  it("orderFallback is ignored when tasks are present", () => {
+    const lines = buildInvoiceLines({
+      tasks,
+      format: "simple",
+      orderTitle: "Order X",
+      orderFallback: { include: true, amount: 80 },
+    })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatchObject({ description: "Order X", quantity: 1, amount: 150 })
   })
 })
