@@ -30,6 +30,7 @@ import {
   activeTasks,
   taskVatState,
   taskVatRate,
+  taskExVatAmount,
   buildInvoiceLines,
   aggregateEstimatedMinutes,
 } from "@/lib/orders/compute"
@@ -528,7 +529,7 @@ function CreateInvoiceDialog({
                     <input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleTask(t.id)} />
                     <span className="min-w-0 truncate">{t.name}</span>
                   </span>
-                  <span className="shrink-0 text-muted-foreground">{formatMoney(t.price ?? 0, currency)}</span>
+                  <span className="shrink-0 text-muted-foreground">{formatMoney(taskExVatAmount(t), currency)}</span>
                 </label>
               ))}
               {active.length === 0 && (
