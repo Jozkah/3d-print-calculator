@@ -321,6 +321,10 @@ export type Invoice = {
   vat_rate: number
   vat_amount: number
   total: number
+  /** Snapshot of total production time (minutes) at issue, so the document never drifts. */
+  production_minutes?: number | null
+  /** Snapshot of total labour cost at issue. */
+  labor_cost?: number | null
 
   currency_symbol?: string
 

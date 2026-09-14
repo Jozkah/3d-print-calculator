@@ -902,6 +902,8 @@ export type CreateInvoiceInput = {
   currencySymbol?: string
   externalReference?: string | null
   notes?: string | null
+  productionMinutes?: number | null
+  laborCost?: number | null
 }
 
 export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice> {
@@ -929,6 +931,8 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
     vat_rate: input.vatRate,
     vat_amount: totals.vatAmount,
     total: totals.total,
+    production_minutes: input.productionMinutes ?? null,
+    labor_cost: input.laborCost ?? null,
     currency_symbol: input.currencySymbol ?? order?.currency_symbol ?? "€",
     external_reference: input.externalReference ?? null,
     notes: input.notes ?? null,
