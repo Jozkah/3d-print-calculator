@@ -169,13 +169,14 @@ export function taskExVatAmount(task: OrderTask): number {
   return rate > 0 ? price / (1 + rate) : price
 }
 
-/** One ex-VAT invoice line per active task. Amounts are rounded to cents. */
+/** One ex-VAT invoice line per active task. Line amounts are rounded to cents; unit_price is kept exact. */
 export function invoiceLinesFromTasks(
   tasks: readonly OrderTask[],
 ): Array<{ description: string; quantity: number; unit_price: number; amount: number }> {
   return activeTasks(tasks).map((t) => {
     const amount = round2(taskExVatAmount(t))
     const qty = Number(t.quantity) || 0
+    // unrounded on purpose: quantity * unit_price must reconstruct amount exactly so computeInvoiceTotals reconciles
     const unit_price = qty > 0 ? amount / qty : amount
     const desc = t.material_name ? `${t.name} — ${t.material_name}` : t.name
     return { description: desc, quantity: qty, unit_price, amount }

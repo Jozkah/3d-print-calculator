@@ -17,6 +17,7 @@ import {
   invoiceLinesFromTasks,
   taskExVatAmount,
   activeTasks,
+  taskVatRate,
 } from "@/lib/orders/compute"
 import type { OrderTask, Payment } from "@/types/orders"
 import { __test as numbering } from "@/lib/orders/numbering"
@@ -288,5 +289,39 @@ describe("invoiceLinesFromTasks + computeInvoiceTotals", () => {
 describe("activeTasks", () => {
   it("drops cancelled tasks", () => {
     expect(activeTasks([taskForVat({ id: "a" }), taskForVat({ id: "b", status: "cancelled" })]).map((t) => t.id)).toEqual(["a"])
+  })
+})
+
+describe("taskVatRate", () => {
+  it("returns uniform VAT rate across all VAT-charging active tasks", () => {
+    const tasks = [
+      taskForVat({ id: "a", calc_payload: { vat_enabled: true, vat_rate: 0.23 } }),
+      taskForVat({ id: "b", calc_payload: { vat_enabled: true, vat_rate: 0.23 } }),
+    ]
+    expect(taskVatRate(tasks)).toBe(0.23)
+  })
+
+  it("returns null when VAT rates differ across tasks", () => {
+    const tasks = [
+      taskForVat({ id: "a", calc_payload: { vat_enabled: true, vat_rate: 0.23 } }),
+      taskForVat({ id: "b", calc_payload: { vat_enabled: true, vat_rate: 0.19 } }),
+    ]
+    expect(taskVatRate(tasks)).toBeNull()
+  })
+
+  it("returns null when no active tasks charge VAT", () => {
+    const tasks = [
+      taskForVat({ id: "a", calc_payload: { vat_enabled: false } }),
+      taskForVat({ id: "b", calc_payload: { vat_enabled: false } }),
+    ]
+    expect(taskVatRate(tasks)).toBeNull()
+  })
+
+  it("ignores cancelled VAT tasks when determining uniform rate", () => {
+    const tasks = [
+      taskForVat({ id: "a", calc_payload: { vat_enabled: true, vat_rate: 0.23 } }),
+      taskForVat({ id: "b", status: "cancelled", calc_payload: { vat_enabled: true, vat_rate: 0.19 } }),
+    ]
+    expect(taskVatRate(tasks)).toBe(0.23)
   })
 })
