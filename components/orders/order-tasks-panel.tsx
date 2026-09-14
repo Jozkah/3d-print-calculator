@@ -1,7 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { useState } from "react"
 import {
   Play,
   Pause,
@@ -68,20 +67,11 @@ type TaskCalcSeed = { name: string; type: TaskTypeAlias; quantity: number }
 
 export function OrderTasksPanel({ orderId, tasks, onChanged }: { orderId: string; tasks: OrderTask[]; onChanged: () => void }) {
   const { toast } = useToast()
-  const [printers, setPrinters] = useState<any[]>([])
   const [addOpen, setAddOpen] = useState(false)
   const [failFor, setFailFor] = useState<OrderTask | null>(null)
   const [calcSeed, setCalcSeed] = useState<TaskCalcSeed | null>(null)
   const [calcEdit, setCalcEdit] = useState<OrderTask | null>(null)
   const [editTask, setEditTask] = useState<OrderTask | null>(null)
-
-  useEffect(() => {
-    createClient()
-      .from("printers")
-      .select("*")
-      .order("name")
-      .then(({ data }) => setPrinters(data ?? []))
-  }, [])
 
   const progress = computeProgress(tasks)
 
@@ -142,7 +132,6 @@ export function OrderTasksPanel({ orderId, tasks, onChanged }: { orderId: string
         open={addOpen}
         onOpenChange={setAddOpen}
         orderId={orderId}
-        printers={printers}
         seq={tasks.length}
         onCreated={afterChange}
         onOpenCalc={(seed) => {
@@ -156,7 +145,6 @@ export function OrderTasksPanel({ orderId, tasks, onChanged }: { orderId: string
         <EditTaskDialog
           key={editTask.id}
           task={editTask}
-          printers={printers}
           onClose={() => setEditTask(null)}
           onReCost={() => {
             const t = editTask
@@ -331,7 +319,6 @@ function AddTaskDialog({
   open,
   onOpenChange,
   orderId,
-  printers,
   seq,
   onCreated,
   onOpenCalc,
@@ -339,7 +326,6 @@ function AddTaskDialog({
   open: boolean
   onOpenChange: (o: boolean) => void
   orderId: string
-  printers: any[]
   seq: number
   onCreated: () => void
   onOpenCalc: (seed: TaskCalcSeed) => void
@@ -486,13 +472,11 @@ function AddTaskDialog({
 
 function EditTaskDialog({
   task,
-  printers,
   onClose,
   onReCost,
   onDone,
 }: {
   task: OrderTask
-  printers: any[]
   onClose: () => void
   onReCost: () => void
   onDone: () => void
