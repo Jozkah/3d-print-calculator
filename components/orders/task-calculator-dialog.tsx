@@ -286,7 +286,7 @@ export function TaskCalculatorDialog({
               ) : kind === "uv" ? (
                 <UvCalculator
                   key={calcKey}
-                  mode={calcMode}
+                  mode={calcMode === "business" ? "dual" : "single"}
                   embedded
                   submitLabel={submitLabel}
                   machines={uvMachines}

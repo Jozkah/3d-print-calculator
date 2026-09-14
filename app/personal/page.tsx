@@ -159,7 +159,7 @@ function PersonalPageInner() {
           )}
           {calcType === "uv" && (
             <UvCalculator
-              mode="personal"
+              mode="single"
               machines={uvMachines}
               materials={uvMaterials}
               inks={uvInks}

@@ -26,6 +26,9 @@ import {
   type UvItem,
   type UvOperation,
 } from "@/lib/uv-pricing"
+import { computeOwnerSplit } from "@/lib/owner-split"
+import { OWNER_A_KEY } from "@/lib/business-config"
+import type { OwnerMode } from "@/lib/quote-modes"
 import type { Client, GlobalSettings, Printer, UvInk, UvMaterial } from "@/types/db"
 
 interface UvCalculatorProps {
@@ -33,7 +36,7 @@ interface UvCalculatorProps {
   materials: UvMaterial[]
   inks: UvInk[]
   globalSettings: GlobalSettings | null
-  mode?: "business" | "personal"
+  mode?: OwnerMode
   clients?: Client[]
   editingQuoteId?: string
   /** Start a NEW quote pre-filled from a saved template (quote_templates row). */
@@ -98,7 +101,7 @@ export function UvCalculator({
   materials,
   inks,
   globalSettings,
-  mode = "business",
+  mode = "dual",
   clients: initialClients = [],
   editingQuoteId,
   templateId,
@@ -120,6 +123,10 @@ export function UvCalculator({
   const [internalNotes, setInternalNotes] = useState("")
   const [isEmergency, setIsEmergency] = useState(false)
   const [vatEnabled, setVatEnabled] = useState(true)
+  // Editable VAT rate (fraction). Defaults from global settings; hydrated from
+  // a loaded quote/embedded payload's own vat_rate below so an edited quote
+  // keeps the rate it was quoted at even if global settings later change.
+  const [vatRate, setVatRate] = useState<number>(globalSettings?.vat_rate ?? 0.23)
   const [setupFee, setSetupFee] = useState<number>(globalSettings?.default_setup_fee ?? LASER_DEFAULTS.default_setup_fee)
   const [marginInputMode, setMarginInputMode] = useState<"percentage" | "targetPrice">("percentage")
   const [selectedMargin, setSelectedMargin] = useState(50)
@@ -135,9 +142,8 @@ export function UvCalculator({
 
   const currency = globalSettings?.currency_symbol || "€"
   const money = (n: number) => formatMoney(n, currency)
-  const vatRate = globalSettings?.vat_rate ?? 0.23
   const vatPercentLabel = Math.round(vatRate * 10000) / 100
-  const vatApplies = mode === "business" && vatEnabled
+  const vatApplies = vatEnabled
   const validityDays = globalSettings?.validity_days ?? 30
   const emergencyFee = isEmergency && globalSettings ? globalSettings.emergency_fee_fixed : 0
 
@@ -190,6 +196,35 @@ export function UvCalculator({
 
   const finalPrice = marginInputMode === "targetPrice" && targetPrice > 0 ? targetPrice : breakdown.total
 
+  // Per-owner machine capital (dual mode only, but cheap enough to always
+  // compute) — UV's line machineCost is depreciation only, electricity is
+  // reported separately and attributed to Owner A wholesale below.
+  const ownerMachine = useMemo(() => {
+    let a = 0
+    let b = 0
+    for (const line of breakdown.items) {
+      const machineId = items.find((it) => it.id === line.id)?.machine_id
+      const machine = machinesById.get(machineId ?? "")
+      const owner = (machine?.owner ?? "").toLowerCase()
+      if (owner === OWNER_A_KEY.toLowerCase()) a += line.machineCost
+      else b += line.machineCost
+    }
+    return { a, b }
+  }, [breakdown, items, machinesById])
+
+  // Owner split (dual mode only) — profit is the markup over base cost.
+  const profit = breakdown.sellExVat - breakdown.baseCost
+  const { ownerAReceives, ownerBReceives } = computeOwnerSplit({
+    ownerAMachine: ownerMachine.a,
+    ownerBMachine: ownerMachine.b,
+    electricity: breakdown.electricityCost,
+    ownerALabour: breakdown.operationsCost + fuelCost + breakdown.setupFee,
+    ownerBMaterials: breakdown.materialCost + breakdown.inkCostBilled + packagingCost,
+    profit,
+    emergency: emergencyFee,
+    vat: breakdown.vatAmount,
+  })
+
   // ---- Edit-mode hydration -------------------------------------------------
   useEffect(() => {
     if (!editingQuoteId) return
@@ -218,6 +253,7 @@ export function UvCalculator({
       setInternalNotes(data.internal_notes || "")
       setIsEmergency(Boolean(data.is_emergency))
       setVatEnabled(data.vat_enabled !== false)
+      setVatRate(data.vat_rate ?? globalSettings?.vat_rate ?? 0.23)
       setSetupFee(Number(data.setup_fee) || 0)
       if (data.final_price != null && data.selected_margin_percentage == null) {
         setMarginInputMode("targetPrice")
@@ -255,6 +291,7 @@ export function UvCalculator({
       setInternalNotes(data.internal_notes || "")
       setIsEmergency(Boolean(data.is_emergency))
       setVatEnabled(data.vat_enabled !== false)
+      setVatRate(data.vat_rate ?? globalSettings?.vat_rate ?? 0.23)
       setSetupFee(Number(data.setup_fee) || 0)
       if (data.final_price != null && data.selected_margin_percentage == null) {
         setMarginInputMode("targetPrice")
@@ -458,8 +495,8 @@ export function UvCalculator({
       selected_margin: String(selectedMargin || 0),
       // Authoritative, VAT-inclusive total — documents render this directly.
       final_price: finalPrice,
-      owner_a_receives: null,
-      owner_b_receives: null,
+      owner_a_receives: mode === "dual" ? ownerAReceives : null,
+      owner_b_receives: mode === "dual" ? ownerBReceives : null,
       is_draft: isDraft,
       vat_enabled: vatEnabled,
       vat_rate: vatRate,
@@ -575,12 +612,15 @@ export function UvCalculator({
               Emergency Order (+{money(globalSettings.emergency_fee_fixed)})
             </Label>
           </div>
-          {mode === "business" && (
-            <div className="flex items-center space-x-2">
-              <Checkbox id="uv-vat" checked={vatEnabled} onCheckedChange={(c) => setVatEnabled(c as boolean)} />
-              <Label htmlFor="uv-vat" className="font-medium">Include VAT ({vatPercentLabel}%)</Label>
-            </div>
-          )}
+          <div className="flex items-center space-x-2">
+            <Checkbox id="uv-vat" checked={vatEnabled} onCheckedChange={(c) => setVatEnabled(c as boolean)} />
+            <Label htmlFor="uv-vat" className="font-medium">Include VAT ({vatPercentLabel}%)</Label>
+            {vatEnabled && (
+              <input type="number" min={0} step="0.5" value={Math.round(vatRate * 10000) / 100}
+                onChange={(e) => setVatRate((Number.parseFloat(e.target.value) || 0) / 100)}
+                className="w-20 rounded border border-border bg-card px-2 py-1 text-sm" aria-label="VAT %" />
+            )}
+          </div>
         </div>
       </Card>
 
@@ -796,6 +836,26 @@ export function UvCalculator({
                   </div>
                 )
               })}
+            </div>
+          </div>
+        )}
+
+        {mode === "dual" && (
+          <div className="mt-6 pt-6 border-t border-border">
+            <h3 className="text-lg font-semibold tracking-tight text-foreground mb-4">
+              Profit Split ({breakdown.marginPct}% Margin)
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="bg-purple-50/70 dark:bg-purple-950/40 p-4 rounded-xl border border-purple-200 dark:border-purple-800">
+                <div className="text-purple-700 dark:text-purple-300 text-sm font-medium mb-1">Owner A Receives</div>
+                <div className="text-purple-950 dark:text-purple-100 text-2xl font-bold tabular-nums">{money(ownerAReceives)}</div>
+              </div>
+              <div className="bg-primary/5 p-4 rounded-xl border border-primary/25">
+                <div className="text-primary text-sm font-medium mb-1">
+                  Owner B Receives{vatApplies ? " (includes VAT)" : ""}
+                </div>
+                <div className="text-foreground text-2xl font-bold tabular-nums">{money(ownerBReceives)}</div>
+              </div>
             </div>
           </div>
         )}

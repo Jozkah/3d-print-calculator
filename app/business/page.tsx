@@ -159,7 +159,7 @@ function BusinessPageInner() {
           )}
           {calcType === "uv" && (
             <UvCalculator
-              mode="business"
+              mode="dual"
               machines={uvMachines}
               materials={uvMaterials}
               inks={uvInks}
