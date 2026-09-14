@@ -5,6 +5,7 @@ import { Download } from "lucide-react"
 import { formatMoney } from "@/lib/format"
 import type { GlobalSettings, Quote } from "@/types/db"
 import { groupUvQuoteLines } from "@/lib/uv-quote-items"
+import { quoteVatApplies } from "@/lib/quote-modes"
 
 // The standard quotation document, shared by the saved-quote page
 // (app/quote/[id]) and the self-contained share view (app/quote/view). Pure
@@ -83,11 +84,10 @@ export function QuotationDocument({
 
   const totalLandedCost = quote.landed_cost || 0
   const emergencyFeeCost = quote.is_emergency ? quote.emergency_fee || 0 : 0
-  const isBusinessQuote = quote.quote_type === "business"
   // Honor the saved VAT toggle — quotes saved with "Include VAT" unchecked
   // must not grow a VAT line here. Legacy rows without the flag default to
-  // VAT on (the historical behavior).
-  const vatApplies = isBusinessQuote && quote.vat_enabled !== false
+  // the historical per-mode behavior (business charged VAT, personal did not).
+  const vatApplies = quoteVatApplies(quote)
   // Render with the rate the quote was priced at; legacy rows without the
   // field were all quoted at 23%.
   const vatRate = quote.vat_rate ?? 0.23

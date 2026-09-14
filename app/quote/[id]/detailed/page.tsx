@@ -10,6 +10,7 @@ import { CompanyLetterhead, issuerContactLine } from "@/components/quotation-doc
 import { DEFAULT_DOCUMENT_TITLE, quotationDocumentTitle } from "@/lib/document-title"
 import type { GlobalSettings, Quote as QuoteRow } from "@/types/db"
 import { groupUvQuoteLines } from "@/lib/uv-quote-items"
+import { quoteVatApplies } from "@/lib/quote-modes"
 
 interface PrintedPart {
   id: string
@@ -360,11 +361,10 @@ export default function DetailedQuotePage() {
   const operatingSubtotal =
     (isUvMode ? quote.uv_ink_cost || 0 : 0) + (quote.machine_cost || 0) + (quote.electricity_cost || 0)
 
-  const isBusinessQuote = quote.quote_type === "business"
   // Honor the saved VAT toggle — quotes saved with "Include VAT" unchecked
   // must not grow a VAT line here. Legacy rows without the flag default to
-  // VAT on (the historical behavior).
-  const vatApplies = isBusinessQuote && quote.vat_enabled !== false
+  // the historical per-mode behavior (business charged VAT, personal did not).
+  const vatApplies = quoteVatApplies(quote)
   // Render with the rate the quote was priced at; legacy rows without the
   // field were all quoted at 23%.
   const vatRate = quote.vat_rate ?? 0.23

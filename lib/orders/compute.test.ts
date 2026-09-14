@@ -169,6 +169,22 @@ describe("quoteHeadlineTotals", () => {
   })
 })
 
+describe("quoteHeadlineTotals VAT independence", () => {
+  it("applies VAT for a single-mode quote with vat_enabled", () => {
+    const q = { quote_type: "single", vat_enabled: true, vat_rate: 0.23, final_price: 123 }
+    const r = quoteHeadlineTotals(q)
+    expect(r.total).toBe(123)
+    expect(r.subtotal).toBe(100)
+    expect(r.vat).toBe(23)
+  })
+  it("charges no VAT for a dual-mode quote with vat disabled", () => {
+    const q = { quote_type: "dual", vat_enabled: false, final_price: 100 }
+    const r = quoteHeadlineTotals(q)
+    expect(r.vat).toBe(0)
+    expect(r.subtotal).toBe(100)
+  })
+})
+
 describe("due-date intelligence", () => {
   // Local-frame times (no trailing Z) kept away from midnight so the day
   // classification is stable regardless of the runner's timezone.

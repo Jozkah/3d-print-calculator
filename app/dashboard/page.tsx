@@ -25,6 +25,7 @@ import {
   YAxis,
 } from "recharts"
 import type { Filament, GlobalSettings, Printer, Quote } from "@/types/db"
+import { quoteVatApplies } from "@/lib/quote-modes"
 
 // Realized work only: quotes that were accepted and are (being) delivered.
 // Pending offers, drafts and canceled/invalid quotes carry no revenue.
@@ -41,7 +42,7 @@ function quoteRevenue(q: Quote): number {
   const multiplier = marginPct > 0 ? 1 / (1 - marginPct) : 1
   const landed = q.landed_cost || 0
   const emergency = q.is_emergency ? q.emergency_fee || 0 : 0
-  const vatApplies = q.quote_type === "business" && q.vat_enabled !== false
+  const vatApplies = quoteVatApplies(q)
   const vatRate = q.vat_rate ?? 0.23
   const exVat = landed * multiplier + emergency
   return vatApplies ? exVat * (1 + vatRate) : exVat
@@ -50,7 +51,7 @@ function quoteRevenue(q: Quote): number {
 /** Revenue with any charged VAT stripped, for margin math against landed cost. */
 function quoteRevenueExVat(q: Quote): number {
   const revenue = quoteRevenue(q)
-  const vatApplies = q.quote_type === "business" && q.vat_enabled !== false
+  const vatApplies = quoteVatApplies(q)
   const vatRate = q.vat_rate ?? 0.23
   return vatApplies ? revenue / (1 + vatRate) : revenue
 }

@@ -13,6 +13,7 @@ import type {
   PaymentStatus,
 } from "@/types/orders"
 import { taskCountsForProgress, isTaskDone, priorityRank } from "@/lib/orders/status"
+import { quoteVatApplies } from "@/lib/quote-modes"
 
 /** Cents-precision rounding so float noise never flips a payment status. */
 export function round2(n: number): number {
@@ -201,8 +202,7 @@ export function quoteHeadlineTotals(quote: Record<string, any>): QuoteTotals {
   const marginMultiplier = marginPercentage > 0 ? 1 / (1 - marginPercentage) : 1
   const landed = Number(quote?.landed_cost) || 0
   const emergency = quote?.is_emergency ? Number(quote?.emergency_fee) || 0 : 0
-  const isBusiness = quote?.quote_type === "business"
-  const vatApplies = isBusiness && quote?.vat_enabled !== false
+  const vatApplies = quoteVatApplies(quote)
   const vatRate = quote?.vat_rate ?? 0.23
 
   const priceExVat = landed * marginMultiplier + emergency

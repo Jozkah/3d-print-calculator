@@ -9,6 +9,7 @@ import { formatMoney } from "@/lib/format"
 import { CompanyLetterhead, issuerContactLine } from "@/components/quotation-document"
 import { DEFAULT_DOCUMENT_TITLE, invoiceDocumentTitle } from "@/lib/document-title"
 import type { GlobalSettings, Quote } from "@/types/db"
+import { quoteVatApplies } from "@/lib/quote-modes"
 
 // Invoice document for a saved quote. Clones the standard quotation layout
 // (and its exact price math) but is titled INVOICE and carries invoice
@@ -118,11 +119,10 @@ export default function InvoicePage() {
 
   const totalLandedCost = quote.landed_cost || 0
   const emergencyFeeCost = quote.is_emergency ? quote.emergency_fee || 0 : 0
-  const isBusinessQuote = quote.quote_type === "business"
   // Honor the saved VAT toggle — quotes saved with "Include VAT" unchecked
   // must not grow a VAT line here. Legacy rows without the flag default to
-  // VAT on (the historical behavior).
-  const vatApplies = isBusinessQuote && quote.vat_enabled !== false
+  // the historical per-mode behavior (business charged VAT, personal did not).
+  const vatApplies = quoteVatApplies(quote)
   // Render with the rate the quote was priced at; legacy rows without the
   // field were all quoted at 23%.
   const vatRate = quote.vat_rate ?? 0.23

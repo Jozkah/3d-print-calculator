@@ -53,7 +53,7 @@ import {
   ClipboardList,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { isLaserQuote, isUvQuote } from "@/lib/quote-modes"
+import { isLaserQuote, isUvQuote, quoteVatApplies } from "@/lib/quote-modes"
 import { useRouter } from "next/navigation"
 import { groupUvQuoteLines, lineInkMl } from "@/lib/uv-quote-items"
 
@@ -83,7 +83,7 @@ const safeFixed = (value: any, decimals = 2) => {
 // business quotes — display the same basis here so one quote never shows two
 // different "40% margin" prices.
 const withQuoteVat = (quote: Quote, value: any): number => {
-  const vatApplies = quote.quote_type === "business" && quote.vat_enabled !== false
+  const vatApplies = quoteVatApplies(quote)
   return (Number(value) || 0) * (vatApplies ? 1 + (quote.vat_rate ?? 0.23) : 1)
 }
 
