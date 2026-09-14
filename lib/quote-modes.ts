@@ -37,3 +37,22 @@ export function resolveCalcType(args: {
   if (args.templateMode === "uv") return "uv"
   return "3d-print"
 }
+
+export type OwnerMode = "single" | "dual"
+
+/** Map any stored quote_type (including legacy personal/business) to an owner mode. */
+export function normalizeOwnerMode(quoteType?: string | null): OwnerMode {
+  if (quoteType === "dual" || quoteType === "business") return "dual"
+  return "single"
+}
+
+/**
+ * Whether a quote charges VAT — independent of owner mode. New rows always
+ * store vat_enabled explicitly; legacy rows without it keep the historical
+ * default (business charged VAT, personal did not).
+ */
+export function quoteVatApplies(q: { vat_enabled?: boolean; quote_type?: string | null }): boolean {
+  if (q.vat_enabled === true) return true
+  if (q.vat_enabled === false) return false
+  return q.quote_type === "business"
+}
