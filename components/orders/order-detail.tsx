@@ -321,6 +321,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
               quoteLinks={detail.quoteLinks}
               defaultVatRate={defaultVat}
               taskCount={detail.tasks.length}
+              tasks={detail.tasks}
               onChanged={detail.reload}
             />
             <OrderActivityPanel activity={detail.activity} />

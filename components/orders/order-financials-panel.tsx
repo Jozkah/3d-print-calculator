@@ -19,11 +19,20 @@ import {
 import { DecimalInput } from "@/components/ui/decimal-input"
 import { useToast } from "@/hooks/use-toast"
 import { formatMoney } from "@/lib/format"
-import type { Order, Invoice, Payment, OrderQuoteLink } from "@/types/orders"
+import type { Order, Invoice, Payment, OrderQuoteLink, OrderTask } from "@/types/orders"
 import type { PaymentMethod } from "@/types/orders"
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, paymentMethodLabel } from "@/lib/orders/status"
 import { PaymentBadge } from "@/components/orders/order-badges"
-import { computeFinancials, computeInvoiceTotals, round2 } from "@/lib/orders/compute"
+import {
+  computeFinancials,
+  computeInvoiceTotals,
+  round2,
+  activeTasks,
+  taskVatState,
+  taskVatRate,
+  invoiceLinesFromTasks,
+  aggregateEstimatedMinutes,
+} from "@/lib/orders/compute"
 import {
   addPayment,
   deletePayment,
@@ -43,6 +52,7 @@ export function OrderFinancialsPanel({
   quoteLinks,
   defaultVatRate,
   taskCount = 0,
+  tasks,
   onChanged,
 }: {
   order: Order
@@ -51,6 +61,7 @@ export function OrderFinancialsPanel({
   quoteLinks: OrderQuoteLink[]
   defaultVatRate: number
   taskCount?: number
+  tasks: OrderTask[]
   onChanged: () => void
 }) {
   const currency = order.currency_symbol || "€"
@@ -259,6 +270,7 @@ export function OrderFinancialsPanel({
         onOpenChange={setInvOpen}
         order={order}
         defaultVatRate={defaultVatRate}
+        tasks={tasks}
         onDone={onChanged}
       />
       <EditPricingDialog open={priceOpen} onOpenChange={setPriceOpen} order={order} defaultVatRate={defaultVatRate} onDone={onChanged} />
@@ -383,34 +395,63 @@ function CreateInvoiceDialog({
   onOpenChange,
   order,
   defaultVatRate,
+  tasks,
   onDone,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   order: Order
   defaultVatRate: number
+  tasks: OrderTask[]
   onDone: () => void
 }) {
   const { toast } = useToast()
-  const initialUnit = order.subtotal ?? (order.total != null ? round2(order.total / (1 + (order.vat_rate ?? defaultVatRate))) : 0)
-  const [desc, setDesc] = useState(order.title)
-  const [unit, setUnit] = useState<number>(initialUnit || 0)
-  const [qty, setQty] = useState<number>(1)
-  const [vatPct, setVatPct] = useState<number>(Math.round((order.vat_rate ?? defaultVatRate) * 100))
-  const [external, setExternal] = useState("")
-
-  const totals = computeInvoiceTotals([{ quantity: qty, unit_price: unit }], vatPct / 100)
   const currency = order.currency_symbol || "€"
+
+  const active = activeTasks(tasks)
+  const vatState = taskVatState(tasks)
+  const detectedRate = taskVatRate(tasks)
+  const lines =
+    active.length > 0
+      ? invoiceLinesFromTasks(tasks)
+      : [
+          {
+            description: order.title,
+            quantity: 1,
+            unit_price: order.subtotal ?? order.total ?? 0,
+            amount: order.subtotal ?? order.total ?? 0,
+          },
+        ]
+  const [vatPct, setVatPct] = useState<number>(
+    vatState === "all" ? Math.round((detectedRate ?? defaultVatRate) * 100) : 0,
+  )
+  const [external, setExternal] = useState("")
+  const productionMinutes = aggregateEstimatedMinutes(active)
+  const laborCost = round2(active.reduce((s, t) => s + (Number(t.calc_payload?.labor_cost) || 0), 0))
+  const totals = computeInvoiceTotals(lines, vatPct / 100)
 
   async function submit() {
     try {
       await createInvoice({
         orderId: order.id,
-        items: [{ description: desc.trim() || order.title, quantity: qty, unit_price: unit }],
+        items: lines.map(({ description, quantity, unit_price }) => ({ description, quantity, unit_price })),
         vatRate: vatPct / 100,
         currencySymbol: currency,
         externalReference: external.trim() || null,
+        productionMinutes,
+        laborCost,
       })
+      // If the task base carried no VAT and the operator added VAT, the order total
+      // must reflect the VAT-inclusive invoice figure (spec rule).
+      if ((vatState === "none" || vatState === "mixed") && vatPct > 0) {
+        await updateOrder(order.id, {
+          total: totals.total,
+          subtotal: totals.subtotal,
+          vat_rate: vatPct / 100,
+          vat_amount: totals.vatAmount,
+          pricing_source: "manual",
+        })
+      }
       onOpenChange(false)
       onDone()
     } catch (e: unknown) {
@@ -423,30 +464,37 @@ function CreateInvoiceDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Create invoice</DialogTitle>
-          <DialogDescription>Pre-filled from the order total. This is a payment-tracking document, not a certified fiscal invoice.</DialogDescription>
+          <DialogDescription>Pre-filled from the order&rsquo;s tasks. This is a payment-tracking document, not a certified fiscal invoice.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label>Description</Label>
-            <Input value={desc} onChange={(e) => setDesc(e.target.value)} className="bg-card" />
+            <Label>Line items</Label>
+            <ul className="space-y-1 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm">
+              {lines.map((line, i) => (
+                <li key={i} className="flex items-center justify-between gap-2 text-foreground">
+                  <span className="min-w-0 truncate">
+                    {line.description}
+                    <span className="ml-1 text-xs text-muted-foreground">×{line.quantity}</span>
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">{formatMoney(line.quantity * line.unit_price, currency)}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label>Qty</Label>
-              <Input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, parseInt(e.target.value) || 1))} className="bg-card" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Unit ({currency})</Label>
-              <DecimalInput value={unit} onValueChange={setUnit} step="0.01" className="bg-card" />
-            </div>
+          {vatState === "mixed" && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Tasks disagree on VAT; lines were normalised to ex-VAT and the rate above is applied once.
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>VAT %</Label>
               <Input type="number" value={vatPct} onChange={(e) => setVatPct(parseFloat(e.target.value) || 0)} className="bg-card" />
             </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>External reference (optional)</Label>
-            <Input value={external} onChange={(e) => setExternal(e.target.value)} placeholder="Accounting-software invoice no." className="bg-card" />
+            <div className="space-y-1.5">
+              <Label>External reference (optional)</Label>
+              <Input value={external} onChange={(e) => setExternal(e.target.value)} placeholder="Accounting-software invoice no." className="bg-card" />
+            </div>
           </div>
           <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm">
             <div className="flex justify-between text-muted-foreground">
