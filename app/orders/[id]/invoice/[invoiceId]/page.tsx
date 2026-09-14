@@ -9,7 +9,7 @@ import { CompanyLetterhead, issuerContactLine } from "@/components/quotation-doc
 import { formatMoney } from "@/lib/format"
 import { DEFAULT_DOCUMENT_TITLE, orderInvoiceDocumentTitle } from "@/lib/document-title"
 import type { Invoice, Order, GlobalSettings } from "@/types/db"
-import { computeFinancials } from "@/lib/orders/compute"
+import { computeFinancials, formatDuration } from "@/lib/orders/compute"
 import type { Payment } from "@/types/orders"
 
 export default function OrderInvoicePage() {
@@ -98,26 +98,26 @@ export default function OrderInvoicePage() {
 
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
-              <th className="py-2">Description</th>
-              <th className="py-2 text-right">Qty</th>
-              <th className="py-2 text-right">Unit</th>
-              <th className="py-2 text-right">Amount</th>
+            <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+              <th className="py-2.5">Description</th>
+              <th className="py-2.5 text-right">Qty</th>
+              <th className="py-2.5 text-right">Unit</th>
+              <th className="py-2.5 text-right">Amount</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {invoice.items.map((it) => (
               <tr key={it.id}>
-                <td className="py-2.5 text-slate-800">{it.description}</td>
-                <td className="py-2.5 text-right text-slate-600">{it.quantity}</td>
-                <td className="py-2.5 text-right text-slate-600">{money(it.unit_price)}</td>
-                <td className="py-2.5 text-right text-slate-800">{money(it.amount)}</td>
+                <td className="py-3 text-slate-800">{it.description}</td>
+                <td className="py-3 text-right text-slate-600">{it.quantity}</td>
+                <td className="py-3 text-right text-slate-600">{money(it.unit_price)}</td>
+                <td className="py-3 text-right font-medium text-slate-800">{money(it.amount)}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <div className="mt-4 ml-auto w-64 space-y-1 text-sm">
+        <div className="mt-5 ml-auto w-64 space-y-1.5 text-sm">
           <div className="flex justify-between text-slate-600">
             <span>Subtotal</span>
             <span>{money(invoice.subtotal)}</span>
@@ -146,6 +146,19 @@ export default function OrderInvoicePage() {
             </>
           )}
         </div>
+
+        {(invoice.production_minutes || invoice.labor_cost) && (
+          <div className="mt-6 rounded-md border border-slate-200 px-4 py-3 text-sm text-slate-600">
+            <div className="flex justify-between">
+              <span>Total production time</span>
+              <span>{formatDuration(invoice.production_minutes)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total labour</span>
+              <span>{money(invoice.labor_cost || 0)}</span>
+            </div>
+          </div>
+        )}
 
         {invoice.notes && <p className="mt-8 whitespace-pre-line text-sm text-slate-600">{invoice.notes}</p>}
 
