@@ -184,6 +184,27 @@ export function invoiceLinesFromTasks(
   })
 }
 
+/**
+ * Normalize a raw invoice item into a line with a correct amount, guarding
+ * against a positive unit price being silently zeroed by a non-positive
+ * quantity (amount = quantity * unit_price would otherwise be 0).
+ */
+export function normalizeInvoiceItem(item: {
+  description: string
+  quantity: number
+  unit_price: number
+}): { description: string; quantity: number; unit_price: number; amount: number } {
+  const q = Number(item.quantity) || 0
+  const u = Number(item.unit_price) || 0
+  if (q > 0) {
+    return { description: item.description, quantity: q, unit_price: u, amount: round2(q * u) }
+  }
+  if (u > 0) {
+    return { description: item.description, quantity: 1, unit_price: u, amount: round2(u) }
+  }
+  return { description: item.description, quantity: 0, unit_price: u, amount: 0 }
+}
+
 export type InvoiceFormat = "simple" | "detailed"
 export interface InvoiceLineInput { description: string; quantity: number; unit_price: number; amount: number }
 

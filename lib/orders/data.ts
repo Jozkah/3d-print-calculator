@@ -32,6 +32,7 @@ import {
   round2,
   activeTasks,
   invoiceLinesFromTasks,
+  normalizeInvoiceItem,
 } from "@/lib/orders/compute"
 import {
   saveAttachmentBlob,
@@ -923,10 +924,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
   const invoice_number = await mintInvoiceNumber()
   const items: InvoiceItem[] = sourceItems.map((it) => ({
     id: uid(),
-    description: it.description,
-    quantity: Number(it.quantity) || 0,
-    unit_price: Number(it.unit_price) || 0,
-    amount: round2((Number(it.quantity) || 0) * (Number(it.unit_price) || 0)),
+    ...normalizeInvoiceItem(it),
   }))
   const totals = computeInvoiceTotals(items, input.vatRate)
   const row: Invoice = {

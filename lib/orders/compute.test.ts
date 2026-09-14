@@ -18,6 +18,7 @@ import {
   taskExVatAmount,
   activeTasks,
   taskVatRate,
+  normalizeInvoiceItem,
 } from "@/lib/orders/compute"
 import type { OrderTask, Payment } from "@/types/orders"
 import { __test as numbering } from "@/lib/orders/numbering"
@@ -415,5 +416,22 @@ describe("buildInvoiceLines", () => {
     })
     expect(lines).toHaveLength(1)
     expect(lines[0]).toMatchObject({ description: "Order X", quantity: 1, amount: 150 })
+  })
+})
+
+describe("normalizeInvoiceItem", () => {
+  it("keeps a normal positive quantity as-is", () => {
+    const item = normalizeInvoiceItem({ description: "Widget", quantity: 3, unit_price: 10 })
+    expect(item).toEqual({ description: "Widget", quantity: 3, unit_price: 10, amount: 30 })
+  })
+
+  it("treats a zero quantity with a positive unit price as one unit, not a dropped charge", () => {
+    const item = normalizeInvoiceItem({ description: "Setup fee", quantity: 0, unit_price: 25 })
+    expect(item).toEqual({ description: "Setup fee", quantity: 1, unit_price: 25, amount: 25 })
+  })
+
+  it("zero quantity and zero unit price yields a zero-amount, zero-quantity line", () => {
+    const item = normalizeInvoiceItem({ description: "Empty", quantity: 0, unit_price: 0 })
+    expect(item).toEqual({ description: "Empty", quantity: 0, unit_price: 0, amount: 0 })
   })
 })
