@@ -55,6 +55,8 @@ import { resolveFilamentColor } from "@/lib/filament-color"
 import { BrandBadge } from "@/components/visual/brand-badge"
 
 import type { Printer, Filament, Client, GlobalSettings } from "@/types/db"
+import type { OwnerMode } from "@/lib/quote-modes"
+import { computeOwnerSplit } from "@/lib/owner-split"
 
 type FilamentEntry = {
   id: string
@@ -105,7 +107,7 @@ type ExcelCalculatorProps = {
   filaments: Filament[]
   printers: Printer[]
   globalSettings: GlobalSettings | null
-  mode: "personal" | "business"
+  mode: OwnerMode
   selectedMargin?: number
   editingQuoteId?: string
   // Start a NEW quote pre-filled from a saved template (quote_templates row).
@@ -131,7 +133,7 @@ export function ExcelCalculator({
   printers: initialPrinters,
   filaments: initialFilaments,
   globalSettings: initialGlobalSettings,
-  mode = "business", // Default to business mode
+  mode = "dual", // Default to dual (owner-split) mode
   selectedMargin: propSelectedMargin, // Renamed to avoid conflict with state
   editingQuoteId, // New prop for loading existing quote
   templateId, // Start a new quote from a saved template
@@ -166,6 +168,10 @@ export function ExcelCalculator({
   const [isEmergency, setIsEmergency] = useState(false)
   const [vatEnabled, setVatEnabled] = useState(true)
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings | null>(initialGlobalSettings)
+  // Editable VAT rate (fraction). Defaults from global settings; hydrated from
+  // a loaded quote/template/payload's own vat_rate below so an edited quote
+  // keeps the rate it was quoted at even if global settings later change.
+  const [vatRate, setVatRate] = useState<number>(globalSettings?.vat_rate ?? 0.23)
   const [printers, setPrinters] = useState<Printer[]>(initialPrinters)
   const [filaments, setFilaments] = useState<Filament[]>(initialFilaments)
   const [distanceTraveledKm, setDistanceTraveledKm] = useState(0)
@@ -342,6 +348,7 @@ export function ExcelCalculator({
           setTargetPrice(0)
         }
         setVatEnabled(quote.vat_enabled !== undefined ? quote.vat_enabled : true) // Load VAT enabled state
+        setVatRate(quote.vat_rate ?? globalSettings?.vat_rate ?? 0.23) // Restore the rate the quote was charged at
 
         // Correctly handle legacy and new filament data
         const restoredPrintedParts: PrintedPart[] = (Array.isArray(quote.printed_parts) ? quote.printed_parts : []).map(
@@ -431,6 +438,7 @@ export function ExcelCalculator({
       setMarginInputMode("percentage")
       setTargetPrice(0)
       setVatEnabled(payload.vat_enabled !== undefined ? payload.vat_enabled : true)
+      setVatRate(payload.vat_rate ?? globalSettings?.vat_rate ?? 0.23)
 
       const restoredPrintedParts: PrintedPart[] = (Array.isArray(payload.printed_parts) ? payload.printed_parts : []).map(
         (part: any) => {
@@ -490,7 +498,8 @@ export function ExcelCalculator({
         setMarginInputMode("targetPrice")
         setTargetPrice(Number(payload.final_price))
       }
-      setVatEnabled(payload.vat_enabled !== undefined ? payload.vat_enabled : mode === "business")
+      setVatEnabled(payload.vat_enabled !== undefined ? payload.vat_enabled : true)
+      setVatRate(payload.vat_rate ?? globalSettings?.vat_rate ?? 0.23)
       const restored: PrintedPart[] = (Array.isArray(payload.printed_parts) ? payload.printed_parts : []).map(
         (part: any) => {
           if (part.filament_id && part.filament_grams !== undefined) {
@@ -749,35 +758,32 @@ export function ExcelCalculator({
             : // Added case for margin60
               totalLandedCost / (1 - selectedMargin / 100) + emergencyFee
 
-  // Configurable VAT rate (fraction). Legacy settings rows without the field
-  // keep the historical 23%.
-  const vatRate = globalSettings?.vat_rate ?? 0.23
   // Percent for labels, rounded to dodge float artifacts (0.23*100 = 23.000…4).
   const vatPercentLabel = Math.round(vatRate * 10000) / 100
   // How long saved quotes stay valid (drives quotes.valid_until on save).
   const validityDays = globalSettings?.validity_days ?? 30
-  const vatAmountFromLandedCost = mode === "business" && vatEnabled ? totalLandedCost * vatRate : 0
+  const vatAmountFromLandedCost = vatEnabled ? totalLandedCost * vatRate : 0
   // In target-price mode the client price is exactly targetPrice (VAT-inclusive),
   // so derive the VAT line from the actual target to avoid drift from the rounded
   // back-solved margin; otherwise use VAT of the ex-VAT selling price.
   const vatAmountFromSellingPrice =
-    mode === "business" && vatEnabled
+    vatEnabled
       ? marginInputMode === "targetPrice" && targetPrice > 0
         ? targetPrice - targetPrice / (1 + vatRate)
         : selectedMarginValue * vatRate
       : 0
 
   // Calculations with VAT included
-  const margin30WithVAT = mode === "business" && vatEnabled ? margin30 * (1 + vatRate) : margin30
-  const margin40WithVAT = mode === "business" && vatEnabled ? margin40 * (1 + vatRate) : margin40
-  const margin50WithVAT = mode === "business" && vatEnabled ? margin50 * (1 + vatRate) : margin50
-  const margin60WithVAT = mode === "business" && vatEnabled ? margin60 * (1 + vatRate) : margin60
-  const customMarginWithVAT = mode === "business" && vatEnabled ? customMarginValue * (1 + vatRate) : customMarginValue
+  const margin30WithVAT = vatEnabled ? margin30 * (1 + vatRate) : margin30
+  const margin40WithVAT = vatEnabled ? margin40 * (1 + vatRate) : margin40
+  const margin50WithVAT = vatEnabled ? margin50 * (1 + vatRate) : margin50
+  const margin60WithVAT = vatEnabled ? margin60 * (1 + vatRate) : margin60
+  const customMarginWithVAT = vatEnabled ? customMarginValue * (1 + vatRate) : customMarginValue
 
   const finalClientPrice =
     marginInputMode === "targetPrice" && targetPrice > 0
       ? targetPrice
-      : mode === "business" && vatEnabled
+      : vatEnabled
         ? selectedMarginValue * (1 + vatRate)
         : selectedMarginValue
   // </CHANGE>
@@ -788,8 +794,7 @@ export function ExcelCalculator({
       // the margin so selectedMarginValue becomes the ex-VAT selling price;
       // otherwise the owner split (which adds VAT separately) over-distributed
       // by ~the VAT amount versus what the client actually pays.
-      const vatApplies = mode === "business" && vatEnabled
-      const targetExVat = vatApplies ? targetPrice / (1 + vatRate) : targetPrice
+      const targetExVat = vatEnabled ? targetPrice / (1 + vatRate) : targetPrice
       const priceBeforeEmergency = Math.max(0, targetExVat - emergencyFee)
       const totalLandedCostValue = vatEnabled ? totalLandedCost : totalLandedCost - vatAmountFromLandedCost
 
@@ -810,7 +815,7 @@ export function ExcelCalculator({
       }
       // </CHANGE>
     }
-  }, [marginInputMode, targetPrice, totalLandedCost, vatEnabled, vatAmountFromLandedCost, emergencyFee, mode, vatRate])
+  }, [marginInputMode, targetPrice, totalLandedCost, vatEnabled, vatAmountFromLandedCost, emergencyFee, vatRate])
   // </CHANGE>
 
   // selectedMarginValue already includes the emergency fee; strip it here so
@@ -824,23 +829,16 @@ export function ExcelCalculator({
 
   // Owner B gets his machine costs + filament + materials + packaging + profit share + VAT
   // Owner A receives his share of machine costs + ALL electricity + ALL drying + labor + fuel + profit share + emergency share
-  const ownerAReceives =
-    ownerAMachineCost +
-    electricityCost + // ALL electricity goes to Owner A, not just ownerAElectricityCost
-    totalLaborCost +
-    fuelCost +
-    totalDryingCost + // ALL drying cost goes to Owner A
-    ownerAProfit +
-    ownerAEmergency
-
-  const ownerBReceives =
-    ownerBMachineCost +
-    totalPrintingCost + // Filament cost
-    totalMaterialsCost +
-    totalPackagingCost +
-    ownerBProfit +
-    ownerBEmergency +
-    vatAmountFromSellingPrice
+  const { ownerAReceives, ownerBReceives } = computeOwnerSplit({
+    ownerAMachine: ownerAMachineCost,
+    ownerBMachine: ownerBMachineCost,
+    electricity: electricityCost,
+    ownerALabour: totalLaborCost + fuelCost + totalDryingCost,
+    ownerBMaterials: totalPrintingCost + totalMaterialsCost + totalPackagingCost,
+    profit: totalProfit,
+    emergency: emergencyFee,
+    vat: vatAmountFromSellingPrice,
+  })
 
   // ADDED STATE FOR SAVE DIALOG
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -913,7 +911,7 @@ export function ExcelCalculator({
       })
 
       const quoteData = {
-        quote_type: mode, // Should be 'personal' or 'business'
+        quote_type: mode, // 'single' or 'dual'
         quote_name: clientName || "Task",
         client_id: clientId,
         quote_type_mode: "3d-print",
@@ -950,8 +948,8 @@ export function ExcelCalculator({
         selected_margin_percentage: selectedMargin, // This stores the percentage (30, 40, 50, or 60)
         selected_margin: selectedMargin?.toString() || "0", // Store as string for consistency with quote page
         final_price: marginInputMode === "targetPrice" && targetPrice > 0 ? targetPrice : null, // Store the actual target price if in targetPrice mode
-        owner_a_receives: mode === "business" ? ownerAReceives : null,
-        owner_b_receives: mode === "business" ? ownerBReceives : null,
+        owner_a_receives: mode === "dual" ? ownerAReceives : null,
+        owner_b_receives: mode === "dual" ? ownerBReceives : null,
         is_draft: false, // Mark as finalized when saved
         vat_enabled: vatEnabled, // Save VAT enabled state
         vat_rate: vatRate, // Persist the rate so old documents re-render as quoted
@@ -1057,7 +1055,7 @@ export function ExcelCalculator({
       })
 
       const quoteData = {
-        quote_type: mode, // 'personal' or 'business'
+        quote_type: mode, // 'single' or 'dual'
         quote_name: clientName,
         client_id: clientId,
         quote_type_mode: "3d-print",
@@ -1094,8 +1092,8 @@ export function ExcelCalculator({
         selected_margin_percentage: selectedMargin,
         selected_margin: selectedMargin?.toString() || "0", // Store as string for consistency
         final_price: marginInputMode === "targetPrice" && targetPrice > 0 ? targetPrice : null, // Store the actual target price if in targetPrice mode
-        owner_a_receives: mode === "business" ? ownerAReceives : null,
-        owner_b_receives: mode === "business" ? ownerBReceives : null,
+        owner_a_receives: mode === "dual" ? ownerAReceives : null,
+        owner_b_receives: mode === "dual" ? ownerBReceives : null,
         is_draft: true, // Mark as draft
         vat_enabled: vatEnabled, // Save VAT enabled state
         vat_rate: vatRate, // Persist the rate so old documents re-render as quoted
@@ -1431,18 +1429,21 @@ export function ExcelCalculator({
                   Emergency Order (+€{globalSettings.emergency_fee_fixed.toFixed(2)})
                 </Label>
               </div>
-              {mode === "business" && (
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="vatEnabled"
-                    checked={vatEnabled}
-                    onCheckedChange={(checked) => setVatEnabled(checked as boolean)}
-                  />
-                  <Label htmlFor="vatEnabled" className="font-medium">
-                    Include VAT ({vatPercentLabel}%)
-                  </Label>
-                </div>
-              )}
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="vatEnabled"
+                  checked={vatEnabled}
+                  onCheckedChange={(checked) => setVatEnabled(checked as boolean)}
+                />
+                <Label htmlFor="vatEnabled" className="font-medium">
+                  Include VAT ({vatPercentLabel}%)
+                </Label>
+                {vatEnabled && (
+                  <input type="number" min={0} step="0.5" value={Math.round(vatRate * 10000) / 100}
+                    onChange={(e) => setVatRate((parseFloat(e.target.value) || 0) / 100)}
+                    className="w-20 rounded border border-border bg-card px-2 py-1 text-sm" aria-label="VAT %" />
+                )}
+              </div>
             </div>
           </Card>
 
@@ -2334,14 +2335,12 @@ export function ExcelCalculator({
                     <span className="font-semibold tabular-nums text-foreground">€{emergencyFee.toFixed(2)}</span>
                   </div>
                 )}
-                {/* CHANGE: Update VAT display to show only when enabled */}
-                {mode === "business" && (
-                  <div className="text-muted-foreground text-sm mb-4">
-                    {vatEnabled
-                      ? `VAT (${vatPercentLabel}% of Selling Price): €${vatAmountFromSellingPrice.toFixed(2)}`
-                      : "VAT: Disabled"}
-                  </div>
-                )}
+                {/* VAT is independent of mode now — always show its state. */}
+                <div className="text-muted-foreground text-sm mb-4">
+                  {vatEnabled
+                    ? `VAT (${vatPercentLabel}% of Selling Price): €${vatAmountFromSellingPrice.toFixed(2)}`
+                    : "VAT: Disabled"}
+                </div>
                 <div className="flex justify-between items-center pb-2 pt-2 border-t-2 border-primary/30">
                   <span className="font-semibold text-foreground text-lg">Total Landed Cost:</span>
                   <span className="font-bold tabular-nums text-primary text-xl">€{totalLandedCost.toFixed(2)}</span>
@@ -2528,7 +2527,7 @@ export function ExcelCalculator({
                 </div>
               )}
 
-              {mode === "business" && (
+              {mode === "dual" && (
                 <div className="mt-8 pt-6 border-t border-border">
                   <h3 className="text-lg font-semibold tracking-tight text-foreground mb-4">
                     Business Profit Split ({selectedMargin}% Margin)
