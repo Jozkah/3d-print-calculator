@@ -176,7 +176,7 @@ export function invoiceLinesFromTasks(
   return activeTasks(tasks).map((t) => {
     const amount = round2(taskExVatAmount(t))
     const qty = Number(t.quantity) || 0
-    const unit_price = qty > 0 ? round2(amount / qty) : amount
+    const unit_price = qty > 0 ? amount / qty : amount
     const desc = t.material_name ? `${t.name} — ${t.material_name}` : t.name
     return { description: desc, quantity: qty, unit_price, amount }
   })
