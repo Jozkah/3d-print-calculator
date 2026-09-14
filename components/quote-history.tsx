@@ -53,7 +53,7 @@ import {
   ClipboardList,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { isLaserQuote, isUvQuote, quoteVatApplies } from "@/lib/quote-modes"
+import { isLaserQuote, isUvQuote, quoteVatApplies, normalizeOwnerMode } from "@/lib/quote-modes"
 import { useRouter } from "next/navigation"
 import { groupUvQuoteLines, lineInkMl } from "@/lib/uv-quote-items"
 
@@ -1802,7 +1802,7 @@ function QuoteHistory({
                 {/* Wrap the owner-share check in Boolean(): when both shares are the number 0,
                     `(0 || 0)` is 0 and React would render a stray literal "0" under the card.
                     Coercing to a boolean makes the all-zero case render nothing instead. */}
-                {quote.quote_type === "business" && Boolean(quote.owner_a_receives || quote.owner_b_receives) && (
+                {normalizeOwnerMode(quote.quote_type) === "dual" && Boolean(quote.owner_a_receives || quote.owner_b_receives) && (
                   <div className="mt-6 pt-4 border-t border-border">
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Profit Split</h3>
                     <div className="grid md:grid-cols-2 gap-4">
