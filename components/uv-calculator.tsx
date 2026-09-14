@@ -616,8 +616,8 @@ export function UvCalculator({
             <Checkbox id="uv-vat" checked={vatEnabled} onCheckedChange={(c) => setVatEnabled(c as boolean)} />
             <Label htmlFor="uv-vat" className="font-medium">Include VAT ({vatPercentLabel}%)</Label>
             {vatEnabled && (
-              <input type="number" min={0} step="0.5" value={Math.round(vatRate * 10000) / 100}
-                onChange={(e) => setVatRate((Number.parseFloat(e.target.value) || 0) / 100)}
+              <input type="number" min={0} max={100} step="0.5" value={Math.round(vatRate * 10000) / 100}
+                onChange={(e) => setVatRate((Math.min(100, Math.max(0, Number.parseFloat(e.target.value) || 0))) / 100)}
                 className="w-20 rounded border border-border bg-card px-2 py-1 text-sm" aria-label="VAT %" />
             )}
           </div>

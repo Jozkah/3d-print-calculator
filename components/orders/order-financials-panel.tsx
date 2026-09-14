@@ -574,7 +574,7 @@ function CreateInvoiceDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>VAT %</Label>
-              <Input type="number" value={vatPct} onChange={(e) => setVatPct(parseFloat(e.target.value) || 0)} className="bg-card" />
+              <Input type="number" min={0} max={100} value={vatPct} onChange={(e) => setVatPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))} className="bg-card" />
             </div>
             <div className="space-y-1.5">
               <Label>External reference (optional)</Label>
@@ -654,7 +654,7 @@ function EditPricingDialog({
           </div>
           <div className="space-y-1.5">
             <Label>VAT %</Label>
-            <Input type="number" value={vatPct} onChange={(e) => setVatPct(parseFloat(e.target.value) || 0)} className="bg-card" />
+            <Input type="number" min={0} max={100} value={vatPct} onChange={(e) => setVatPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))} className="bg-card" />
           </div>
         </div>
         <DialogFooter>
