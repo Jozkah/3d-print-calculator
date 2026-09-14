@@ -4,7 +4,7 @@
 // dialog for the Orders "Add task" flow. Each calculator runs in embedded mode:
 // its "Add to task" button hands back the computed quote-shaped payload, which
 // we turn into a task (or apply to an existing one) instead of saving a quote.
-// A Personal/Business toggle switches at-cost vs margin+VAT pricing.
+// A Single/Dual toggle switches between one-owner and two-owner 50/50 split pricing.
 
 import { useEffect, useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
@@ -19,13 +19,13 @@ import { UvCalculator } from "@/components/uv-calculator"
 import { PageLoading } from "@/components/page-loading"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
-import { isLaserQuote, isUvQuote } from "@/lib/quote-modes"
+import { isLaserQuote, isUvQuote, normalizeOwnerMode } from "@/lib/quote-modes"
 import type { OrderTask, OrderTaskType } from "@/types/orders"
 import { calcKindForTaskType, CALC_KIND_LABEL, type CalcKind } from "@/lib/orders/status"
 import { createTask, applyTaskCalc, taskFieldsFromCalc } from "@/lib/orders/data"
 
 type Seed = { name: string; type: OrderTaskType; quantity: number }
-type CalcMode = "personal" | "business"
+type CalcMode = "single" | "dual"
 
 export function TaskCalculatorDialog({
   open,
@@ -48,9 +48,7 @@ export function TaskCalculatorDialog({
   const taskType = mode === "edit" ? task?.type : seed?.type
   const kind: CalcKind = calcKindForTaskType(taskType) ?? "3d"
 
-  const [calcMode, setCalcMode] = useState<CalcMode>(() =>
-    task?.calc_payload?.quote_type === "personal" ? "personal" : "business",
-  )
+  const [calcMode, setCalcMode] = useState<CalcMode>(() => normalizeOwnerMode(task?.calc_payload?.quote_type))
   const [printers, setPrinters] = useState<any[]>([])
   const [filaments, setFilaments] = useState<any[]>([])
   const [laserMaterials, setLaserMaterials] = useState<any[]>([])
@@ -168,9 +166,9 @@ export function TaskCalculatorDialog({
             <DialogTitle>
               {mode === "edit" ? "Re-cost task" : "Cost this task"} — {CALC_KIND_LABEL[kind]}
             </DialogTitle>
-            {/* Personal (at-cost) vs Business (margin + VAT). */}
+            {/* Single (one owner) vs Dual (two-owner 50/50 split). */}
             <div className="flex overflow-hidden rounded-lg border border-border text-xs">
-              {(["business", "personal"] as CalcMode[]).map((m) => (
+              {(["single", "dual"] as CalcMode[]).map((m) => (
                 <button
                   key={m}
                   type="button"
@@ -186,7 +184,7 @@ export function TaskCalculatorDialog({
             </div>
           </div>
           <DialogDescription>
-            Full {CALC_KIND_LABEL[kind]} calculator. {calcMode === "business" ? "Business — margins + VAT." : "Personal — at-cost, no margin."}{" "}
+            Full {CALC_KIND_LABEL[kind]} calculator. {calcMode === "dual" ? "Dual — two-owner 50/50 split." : "Single — one owner."}{" "}
             &ldquo;{submitLabel}&rdquo; attaches the result{mode === "edit" ? "" : " to a new production task"}.
           </DialogDescription>
         </DialogHeader>
@@ -273,7 +271,7 @@ export function TaskCalculatorDialog({
               {kind === "laser" ? (
                 <LaserCalculator
                   key={calcKey}
-                  mode={calcMode === "business" ? "dual" : "single"}
+                  mode={calcMode}
                   embedded
                   submitLabel={submitLabel}
                   machines={laserMachines}
@@ -286,7 +284,7 @@ export function TaskCalculatorDialog({
               ) : kind === "uv" ? (
                 <UvCalculator
                   key={calcKey}
-                  mode={calcMode === "business" ? "dual" : "single"}
+                  mode={calcMode}
                   embedded
                   submitLabel={submitLabel}
                   machines={uvMachines}
