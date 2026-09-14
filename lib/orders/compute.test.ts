@@ -13,6 +13,10 @@ import {
   sortForQueue,
   nextQueuePosition,
   round2,
+  taskVatState,
+  invoiceLinesFromTasks,
+  taskExVatAmount,
+  activeTasks,
 } from "@/lib/orders/compute"
 import type { OrderTask, Payment } from "@/types/orders"
 import { __test as numbering } from "@/lib/orders/numbering"
@@ -202,5 +206,87 @@ describe("round2", () => {
   it("rounds to cents", () => {
     expect(round2(5.865)).toBe(5.87)
     expect(round2(0.1 + 0.2)).toBe(0.3)
+  })
+})
+
+// Task-derived invoice lines (Task 4)
+
+const taskForVat = (over: any): OrderTask =>
+  ({
+    id: over.id ?? "t",
+    order_id: "o",
+    name: over.name ?? "Task",
+    type: "3d_print",
+    status: over.status ?? "queued",
+    quantity: over.quantity ?? 1,
+    sequence: 0,
+    price: over.price ?? null,
+    calc_payload: over.calc_payload ?? null,
+    created_at: "",
+  }) as OrderTask
+
+describe("taskVatState", () => {
+  it("classifies all/none/mixed/empty, ignoring cancelled tasks", () => {
+    expect(taskVatState([])).toBe("empty")
+    expect(taskVatState([taskForVat({ calc_payload: { vat_enabled: true } })])).toBe("all")
+    expect(taskVatState([taskForVat({ calc_payload: { vat_enabled: false } })])).toBe("none")
+    expect(taskVatState([taskForVat({ calc_payload: {} })])).toBe("none")
+    expect(
+      taskVatState([
+        taskForVat({ id: "a", calc_payload: { vat_enabled: true } }),
+        taskForVat({ id: "b", calc_payload: { vat_enabled: false } }),
+      ]),
+    ).toBe("mixed")
+    expect(
+      taskVatState([
+        taskForVat({ id: "a", calc_payload: { vat_enabled: true } }),
+        taskForVat({ id: "b", status: "cancelled", calc_payload: { vat_enabled: false } }),
+      ]),
+    ).toBe("all")
+  })
+})
+
+describe("invoiceLinesFromTasks + computeInvoiceTotals", () => {
+  it("does not double-charge VAT: a €100 VAT-inclusive task yields an €81.30 line", () => {
+    const tasks = [taskForVat({ price: 100, quantity: 1, calc_payload: { vat_enabled: true, vat_rate: 0.23 } })]
+    const lines = invoiceLinesFromTasks(tasks)
+    expect(lines[0].amount).toBe(81.3) // 100 / 1.23 = 81.300... -> 81.30
+    const totals = computeInvoiceTotals(lines, 0.23)
+    expect(totals.subtotal).toBe(81.3)
+    expect(totals.total).toBe(100.0) // 81.30 * 1.23 = 99.999 -> 100.00
+  })
+
+  it("passes ex-VAT task prices straight through", () => {
+    const tasks = [taskForVat({ price: 50, quantity: 2, calc_payload: { vat_enabled: false } })]
+    const lines = invoiceLinesFromTasks(tasks)
+    expect(lines[0].amount).toBe(50)
+    expect(lines[0].unit_price).toBe(25)
+  })
+
+  it("keeps item subtotal equal to the stored invoice subtotal (rounding + zero qty)", () => {
+    const tasks = [
+      taskForVat({ id: "a", price: 33.337, quantity: 3, calc_payload: { vat_enabled: false } }),
+      taskForVat({ id: "b", price: 0, quantity: 0, calc_payload: { vat_enabled: false } }),
+    ]
+    const lines = invoiceLinesFromTasks(tasks)
+    const totals = computeInvoiceTotals(lines, 0.23)
+    const sumLines = lines.reduce((s, l) => s + l.amount, 0)
+    expect(totals.subtotal).toBe(Math.round((sumLines + Number.EPSILON) * 100) / 100)
+  })
+
+  it("normalises a mixed set to ex-VAT per task's own rate", () => {
+    const tasks = [
+      taskForVat({ id: "a", price: 123, quantity: 1, calc_payload: { vat_enabled: true, vat_rate: 0.23 } }),
+      taskForVat({ id: "b", price: 40, quantity: 1, calc_payload: { vat_enabled: false } }),
+    ]
+    const lines = invoiceLinesFromTasks(tasks)
+    expect(lines[0].amount).toBe(100) // 123 / 1.23
+    expect(lines[1].amount).toBe(40)
+  })
+})
+
+describe("activeTasks", () => {
+  it("drops cancelled tasks", () => {
+    expect(activeTasks([taskForVat({ id: "a" }), taskForVat({ id: "b", status: "cancelled" })]).map((t) => t.id)).toEqual(["a"])
   })
 })

@@ -130,6 +130,59 @@ export function computeInvoiceTotals(
 }
 
 // ---------------------------------------------------------------------------
+// Invoice line items derived from production tasks
+// ---------------------------------------------------------------------------
+
+export type TaskVatState = "empty" | "all" | "none" | "mixed"
+
+/** Tasks that count toward billing — cancelled tasks are excluded everywhere. */
+export function activeTasks(tasks: readonly OrderTask[]): OrderTask[] {
+  return tasks.filter((t) => t.status !== "cancelled")
+}
+
+const taskChargedVat = (t: OrderTask): boolean => t.calc_payload?.vat_enabled === true
+
+/** all = every active task charged VAT; none = zero did; mixed = some; empty = no active tasks. */
+export function taskVatState(tasks: readonly OrderTask[]): TaskVatState {
+  const active = activeTasks(tasks)
+  if (active.length === 0) return "empty"
+  const withVat = active.filter(taskChargedVat).length
+  if (withVat === active.length) return "all"
+  if (withVat === 0) return "none"
+  return "mixed"
+}
+
+/** The uniform VAT rate across VAT-charging active tasks, or null if they differ / none charge. */
+export function taskVatRate(tasks: readonly OrderTask[]): number | null {
+  const rates = activeTasks(tasks)
+    .filter(taskChargedVat)
+    .map((t) => Number(t.calc_payload?.vat_rate) || 0)
+  if (rates.length === 0) return null
+  return rates.every((r) => r === rates[0]) ? rates[0] : null
+}
+
+/** A task's price with any VAT it charged backed out (ex-VAT). */
+export function taskExVatAmount(task: OrderTask): number {
+  const price = Number(task.price) || 0
+  if (!taskChargedVat(task)) return price
+  const rate = Number(task.calc_payload?.vat_rate) || 0
+  return rate > 0 ? price / (1 + rate) : price
+}
+
+/** One ex-VAT invoice line per active task. Amounts are rounded to cents. */
+export function invoiceLinesFromTasks(
+  tasks: readonly OrderTask[],
+): Array<{ description: string; quantity: number; unit_price: number; amount: number }> {
+  return activeTasks(tasks).map((t) => {
+    const amount = round2(taskExVatAmount(t))
+    const qty = Number(t.quantity) || 0
+    const unit_price = qty > 0 ? round2(amount / qty) : amount
+    const desc = t.material_name ? `${t.name} — ${t.material_name}` : t.name
+    return { description: desc, quantity: qty, unit_price, amount }
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Quote → headline total (reproduces components/quotation-document.tsx logic)
 // ---------------------------------------------------------------------------
 
