@@ -30,9 +30,10 @@ import {
   activeTasks,
   taskVatState,
   taskVatRate,
-  invoiceLinesFromTasks,
+  buildInvoiceLines,
   aggregateEstimatedMinutes,
 } from "@/lib/orders/compute"
+import type { InvoiceFormat } from "@/lib/orders/compute"
 import {
   addPayment,
   deletePayment,
@@ -409,26 +410,49 @@ function CreateInvoiceDialog({
   const currency = order.currency_symbol || "€"
 
   const active = activeTasks(tasks)
+  const shippingCost = round2(Number(order.shipping_cost) || 0)
+  const hasShipping = shippingCost > 0
   const vatState = taskVatState(tasks)
   const detectedRate = taskVatRate(tasks)
-  const lines =
-    active.length > 0
-      ? invoiceLinesFromTasks(tasks)
-      : [
-          {
-            description: order.title,
-            quantity: 1,
-            unit_price: order.subtotal ?? order.total ?? 0,
-            amount: order.subtotal ?? order.total ?? 0,
-          },
-        ]
+  const [format, setFormat] = useState<InvoiceFormat>("simple")
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(active.map((t) => t.id)))
+  const [includeShipping, setIncludeShipping] = useState<boolean>(hasShipping)
+
+  const selectedTasks = active.filter((t) => selectedIds.has(t.id))
+  const lines = buildInvoiceLines({
+    tasks: selectedTasks,
+    format,
+    orderTitle: order.title,
+    shipping: { include: includeShipping, cost: shippingCost },
+  })
+  const nothingSelected = lines.length === 0
+  const allSelected = active.every((t) => selectedIds.has(t.id)) && (includeShipping || !hasShipping)
   const [vatPct, setVatPct] = useState<number>(
     vatState === "all" ? Math.round((detectedRate ?? defaultVatRate) * 100) : 0,
   )
   const [external, setExternal] = useState("")
-  const productionMinutes = aggregateEstimatedMinutes(active)
-  const laborCost = round2(active.reduce((s, t) => s + (Number(t.calc_payload?.labor_cost) || 0), 0))
+  const productionMinutes = aggregateEstimatedMinutes(selectedTasks)
+  const laborCost = round2(selectedTasks.reduce((s, t) => s + (Number(t.calc_payload?.labor_cost) || 0), 0))
   const totals = computeInvoiceTotals(lines, vatPct / 100)
+
+  function toggleTask(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(new Set())
+      setIncludeShipping(false)
+    } else {
+      setSelectedIds(new Set(active.map((t) => t.id)))
+      setIncludeShipping(hasShipping)
+    }
+  }
 
   async function submit() {
     try {
@@ -468,8 +492,49 @@ function CreateInvoiceDialog({
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
+            <Label>Format</Label>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant={format === "simple" ? "default" : "outline"} onClick={() => setFormat("simple")}>
+                Simple
+              </Button>
+              <Button type="button" size="sm" variant={format === "detailed" ? "default" : "outline"} onClick={() => setFormat("detailed")}>
+                Detailed
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Billable items</Label>
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm">
+              <label className="flex items-center justify-between gap-2 border-b border-border/60 pb-1 font-medium text-foreground">
+                <span className="flex items-center gap-2">
+                  <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} />
+                  Select all
+                </span>
+              </label>
+              {active.map((t) => (
+                <label key={t.id} className="flex items-center justify-between gap-2 text-foreground">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleTask(t.id)} />
+                    <span className="min-w-0 truncate">{t.name}</span>
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">{formatMoney(t.price ?? 0, currency)}</span>
+                </label>
+              ))}
+              {hasShipping && (
+                <label className="flex items-center justify-between gap-2 text-foreground">
+                  <span className="flex items-center gap-2">
+                    <input type="checkbox" checked={includeShipping} onChange={(e) => setIncludeShipping(e.target.checked)} />
+                    Shipping
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">{formatMoney(shippingCost, currency)}</span>
+                </label>
+              )}
+            </div>
+          </div>
+          <div className="space-y-1.5">
             <Label>Line items</Label>
             <ul className="space-y-1 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm">
+              {lines.length === 0 && <li className="text-muted-foreground">Nothing selected</li>}
               {lines.map((line, i) => (
                 <li key={i} className="flex items-center justify-between gap-2 text-foreground">
                   <span className="min-w-0 truncate">
@@ -515,7 +580,9 @@ function CreateInvoiceDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit}>Create invoice</Button>
+          <Button onClick={submit} disabled={nothingSelected}>
+            Create invoice
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
