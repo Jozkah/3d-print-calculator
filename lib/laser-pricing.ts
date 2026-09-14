@@ -110,6 +110,22 @@ export function itemMachineCost(
   return (pos(item.machine_minutes) / 60) * machineCostPerHour(machine, electricityCostPerKwh) * itemQty(item)
 }
 
+/**
+ * The power-draw slice of an item's machine cost — the part of itemMachineCost
+ * that comes from the printer's wattage rather than depreciation. Buffered by
+ * the same COST_BUFFER_FACTOR the machine rate uses so capital + electricity
+ * still sum to exactly itemMachineCost.
+ */
+export function itemElectricityCost(
+  item: LaserItem,
+  machine: LaserMachineLike | undefined,
+  electricityCostPerKwh: number,
+): number {
+  if (!machine) return 0
+  const perHour = (pos(machine.average_power_consumption_watts) / 1000) * pos(electricityCostPerKwh)
+  return (pos(item.machine_minutes) / 60) * perHour * COST_BUFFER_FACTOR * itemQty(item)
+}
+
 /** Highest discount among tiers whose min_qty the quantity reaches. */
 export function discountPctForQty(qty: number, tiers: QtyDiscountTier[]): number {
   let discount = 0

@@ -3,6 +3,7 @@ import {
   machineCostPerHour,
   itemMaterialCost,
   itemMachineCost,
+  itemElectricityCost,
   discountPctForQty,
   resolveMinJobPrice,
   computeLaserQuote,
@@ -213,5 +214,28 @@ describe("computeLaserQuote", () => {
     const b = computeLaserQuote(baseInput({ items: [], laborCost: 20 }))
     expect(b.sellBeforeMinimum).toBeCloseTo(40, 5)
     expect(b.minPriceApplied).toBe(false) // 40 > 15
+  })
+})
+
+describe("itemElectricityCost", () => {
+  const machine = {
+    id: "m1", name: "Laser", printer_cost: 2000, additional_upfront_cost: 0,
+    estimated_annual_maintenance: 100, estimated_life_years: 5,
+    estimated_printer_uptime_percent: 0.5, average_power_consumption_watts: 1000,
+  }
+  const item = { id: "i", name: "x", quantity: 2, material_id: "", usage: 0, machine_id: "m1", machine_minutes: 30 }
+
+  it("is the power-draw slice and never exceeds the machine cost", () => {
+    const elec = itemElectricityCost(item, machine, 0.25)
+    const total = itemMachineCost(item, machine, 0.25)
+    expect(elec).toBeGreaterThan(0)
+    expect(elec).toBeLessThanOrEqual(total + 1e-9)
+    // Electricity slice matches the electricity term of the per-hour rate.
+    const perHour = (1000 / 1000) * 0.25 * 1.3
+    expect(elec).toBeCloseTo((30 / 60) * perHour * 2, 6)
+  })
+
+  it("is 0 without a machine", () => {
+    expect(itemElectricityCost(item, undefined, 0.25)).toBe(0)
   })
 })
