@@ -48,7 +48,7 @@ import {
 } from "@/lib/orders/status"
 import { TaskStatusBadge } from "@/components/orders/order-badges"
 import { formatDuration, parseDurationToMinutes, computeProgress } from "@/lib/orders/compute"
-import { taskRequiresCalculator } from "@/lib/orders/task-fields"
+import { taskRequiresCalculator, clearIncompatibleTaskFields } from "@/lib/orders/task-fields"
 import { formatMoney } from "@/lib/format"
 import { Calculator, Pencil } from "lucide-react"
 import { TaskCalculatorDialog } from "@/components/orders/task-calculator-dialog"
@@ -497,30 +497,56 @@ function EditTaskDialog({
   onReCost: () => void
   onDone: () => void
 }) {
-  const calcKind = calcKindForTaskType(task.type)
   const [name, setName] = useState(task.name)
   const [type, setType] = useState<OrderTaskType>(task.type)
   const [quantity, setQuantity] = useState(String(task.quantity ?? 1))
-  const [printerId, setPrinterId] = useState<string>(task.printer_id || "none")
-  const [material, setMaterial] = useState(task.material_name ?? "")
   const [estimate, setEstimate] = useState(task.estimated_minutes ? formatDuration(task.estimated_minutes) : "")
   const [price, setPrice] = useState<number>(task.price ?? 0)
   const [notes, setNotes] = useState(task.notes ?? "")
 
+  const requiresCalc = taskRequiresCalculator(type)
+  const calcKind = calcKindForTaskType(type)
+  const typeChanged = type !== task.type
+
+  // Type gates which inputs are shown (calculator types hide estimate/price
+  // entirely — the calculator owns them). Clear local state on every type
+  // change so a value edited under one type can't leak into the save of
+  // another.
+  function handleTypeChange(v: OrderTaskType) {
+    setType(v)
+    setEstimate("")
+    setPrice(0)
+  }
+
   async function submit() {
     if (!name.trim()) return
-    const printer = printers.find((p) => p.id === printerId)
-    await updateTask(task.id, {
+
+    const patch: Record<string, unknown> = {
       name: name.trim(),
       type,
       quantity: Math.max(1, parseInt(quantity) || 1),
-      printer_id: printerId === "none" ? null : printerId,
-      machine_name: printer?.name ?? (printerId === "none" ? null : task.machine_name ?? null),
-      material_name: material.trim() || null,
-      estimated_minutes: parseDurationToMinutes(estimate),
-      price: price || null,
       notes: notes.trim() || null,
-    })
+    }
+
+    // Clear machine/material/colour/calc_payload whenever the type actually
+    // changed (stale calc payload is kind-specific, forces a re-cost) and also
+    // whenever the saved type is generic (a generic task never carries them,
+    // even if it already was generic before this edit).
+    if (typeChanged || !requiresCalc) {
+      Object.assign(patch, clearIncompatibleTaskFields(type))
+    }
+
+    if (requiresCalc) {
+      // The calculator owns price/machine/material for these types. Keep the
+      // calculator-set price as-is unless the type just changed away from what
+      // it was costed for — then it's stale and must be re-costed.
+      if (typeChanged) patch.price = null
+    } else {
+      patch.estimated_minutes = parseDurationToMinutes(estimate)
+      patch.price = price || null
+    }
+
+    await updateTask(task.id, patch)
     onClose()
     onDone()
   }
@@ -540,7 +566,7 @@ function EditTaskDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Type</Label>
-              <Select value={type} onValueChange={(v) => setType(v as OrderTaskType)}>
+              <Select value={type} onValueChange={(v) => handleTypeChange(v as OrderTaskType)}>
                 <SelectTrigger className="bg-card">
                   <SelectValue />
                 </SelectTrigger>
@@ -558,54 +584,42 @@ function EditTaskDialog({
               <Input id="edit-task-qty" type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} className="bg-card" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Machine</Label>
-              <Select value={printerId} onValueChange={setPrinterId}>
-                <SelectTrigger className="bg-card">
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {printers.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+          {!requiresCalc && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-task-est">Est. time</Label>
+                <Input id="edit-task-est" value={estimate} onChange={(e) => setEstimate(e.target.value)} placeholder="e.g. 4h 30m" className="bg-card" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-task-price">Charge (optional)</Label>
+                <DecimalInput id="edit-task-price" value={price} onValueChange={setPrice} step="0.01" placeholder="0.00" className="bg-card" />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-task-est">Est. time</Label>
-              <Input id="edit-task-est" value={estimate} onChange={(e) => setEstimate(e.target.value)} placeholder="e.g. 4h 30m" className="bg-card" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-task-mat">Material / colour</Label>
-              <Input id="edit-task-mat" value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="e.g. ABS Black" className="bg-card" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-task-price">Price (charge)</Label>
-              <DecimalInput id="edit-task-price" value={price} onValueChange={setPrice} step="0.01" placeholder="0.00" className="bg-card" />
-            </div>
-          </div>
+          )}
+
           <div className="space-y-1.5">
             <Label htmlFor="edit-task-notes">Notes</Label>
             <Textarea id="edit-task-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="bg-card" />
           </div>
-          {calcKind && (
-            <button
-              type="button"
-              onClick={onReCost}
-              className="flex w-full items-center justify-between rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-left text-sm transition-colors hover:border-primary/40 hover:bg-primary/5"
-            >
-              <span className="flex items-center gap-2 text-foreground">
-                <Calculator className="size-4 text-primary" />
-                {task.calc_payload ? "Re-cost with" : "Cost with"} full {CALC_KIND_LABEL[calcKind]} calculator
-              </span>
-              <span className="text-xs text-muted-foreground">parts · time · pricing →</span>
-            </button>
+
+          {requiresCalc && calcKind && (
+            <>
+              <p className="text-xs text-muted-foreground">
+                {CALC_KIND_LABEL[calcKind]} tasks are costed with the calculator, which sets the price, machine, and material/colour for you.
+              </p>
+              <button
+                type="button"
+                onClick={onReCost}
+                className="flex w-full items-center justify-between rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-left text-sm transition-colors hover:border-primary/40 hover:bg-primary/5"
+              >
+                <span className="flex items-center gap-2 text-foreground">
+                  <Calculator className="size-4 text-primary" />
+                  {task.calc_payload && !typeChanged ? "Re-cost with" : "Cost with"} full {CALC_KIND_LABEL[calcKind]} calculator
+                </span>
+                <span className="text-xs text-muted-foreground">parts · time · pricing →</span>
+              </button>
+            </>
           )}
         </div>
         <DialogFooter>
