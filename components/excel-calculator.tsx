@@ -1439,8 +1439,8 @@ export function ExcelCalculator({
                   Include VAT ({vatPercentLabel}%)
                 </Label>
                 {vatEnabled && (
-                  <input type="number" min={0} step="0.5" value={Math.round(vatRate * 10000) / 100}
-                    onChange={(e) => setVatRate((parseFloat(e.target.value) || 0) / 100)}
+                  <input type="number" min={0} max={100} step="0.5" value={Math.round(vatRate * 10000) / 100}
+                    onChange={(e) => setVatRate((Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))) / 100)}
                     className="w-20 rounded border border-border bg-card px-2 py-1 text-sm" aria-label="VAT %" />
                 )}
               </div>
@@ -2530,10 +2530,10 @@ export function ExcelCalculator({
               {mode === "dual" && (
                 <div className="mt-8 pt-6 border-t border-border">
                   <h3 className="text-lg font-semibold tracking-tight text-foreground mb-4">
-                    Business Profit Split ({selectedMargin}% Margin)
+                    Dual Profit Split ({selectedMargin}% Margin)
                   </h3>
                   <div className="mb-4 grid gap-3 sm:grid-cols-2">
-                    {/* Updated Business Profit Split section with Tooltips */}
+                    {/* Updated Dual Profit Split section with Tooltips */}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="bg-purple-50/70 dark:bg-purple-950/40 p-4 rounded-xl border border-purple-200 dark:border-purple-800 cursor-help transition-shadow hover:shadow-md">
