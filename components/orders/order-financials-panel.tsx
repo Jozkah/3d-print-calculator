@@ -449,7 +449,7 @@ function CreateInvoiceDialog({
           subtotal: totals.subtotal,
           vat_rate: vatPct / 100,
           vat_amount: totals.vatAmount,
-          pricing_source: "manual",
+          pricing_source: "invoice",
         })
       }
       onOpenChange(false)

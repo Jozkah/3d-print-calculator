@@ -101,7 +101,7 @@ export type CreateOrderInput = {
   vat_amount?: number | null
   subtotal?: number | null
   estimated_cost?: number | null
-  pricing_source?: "quote" | "manual" | "tasks"
+  pricing_source?: "quote" | "manual" | "tasks" | "invoice"
   tags?: string[]
   source_quote_id?: string | null
   primary_quote_id?: string | null
@@ -709,7 +709,7 @@ export async function syncOrderFromTasks(orderId: string): Promise<void> {
     updated_at: now(),
   }
 
-  const taskDriven = priceSum > 0 || order?.pricing_source === "tasks"
+  const taskDriven = order?.pricing_source !== "invoice" && (priceSum > 0 || order?.pricing_source === "tasks")
   if (taskDriven) {
     const rate = Number(order?.vat_rate) || 0
     const subtotal = round2(priceSum / (1 + rate))

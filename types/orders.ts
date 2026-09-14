@@ -154,7 +154,7 @@ export type Order = {
   vat_amount?: number | null
   total?: number | null
   /** Where the financials came from: an accepted quote, manual entry, or the sum of production tasks. */
-  pricing_source?: "quote" | "manual" | "tasks"
+  pricing_source?: "quote" | "manual" | "tasks" | "invoice"
 
   // Quote linkage (denormalised for convenience; the source of truth is order_quote_links).
   primary_quote_id?: string | null
