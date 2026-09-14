@@ -184,6 +184,37 @@ export function invoiceLinesFromTasks(
   })
 }
 
+export type InvoiceFormat = "simple" | "detailed"
+export interface InvoiceLineInput { description: string; quantity: number; unit_price: number; amount: number }
+
+/**
+ * Compose invoice lines from a selection of tasks plus optional shipping.
+ * Cancelled tasks are always excluded. Amounts are ex-VAT; a single invoice
+ * VAT rate is applied later by computeInvoiceTotals.
+ */
+export function buildInvoiceLines(opts: {
+  tasks: readonly OrderTask[]
+  format: InvoiceFormat
+  orderTitle: string
+  shipping?: { include: boolean; cost: number; label?: string }
+}): InvoiceLineInput[] {
+  const active = activeTasks(opts.tasks)
+  const lines: InvoiceLineInput[] = []
+  if (active.length > 0) {
+    if (opts.format === "detailed") {
+      lines.push(...invoiceLinesFromTasks(active))
+    } else {
+      const amount = round2(active.reduce((s, t) => s + taskExVatAmount(t), 0))
+      lines.push({ description: opts.orderTitle || "Production", quantity: 1, unit_price: amount, amount })
+    }
+  }
+  if (opts.shipping?.include) {
+    const cost = round2(Number(opts.shipping.cost) || 0)
+    if (cost > 0) lines.push({ description: opts.shipping.label || "Shipping", quantity: 1, unit_price: cost, amount: cost })
+  }
+  return lines
+}
+
 // ---------------------------------------------------------------------------
 // Quote → headline total (reproduces components/quotation-document.tsx logic)
 // ---------------------------------------------------------------------------

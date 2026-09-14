@@ -341,3 +341,57 @@ describe("taskVatRate", () => {
     expect(taskVatRate(tasks)).toBe(0.23)
   })
 })
+
+import { buildInvoiceLines } from "./compute"
+
+const t = (over: any) => ({
+  id: over.id ?? "t", order_id: "o", name: over.name ?? "Task", type: "3d_print",
+  status: over.status ?? "queued", quantity: over.quantity ?? 1, sequence: 0,
+  price: over.price ?? null, calc_payload: over.calc_payload ?? null, created_at: "",
+  material_name: over.material_name ?? null,
+})
+
+describe("buildInvoiceLines", () => {
+  const tasks = [
+    t({ id: "a", name: "Print body", price: 100, quantity: 2, calc_payload: { vat_enabled: false } }),
+    t({ id: "b", name: "Engrave lid", price: 50, quantity: 1, calc_payload: { vat_enabled: false } }),
+  ]
+
+  it("detailed = one line per task", () => {
+    const lines = buildInvoiceLines({ tasks, format: "detailed", orderTitle: "Order X" })
+    expect(lines).toHaveLength(2)
+    expect(lines[0]).toMatchObject({ description: "Print body", quantity: 2, amount: 100 })
+    expect(lines[1]).toMatchObject({ description: "Engrave lid", quantity: 1, amount: 50 })
+  })
+
+  it("simple = one combined line summing ex-VAT task amounts", () => {
+    const lines = buildInvoiceLines({ tasks, format: "simple", orderTitle: "Order X" })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatchObject({ description: "Order X", quantity: 1, unit_price: 150, amount: 150 })
+  })
+
+  it("adds a separate shipping line when included", () => {
+    const detailed = buildInvoiceLines({ tasks, format: "detailed", orderTitle: "Order X", shipping: { include: true, cost: 12.5 } })
+    expect(detailed).toHaveLength(3)
+    expect(detailed[2]).toMatchObject({ description: "Shipping", quantity: 1, unit_price: 12.5, amount: 12.5 })
+    const simple = buildInvoiceLines({ tasks, format: "simple", orderTitle: "Order X", shipping: { include: true, cost: 12.5 } })
+    expect(simple).toHaveLength(2) // one combined task line + shipping
+    expect(simple[1].description).toBe("Shipping")
+  })
+
+  it("omits shipping when not included or zero", () => {
+    expect(buildInvoiceLines({ tasks, format: "simple", orderTitle: "X", shipping: { include: false, cost: 12.5 } })).toHaveLength(1)
+    expect(buildInvoiceLines({ tasks, format: "simple", orderTitle: "X", shipping: { include: true, cost: 0 } })).toHaveLength(1)
+  })
+
+  it("excludes cancelled tasks even if passed in", () => {
+    const withCancelled = [...tasks, t({ id: "c", name: "Void", price: 999, status: "cancelled", calc_payload: { vat_enabled: false } })]
+    expect(buildInvoiceLines({ tasks: withCancelled, format: "detailed", orderTitle: "X" })).toHaveLength(2)
+    expect(buildInvoiceLines({ tasks: withCancelled, format: "simple", orderTitle: "X" })[0].amount).toBe(150)
+  })
+
+  it("no tasks + shipping only = shipping line only", () => {
+    expect(buildInvoiceLines({ tasks: [], format: "simple", orderTitle: "X", shipping: { include: true, cost: 5 } }))
+      .toEqual([{ description: "Shipping", quantity: 1, unit_price: 5, amount: 5 }])
+  })
+})
