@@ -527,7 +527,7 @@ function QuoteHistory({
     if (!error) {
       toast({
         title: "Quote Converted",
-        description: `Quote converted from ${currentType} to ${newType}`,
+        description: `Quote converted from ${current} to ${newType}`,
       })
     } else {
       toast({
